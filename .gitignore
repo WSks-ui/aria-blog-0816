@@ -22,3 +22,8 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+# 本地生成的搜索索引与浏览器测试产物
+.pagefind/
+playwright-report/
+test-results/

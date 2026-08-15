@@ -1,0 +1,72 @@
+---
+import SiteFooter from '@/components/shell/SiteFooter.astro';
+import SiteFrame from '@/components/shell/SiteFrame.astro';
+import SiteHeader from '@/components/shell/SiteHeader.astro';
+import RainField from '@/components/visual/RainField.astro';
+import { MemoryVault, SearchDialog, WeatherModeControl } from '@/components/interactive';
+import '@/styles/global.css';
+
+interface Props {
+	title?: string;
+	description?: string;
+	image?: string;
+	type?: 'website' | 'article';
+	className?: string;
+}
+
+const {
+	title = 'Aria-7',
+	description = 'Aria-7 的个人写作档案，记录学习、创作、项目与技术实践。',
+	image = '/assets/covers/default-day.webp',
+	type = 'website',
+	className = '',
+} = Astro.props;
+
+const pageTitle = title === 'Aria-7' ? title : `${title} / Aria-7`;
+const canonical = new URL(Astro.url.pathname, Astro.site ?? Astro.url.origin);
+const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
+---
+
+<!doctype html>
+<html lang="zh-CN" data-weather-mode="rain" data-theme="light">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="generator" content={Astro.generator} />
+		<meta name="description" content={description} />
+		<meta name="theme-color" content="#f3f4f2" />
+		<link rel="canonical" href={canonical} />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="alternate" type="application/rss+xml" title="Aria-7 RSS" href="/rss.xml" />
+		<meta property="og:type" content={type} />
+		<meta property="og:title" content={pageTitle} />
+		<meta property="og:description" content={description} />
+		<meta property="og:url" content={canonical} />
+		<meta property="og:image" content={socialImage} />
+		<meta name="twitter:card" content="summary_large_image" />
+		<title>{pageTitle}</title>
+		<script is:inline>
+			(() => {
+				const saved = localStorage.getItem('aria7-weather-mode');
+				const initial = saved || (matchMedia('(prefers-color-scheme: dark)').matches ? 'night' : 'rain');
+				document.documentElement.dataset.weatherMode = initial;
+				document.documentElement.dataset.theme = initial === 'night' ? 'night' : 'light';
+				document.documentElement.style.colorScheme = initial === 'night' ? 'dark' : 'light';
+			})();
+		</script>
+	</head>
+	<body class={className}>
+		<a class="skip-link" href="#main-content">跳到正文</a>
+		<SiteFrame />
+		<RainField />
+		<SiteHeader pathname={Astro.url.pathname}>
+			<WeatherModeControl slot="weather-control" />
+		</SiteHeader>
+		<main id="main-content">
+			<slot />
+		</main>
+		<SiteFooter />
+		<SearchDialog />
+		<MemoryVault />
+	</body>
+</html>

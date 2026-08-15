@@ -1,0 +1,326 @@
+---
+import { BookOpen, BookmarkPlus, Download, Trash2 } from '@lucide/astro';
+
+interface Props {
+  class?: string;
+  maxLength?: number;
+  scopeSelector?: string;
+  storageKey?: string;
+  title?: string;
+}
+
+const {
+  class: className,
+  maxLength = 500,
+  scopeSelector = 'article',
+  storageKey = 'aria7-memory-vault',
+  title = '记忆库',
+} = Astro.props;
+
+const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
+---
+
+<section
+  class:list={['memory-vault', className]}
+  data-memory-vault
+  data-storage-key={storageKey}
+  data-scope-selector={scopeSelector}
+  data-max-length={maxLength}
+  aria-label={title}
+>
+  <div class="memory-vault__toolbar">
+    <button
+      class="memory-vault__save"
+      type="button"
+      data-memory-save
+      aria-label="收藏当前选中的句子"
+    >
+      <BookmarkPlus size={20} stroke-width={1.5} aria-hidden="true" />
+      <span>收藏选句</span>
+    </button>
+    <button
+      class="memory-vault__toggle"
+      type="button"
+      data-memory-toggle
+      aria-controls={panelId}
+      aria-expanded="false"
+    >
+      <BookOpen size={20} stroke-width={1.5} aria-hidden="true" />
+      <span>{title}</span>
+      <output class="memory-vault__count" data-memory-count aria-label="收藏数量">0</output>
+    </button>
+  </div>
+
+  <div class="memory-vault__panel" id={panelId} data-memory-panel hidden>
+    <header class="memory-vault__panel-header">
+      <h2 class="memory-vault__title">{title}</h2>
+      <button class="memory-vault__export" type="button" data-memory-export disabled>
+        <Download size={20} stroke-width={1.5} aria-hidden="true" />
+        <span>导出 JSON</span>
+      </button>
+    </header>
+    <p class="memory-vault__status" data-memory-status aria-live="polite">
+      在正文中选择句子后即可收藏。
+    </p>
+    <p class="memory-vault__empty" data-memory-empty>还没有收藏句子。</p>
+    <ol class="memory-vault__list" data-memory-list></ol>
+  </div>
+
+  <template data-memory-delete-template>
+    <button class="memory-vault__delete" type="button" data-memory-delete>
+      <Trash2 size={18} stroke-width={1.5} aria-hidden="true" />
+      <span>删除</span>
+    </button>
+  </template>
+</section>
+
+<script>
+  interface MemoryRecord {
+    id: string;
+    text: string;
+    title: string;
+    url: string;
+    createdAt: string;
+  }
+
+  function initMemoryVaults() {
+    document.querySelectorAll<HTMLElement>('[data-memory-vault]').forEach((root) => {
+      if (root.dataset.interactiveReady === 'true') return;
+      root.dataset.interactiveReady = 'true';
+
+      const saveButton = root.querySelector<HTMLButtonElement>('[data-memory-save]');
+      const toggleButton = root.querySelector<HTMLButtonElement>('[data-memory-toggle]');
+      const panel = root.querySelector<HTMLElement>('[data-memory-panel]');
+      const status = root.querySelector<HTMLElement>('[data-memory-status]');
+      const empty = root.querySelector<HTMLElement>('[data-memory-empty]');
+      const list = root.querySelector<HTMLOListElement>('[data-memory-list]');
+      const exportButton = root.querySelector<HTMLButtonElement>('[data-memory-export]');
+      const deleteTemplate = root.querySelector<HTMLTemplateElement>('[data-memory-delete-template]');
+      if (!saveButton || !toggleButton || !panel || !status || !empty || !list || !exportButton || !deleteTemplate) return;
+
+      const storageKey = root.dataset.storageKey || 'aria7-memory-vault';
+      const maxLength = Math.max(20, Number(root.dataset.maxLength) || 500);
+      let records: MemoryRecord[] = [];
+      let lastValidSelection = '';
+      let scope: HTMLElement | null = null;
+
+      try {
+        scope = document.querySelector<HTMLElement>(root.dataset.scopeSelector || 'article');
+      } catch (error) {
+        console.error('[MemoryVault] 正文选择器无效', error);
+      }
+
+      const isMemoryRecord = (value: unknown): value is MemoryRecord => {
+        if (!value || typeof value !== 'object') return false;
+        const item = value as Partial<MemoryRecord>;
+        const hasRequiredFields = ['id', 'text', 'title', 'url', 'createdAt'].every(
+          (key) => typeof item[key as keyof MemoryRecord] === 'string',
+        );
+        return hasRequiredFields && !Number.isNaN(Date.parse(item.createdAt as string));
+      };
+
+      const readRecords = () => {
+        try {
+          const parsed: unknown = JSON.parse(localStorage.getItem(storageKey) || '[]');
+          records = Array.isArray(parsed) ? parsed.filter(isMemoryRecord) : [];
+        } catch {
+          records = [];
+          status.textContent = '本地收藏数据无法读取，已使用空记忆库。';
+        }
+      };
+
+      const syncCountDisplays = () => {
+        const value = String(records.length);
+        // 文章收尾、浮动工具栏等位置可共用同一标记展示本地纸片数量。
+        document.querySelectorAll<HTMLElement>('[data-memory-count]').forEach((target) => {
+          target.textContent = value;
+          if (target instanceof HTMLOutputElement) target.value = value;
+        });
+      };
+
+      const writeRecords = () => {
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(records));
+          syncCountDisplays();
+          document.dispatchEvent(
+            new CustomEvent('memory-vault-change', { detail: { count: records.length } }),
+          );
+          return true;
+        } catch {
+          status.textContent = '浏览器未允许本地存储，暂时无法保存。';
+          return false;
+        }
+      };
+
+      const normalizeSelection = (value: string) => value.replace(/\s+/g, ' ').trim();
+
+      const getValidSelection = () => {
+        if (!scope) return '';
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return '';
+        const range = selection.getRangeAt(0);
+        const ancestor = range.commonAncestorContainer.nodeType === Node.TEXT_NODE
+          ? range.commonAncestorContainer.parentElement
+          : range.commonAncestorContainer;
+
+        // 选区必须完全属于正文，且不能来自记忆库自身，避免误存按钮文字。
+        if (!(ancestor instanceof Node) || !scope.contains(ancestor) || root.contains(ancestor)) return '';
+        return normalizeSelection(selection.toString());
+      };
+
+      const safeSourceUrl = (value: string) => {
+        try {
+          const url = new URL(value, window.location.href);
+          return ['http:', 'https:'].includes(url.protocol) ? url.href : window.location.href;
+        } catch {
+          return window.location.href;
+        }
+      };
+
+      const render = () => {
+        list.replaceChildren();
+        syncCountDisplays();
+        empty.hidden = records.length > 0;
+        exportButton.disabled = records.length === 0;
+
+        records.forEach((record) => {
+          const item = document.createElement('li');
+          item.className = 'memory-vault__item';
+          item.dataset.memoryId = record.id;
+
+          const quote = document.createElement('blockquote');
+          quote.className = 'memory-vault__quote';
+          quote.textContent = record.text;
+
+          const meta = document.createElement('p');
+          meta.className = 'memory-vault__meta';
+          const source = document.createElement('a');
+          source.className = 'memory-vault__source';
+          source.href = safeSourceUrl(record.url);
+          source.textContent = record.title;
+          const time = document.createElement('time');
+          time.className = 'memory-vault__time';
+          time.dateTime = record.createdAt;
+          time.textContent = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium' }).format(new Date(record.createdAt));
+          meta.append(source, document.createTextNode(' · '), time);
+
+          const deleteControl = deleteTemplate.content.cloneNode(true) as DocumentFragment;
+          const deleteButton = deleteControl.querySelector<HTMLButtonElement>('[data-memory-delete]');
+          if (deleteButton) {
+            deleteButton.dataset.memoryId = record.id;
+            deleteButton.setAttribute('aria-label', `删除收藏：${record.text.slice(0, 24)}`);
+          }
+
+          item.append(quote, meta, deleteControl);
+          list.append(item);
+        });
+      };
+
+      const setPanelOpen = (open: boolean) => {
+        panel.hidden = !open;
+        toggleButton.setAttribute('aria-expanded', String(open));
+        root.dataset.open = String(open);
+      };
+
+      document.addEventListener('selectionchange', () => {
+        const selectedText = getValidSelection();
+        if (selectedText) lastValidSelection = selectedText;
+      });
+
+      saveButton.addEventListener('pointerdown', () => {
+        const selectedText = getValidSelection();
+        if (selectedText) lastValidSelection = selectedText;
+      });
+
+      saveButton.addEventListener('click', () => {
+        const selectedText = getValidSelection() || lastValidSelection;
+        if (!scope) {
+          status.textContent = '未找到可收藏的正文区域。';
+          setPanelOpen(true);
+          return;
+        }
+        if (!selectedText) {
+          status.textContent = '请先在正文中选择一句文字。';
+          setPanelOpen(true);
+          return;
+        }
+        if (selectedText.length > maxLength) {
+          status.textContent = `选中文字超过 ${maxLength} 字，请缩短后重试。`;
+          setPanelOpen(true);
+          return;
+        }
+
+        const sourceUrl = `${window.location.origin}${window.location.pathname}${window.location.search}`;
+        if (records.some((record) => record.text === selectedText && record.url === sourceUrl)) {
+          status.textContent = '这句话已经收藏过。';
+          setPanelOpen(true);
+          return;
+        }
+
+        const record: MemoryRecord = {
+          id: crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          text: selectedText,
+          title: document.title,
+          url: sourceUrl,
+          createdAt: new Date().toISOString(),
+        };
+        records.unshift(record);
+        if (!writeRecords()) {
+          records.shift();
+          return;
+        }
+        lastValidSelection = '';
+        status.textContent = '已收藏到本机记忆库。';
+        render();
+        setPanelOpen(true);
+        window.getSelection()?.removeAllRanges();
+      });
+
+      toggleButton.addEventListener('click', () => setPanelOpen(panel.hasAttribute('hidden')));
+
+      list.addEventListener('click', (event) => {
+        const button = event.target instanceof Element
+          ? event.target.closest<HTMLButtonElement>('[data-memory-delete]')
+          : null;
+        const id = button?.dataset.memoryId;
+        if (!id) return;
+        const previousRecords = records;
+        records = records.filter((record) => record.id !== id);
+        if (writeRecords()) {
+          status.textContent = '已删除收藏。';
+          render();
+        } else {
+          records = previousRecords;
+        }
+      });
+
+      exportButton.addEventListener('click', () => {
+        if (records.length === 0) return;
+        const payload = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), records }, null, 2);
+        const objectUrl = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = `aria7-memory-vault-${new Date().toISOString().slice(0, 10)}.json`;
+        link.hidden = true;
+        document.body.append(link);
+        link.click();
+        link.remove();
+        // 等浏览器接管下载后再释放 URL，避免极少数实现中下载尚未启动就失效。
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+        status.textContent = `已导出 ${records.length} 条收藏。`;
+      });
+
+      window.addEventListener('storage', (event) => {
+        if (event.key !== storageKey && event.key !== null) return;
+        readRecords();
+        render();
+      });
+
+      readRecords();
+      render();
+    });
+  }
+
+  initMemoryVaults();
+  document.addEventListener('astro:page-load', initMemoryVaults);
+</script>

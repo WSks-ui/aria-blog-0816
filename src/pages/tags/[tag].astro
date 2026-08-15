@@ -1,0 +1,32 @@
+---
+import ArticleRow from '@/components/content/ArticleRow.astro';
+import PageHeader from '@/components/content/PageHeader.astro';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { collectTagCounts, getPosts, getPostsByTag, type PostEntry } from '@/lib/content';
+
+export async function getStaticPaths() {
+	const posts = await getPosts();
+	return Promise.all(collectTagCounts(posts).map(async ({ label }) => ({
+		params: { tag: label },
+		props: { tag: label, posts: await getPostsByTag(label) },
+	})));
+}
+
+interface Props { tag: string; posts: PostEntry[] }
+const { tag, posts } = Astro.props;
+---
+
+<BaseLayout title={`#${tag}`} description={`以“${tag}”为共同线索的文章。`}>
+	<div class="page-shell">
+		<PageHeader eyebrow="INDEX / TAG" title={`#${tag}`} description="这些记录因同一个标签短暂相遇。" count={posts.length} />
+		<section class="page-list" aria-label={`${tag} 标签文章`}>
+			{posts.map((post, index) => <ArticleRow post={post} index={index + 1} />)}
+		</section>
+	</div>
+</BaseLayout>
+
+<style>
+	.page-shell { max-width: var(--content-max); margin-inline: auto; padding-inline: var(--page-gutter); }
+	.page-list { margin-top: 64px; }
+	@media (max-width: 760px) { .page-shell { padding-inline: 20px; } }
+</style>

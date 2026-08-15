@@ -1,0 +1,42 @@
+---
+import ArticleRow from '@/components/content/ArticleRow.astro';
+import PageHeader from '@/components/content/PageHeader.astro';
+import { POST_KIND_LABELS, POST_KINDS, type PostKind } from '@/data/site';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { getPostsByKind, type PostEntry } from '@/lib/content';
+
+const descriptions: Record<PostKind, string> = {
+	essay: '较完整的思考、观察与叙事，允许一件事被慢慢说清楚。',
+	note: '短小的学习记录与阶段结论，保留形成过程。',
+	project: 'GitHub 项目的背景、取舍、实现过程与维护记录。',
+	photo: '摄影、插画与视觉实验，以图像顺序建立叙事。',
+	code: '可复用的代码片段、调试笔记与实现边界。',
+	tutorial: '从问题到结果的完整指南，强调可重复和可验证。',
+};
+
+export async function getStaticPaths() {
+	return Promise.all(POST_KINDS.map(async (kind) => ({
+		params: { kind },
+		props: { kind, posts: await getPostsByKind(kind) },
+	})));
+}
+
+interface Props { kind: PostKind; posts: PostEntry[] }
+const { kind, posts } = Astro.props;
+---
+
+<BaseLayout title={POST_KIND_LABELS[kind]} description={descriptions[kind]}>
+	<div class="page-shell">
+		<PageHeader eyebrow={`TYPE / ${kind.toUpperCase()}`} title={POST_KIND_LABELS[kind]} description={descriptions[kind]} count={posts.length} />
+		<section class="page-list" aria-label={`${POST_KIND_LABELS[kind]}列表`}>
+			{posts.length > 0 ? posts.map((post, index) => <ArticleRow post={post} index={index + 1} />) : <p class="empty">这个分类还没有正式发布的内容。</p>}
+		</section>
+	</div>
+</BaseLayout>
+
+<style>
+	.page-shell { max-width: var(--content-max); margin-inline: auto; padding-inline: var(--page-gutter); }
+	.page-list { margin-top: 64px; }
+	.empty { padding-block: 72px; border-block: 1px solid var(--line); color: var(--ink-muted); }
+	@media (max-width: 760px) { .page-shell { padding-inline: 20px; } }
+</style>

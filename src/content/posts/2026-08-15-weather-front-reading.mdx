@@ -1,0 +1,64 @@
+---
+title: "把一篇长文写成三段天气"
+summary: "一篇用于演示 MDX 写作能力的长文样稿：章节会从晴朗、降雨过渡到夜色，并穿插可展开的雨痕脚注。"
+publishedAt: 2026-08-15
+updatedAt: null
+tags: ["MDX", "写作", "版式"]
+kind: "tutorial"
+featured: false
+draft: false
+github: null
+cover: null
+readingWeather:
+  condition: "阵雨转阴"
+  temperature: 23
+  location: "书桌"
+---
+
+普通 Markdown 足以承载大多数文章；当内容需要拥有自己的节奏时，MDX 可以把少量交互组件嵌进正文。下面用同一篇文章演示三种章节气候，以及一条不会打断主线的补充说明。
+
+<WeatherFront mode="clear" label="01 / CLEAR">
+
+## 先把问题写清楚
+
+晴朗章节适合放置定义、结论与必要背景。段落保持短而明确，让读者在进入复杂内容前先获得稳定坐标。
+
+写作时仍然使用标准 Markdown：标题会进入左侧 `SCENE` 导轨，链接、代码块与列表也会由站点统一排版。
+
+</WeatherFront>
+
+<WeatherFront mode="rain" label="02 / RAIN">
+
+## 让论证逐渐加密
+
+进入分析后，页面的色调会略微收紧。这里适合展开步骤、对比方案，或者放置需要连续阅读的技术推导。
+
+```ts
+const publish = (draft: Article) => ({
+  ...draft,
+  status: 'published',
+  publishedAt: new Date().toISOString(),
+});
+```
+
+<RainFootnote index={1} title="关于组件使用范围">
+
+天气锋面只应用于真正需要改变阅读气氛的章节。普通短笔记不必为了视觉效果强行加入组件。
+
+</RainFootnote>
+
+</WeatherFront>
+
+<WeatherFront mode="night" label="03 / NIGHT">
+
+## 在夜色中收束线索
+
+最后一段减少新信息，把仍未解决的问题与后续阅读方向留给读者。深色并不代表整站切换主题，它只是这段内容自己的局部状态。
+
+文章末尾的“夜间回声”会继续显示阅读时间、章节数量、已收藏纸片和相关文章，让结束位置同时成为下一条路径的入口。
+
+</WeatherFront>
+
+## 实际写作约定
+
+只有需要组件的文章才使用 `.mdx`；其余内容继续使用更轻量的 `.md`。所有文章都由 Git 管理，提交后重新构建即可更新搜索、标签、归档、RSS 与关系图。

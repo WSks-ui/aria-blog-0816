@@ -1,0 +1,148 @@
+import { getCollection, type CollectionEntry } from 'astro:content';
+
+import type { PostKind } from '../data/site';
+
+export type PostEntry = CollectionEntry<'posts'>;
+
+export interface PostFilters {
+	kind?: PostKind | readonly PostKind[];
+	tag?: string;
+	tags?: readonly string[];
+	featured?: boolean;
+	includeDrafts?: boolean;
+	publishedFrom?: Date;
+	publishedTo?: Date;
+}
+
+export interface RelatedPost {
+	post: PostEntry;
+	score: number;
+}
+
+const normalizeTag = (tag: string) => tag.trim().toLocaleLowerCase();
+
+const asArray = <T>(value: T | readonly T[] | undefined): readonly T[] => {
+	if (value === undefined) return [];
+	return Array.isArray(value) ? value : [value as T];
+};
+
+/**
+ * 统一文章顺序：首次发布时间倒序；时间相同则按更新时间、标题和 id 保证构建结果稳定。
+ * 返回新数组，调用方可以安全复用传入的集合。
+ */
+export function sortPosts(posts: readonly PostEntry[]): PostEntry[] {
+	return [...posts].sort((left, right) => {
+		const publishedDelta = right.data.publishedAt.getTime() - left.data.publishedAt.getTime();
+		if (publishedDelta !== 0) return publishedDelta;
+
+		const leftUpdated = left.data.updatedAt?.getTime() ?? left.data.publishedAt.getTime();
+		const rightUpdated = right.data.updatedAt?.getTime() ?? right.data.publishedAt.getTime();
+		const updatedDelta = rightUpdated - leftUpdated;
+		if (updatedDelta !== 0) return updatedDelta;
+
+		const titleDelta = left.data.title.localeCompare(right.data.title, 'zh-CN');
+		return titleDelta !== 0 ? titleDelta : left.id.localeCompare(right.id);
+	});
+}
+
+/**
+ * 所有面向访客的查询默认剔除草稿。只有预览页或编辑工具应显式传入 includeDrafts。
+ * 多个 tags 采用“命中任一标签”的语义，便于标签聚合页复用。
+ */
+export function filterPosts(posts: readonly PostEntry[], filters: PostFilters = {}): PostEntry[] {
+	const kinds = asArray(filters.kind);
+	const requestedTags = [filters.tag, ...(filters.tags ?? [])]
+		.filter((tag): tag is string => Boolean(tag?.trim()))
+		.map(normalizeTag);
+
+	return posts.filter((post) => {
+		if (!filters.includeDrafts && post.data.draft) return false;
+		if (filters.featured !== undefined && post.data.featured !== filters.featured) return false;
+		if (kinds.length > 0 && !kinds.includes(post.data.kind)) return false;
+
+		if (requestedTags.length > 0) {
+			const postTags = new Set(post.data.tags.map(normalizeTag));
+			if (!requestedTags.some((tag) => postTags.has(tag))) return false;
+		}
+
+		const publishedAt = post.data.publishedAt.getTime();
+		if (filters.publishedFrom && publishedAt < filters.publishedFrom.getTime()) return false;
+		if (filters.publishedTo && publishedAt > filters.publishedTo.getTime()) return false;
+
+		return true;
+	});
+}
+
+export async function getPosts(filters: PostFilters = {}): Promise<PostEntry[]> {
+	const posts = await getCollection('posts');
+	return sortPosts(filterPosts(posts, filters));
+}
+
+export function getPostSlug(post: PostEntry): string {
+	return post.id.replace(/\.(?:md|mdx)$/i, '').replaceAll('\\', '/');
+}
+
+export function getPostPath(post: PostEntry): string {
+	return `/posts/${getPostSlug(post)}/`;
+}
+
+export async function getPostsByKind(kind: PostKind, filters: Omit<PostFilters, 'kind'> = {}) {
+	return getPosts({ ...filters, kind });
+}
+
+export async function getPostsByTag(tag: string, filters: Omit<PostFilters, 'tag' | 'tags'> = {}) {
+	return getPosts({ ...filters, tag });
+}
+
+/**
+ * 相关文章优先级由共同标签决定，其次考虑内容类型和精选状态。
+ * 分值相同时沿用全站文章时间顺序，避免每次构建出现随机跳动。
+ */
+export function rankRelatedPosts(
+	current: PostEntry,
+	candidates: readonly PostEntry[],
+	limit = 3,
+): RelatedPost[] {
+	const currentTags = new Set(current.data.tags.map(normalizeTag));
+	const ranked = candidates
+		.filter((candidate) => candidate.id !== current.id && !candidate.data.draft)
+		.map((candidate) => {
+			const sharedTags = candidate.data.tags.reduce(
+				(count, tag) => count + Number(currentTags.has(normalizeTag(tag))),
+				0,
+			);
+			const sameKind = candidate.data.kind === current.data.kind ? 1 : 0;
+			const score = sharedTags * 4 + sameKind * 2 + Number(candidate.data.featured) * 0.25;
+			return { post: candidate, score };
+		})
+		.filter((candidate) => candidate.score > 0)
+		.sort((left, right) => {
+			const scoreDelta = right.score - left.score;
+			if (scoreDelta !== 0) return scoreDelta;
+			return sortPosts([left.post, right.post])[0]?.id === left.post.id ? -1 : 1;
+		});
+
+	return ranked.slice(0, Math.max(0, Math.floor(limit)));
+}
+
+export async function getRelatedPosts(current: PostEntry, limit = 3): Promise<PostEntry[]> {
+	const posts = await getCollection('posts');
+	return rankRelatedPosts(current, posts, limit).map(({ post }) => post);
+}
+
+export function collectTagCounts(posts: readonly PostEntry[]) {
+	const tags = new Map<string, { label: string; count: number }>();
+
+	for (const post of posts) {
+		if (post.data.draft) continue;
+		for (const label of post.data.tags) {
+			const key = normalizeTag(label);
+			const current = tags.get(key);
+			tags.set(key, { label: current?.label ?? label, count: (current?.count ?? 0) + 1 });
+		}
+	}
+
+	return [...tags.values()].sort(
+		(left, right) => right.count - left.count || left.label.localeCompare(right.label, 'zh-CN'),
+	);
+}

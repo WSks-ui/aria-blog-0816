@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">雨天档案标志</title>
+  <desc id="desc">由雨伞、档案格和一张飘落纸片组成的青色标志</desc>
+  <g fill="none" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M14 48C18 27 38 14 64 14s46 13 50 34H14Z" fill="#1887aa" stroke="#1887aa" stroke-width="2"/>
+    <path d="M24 48c7-8 16-8 24 0M48 48c6-8 12-8 16 0M64 48c4-8 10-8 16 0M80 48c8-8 17-8 24 0" stroke="#edf1f1" stroke-width="1.5" opacity=".8"/>
+    <path d="M64 48v42c0 13 17 13 17 1" stroke="#27373b" stroke-width="5"/>
+    <path d="M28 67h21M28 78h21M28 89h21M38.5 58v40" stroke="#59b8cf" stroke-width="2"/>
+    <path d="M99 67h13v13H99z" fill="#f3f2ec" stroke="#27373b" stroke-width="1.5" transform="rotate(8 105.5 73.5)"/>
+    <path d="M9 24V9h15M104 9h15v15M9 104v15h15M104 119h15v-15" stroke="#55757e" stroke-width="2"/>
+  </g>
+</svg>

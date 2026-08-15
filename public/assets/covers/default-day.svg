@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">雨天档案日间默认封面</title>
+  <desc id="desc">冷灰纸面上的青色雨伞、档案网格、雨线与漂浮纸片</desc>
+  <rect width="1600" height="900" fill="#edf1f1"/>
+
+  <g fill="none" stroke="#9bb6bd" stroke-width="1" opacity=".58">
+    <path d="M56 194h1488M56 706h1488M312 56v788M1288 56v788"/>
+    <path d="M56 56h1488v788H56z"/>
+  </g>
+  <g fill="none" stroke="#1887aa" stroke-width="3">
+    <path d="M56 118V56h62M1482 56h62v62M56 782v62h62M1482 844h62v-62"/>
+  </g>
+
+  <g stroke="#55757e" stroke-width="1" opacity=".2">
+    <path d="M416 194v512M544 194v512M672 194v512M800 194v512M928 194v512M1056 194v512M1184 194v512"/>
+    <path d="M312 322h976M312 450h976M312 578h976"/>
+  </g>
+
+  <g fill="#27373b" font-family="Avenir Next, Segoe UI, Noto Sans SC, sans-serif" letter-spacing="0">
+    <text x="96" y="108" font-size="31" font-weight="600">RAIN ARCHIVE</text>
+    <text x="96" y="145" fill="#607378" font-family="IBM Plex Mono, Cascadia Code, monospace" font-size="15">DAYLIGHT EDITION / SCENE 00</text>
+    <text x="1306" y="108" fill="#1887aa" font-family="IBM Plex Mono, Cascadia Code, monospace" font-size="16">RA—07</text>
+  </g>
+
+  <g fill="none" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M500 424C523 292 646 216 800 216s277 76 300 208H500Z" fill="#59b8cf" stroke="#1887aa" stroke-width="4"/>
+    <path d="M542 424c47-54 99-54 148 0M690 424c37-54 73-54 110 0M800 424c37-54 73-54 110 0M910 424c49-54 101-54 148 0" stroke="#edf1f1" stroke-width="3" opacity=".88"/>
+    <path d="M800 424v178c0 72 94 72 94 4" stroke="#27373b" stroke-width="12"/>
+    <path d="M800 216v208M500 424l300-208M690 424l110-208M910 424 800 216M1100 424 800 216" stroke="#1887aa" stroke-width="2" opacity=".7"/>
+  </g>
+
+  <g fill="#f3f2ec" stroke="#55757e" stroke-width="2">
+    <rect x="382" y="268" width="48" height="48" transform="rotate(-9 406 292)"/>
+    <rect x="1167" y="315" width="29" height="29" transform="rotate(11 1181.5 329.5)"/>
+    <rect x="1091" y="612" width="62" height="62" transform="rotate(-7 1122 643)"/>
+    <rect x="460" y="618" width="24" height="24" transform="rotate(13 472 630)"/>
+  </g>
+  <g fill="#1887aa">
+    <rect x="1210" y="530" width="18" height="18" transform="rotate(8 1219 539)"/>
+    <rect x="358" y="524" width="13" height="13" transform="rotate(-12 364.5 530.5)"/>
+  </g>
+
+  <g fill="#607378" font-family="IBM Plex Mono, Cascadia Code, monospace" font-size="14" letter-spacing="0">
+    <text x="96" y="774">PRECIPITATION / 72%</text>
+    <text x="96" y="806">PAPER DRIFT / NORTH-EAST</text>
+    <text x="1304" y="774">1600 × 900</text>
+    <text x="1304" y="806">ARCHIVE COVER</text>
+  </g>
+</svg>

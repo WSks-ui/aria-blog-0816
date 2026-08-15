@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 128" role="img" aria-labelledby="title desc">
+  <title id="title">雨天档案 Rain Archive</title>
+  <desc id="desc">雨伞档案标志与中英文站名组合</desc>
+  <g transform="translate(10 10) scale(.84)" fill="none" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M14 48C18 27 38 14 64 14s46 13 50 34H14Z" fill="#1887aa" stroke="#1887aa" stroke-width="2"/>
+    <path d="M24 48c7-8 16-8 24 0M48 48c6-8 12-8 16 0M64 48c4-8 10-8 16 0M80 48c8-8 17-8 24 0" stroke="#edf1f1" stroke-width="1.5" opacity=".8"/>
+    <path d="M64 48v42c0 13 17 13 17 1" stroke="#27373b" stroke-width="5"/>
+    <path d="M28 67h21M28 78h21M28 89h21M38.5 58v40" stroke="#59b8cf" stroke-width="2"/>
+  </g>
+  <path d="M136 23h548M136 105h548" stroke="#9bb6bd" stroke-width="1"/>
+  <text x="152" y="73" fill="#27373b" font-family="Noto Serif SC, Source Han Serif SC, Songti SC, serif" font-size="44" font-weight="500" letter-spacing="0">雨天档案</text>
+  <text x="414" y="54" fill="#1887aa" font-family="Avenir Next, Segoe UI, Noto Sans, sans-serif" font-size="15" font-weight="600" letter-spacing="0">RAIN ARCHIVE</text>
+  <text x="414" y="79" fill="#607378" font-family="IBM Plex Mono, Cascadia Code, monospace" font-size="11" letter-spacing="0">SCENE / PERSONAL NOTES / 07</text>
+  <rect x="665" y="47" width="13" height="13" fill="#59b8cf" transform="rotate(9 671.5 53.5)"/>
+</svg>

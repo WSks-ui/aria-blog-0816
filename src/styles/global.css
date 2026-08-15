@@ -1,0 +1,215 @@
+@import "./tokens.css";
+@import "./reset.css";
+@import "./typography.css";
+@import "./themes.css";
+@import "./motion.css";
+@import "./interactive.css";
+
+body {
+  position: relative;
+  isolation: isolate;
+  overflow-x: clip;
+}
+
+body::before {
+  position: fixed;
+  z-index: var(--z-background);
+  inset: 0;
+  background-image: url("/assets/patterns/rain-lines.svg");
+  background-position: center top;
+  background-size: cover;
+  content: "";
+  opacity: var(--theme-pattern-opacity, 0.16);
+  pointer-events: none;
+}
+
+.site-shell {
+  width: min(100%, calc(var(--content-width) + (var(--page-gutter) * 2)));
+  margin-inline: auto;
+  padding-inline: var(--page-gutter);
+}
+
+.reading-shell {
+  display: grid;
+  grid-template-columns: minmax(0, var(--reading-width)) minmax(12rem, var(--rail-width));
+  gap: clamp(var(--space-6), 6vw, var(--space-9));
+  align-items: start;
+  width: min(100%, var(--content-width));
+  margin-inline: auto;
+}
+
+.archive-frame {
+  position: relative;
+  border: var(--border-hairline);
+}
+
+.archive-frame::before,
+.archive-frame::after {
+  position: absolute;
+  width: 2.25rem;
+  height: 2.25rem;
+  content: "";
+  pointer-events: none;
+}
+
+.archive-frame::before {
+  inset: -1px auto auto -1px;
+  border-block-start: 2px solid var(--color-rain-deep);
+  border-inline-start: 2px solid var(--color-rain-deep);
+}
+
+.archive-frame::after {
+  inset: auto -1px -1px auto;
+  border-inline-end: 2px solid var(--color-rain-deep);
+  border-block-end: 2px solid var(--color-rain-deep);
+}
+
+.archive-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 1px;
+  background: color-mix(in srgb, var(--color-line), transparent 38%);
+  border: var(--border-hairline);
+}
+
+.archive-grid > * {
+  min-width: 0;
+  background: var(--color-surface);
+}
+
+.scene-rule {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  color: var(--color-ink-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-ui);
+}
+
+.scene-rule::after {
+  min-width: 2rem;
+  height: 1px;
+  flex: 1;
+  background: var(--color-line);
+  content: "";
+}
+
+.weather-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  align-items: center;
+  color: var(--color-ink-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-ui);
+}
+
+.weather-meta > * + * {
+  padding-inline-start: var(--space-4);
+  border-inline-start: var(--border-hairline);
+}
+
+.paper-panel {
+  background-color: color-mix(in srgb, var(--color-surface), transparent 4%);
+  background-image: url("/assets/patterns/paper-drift.svg");
+  background-position: right top;
+  background-repeat: no-repeat;
+  border: var(--border-hairline);
+  box-shadow: var(--shadow-paper);
+}
+
+.rain-divider {
+  width: 100%;
+  height: 1px;
+  border: 0;
+  background: linear-gradient(
+    90deg,
+    var(--color-rain-deep) 0 3.5rem,
+    transparent 3.5rem 4rem,
+    var(--color-line) 4rem 100%
+  );
+}
+
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.skip-link {
+  position: fixed;
+  z-index: var(--z-dialog);
+  inset-block-start: var(--space-3);
+  inset-inline-start: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  color: var(--color-surface);
+  background: var(--color-ink);
+  border: 1px solid currentColor;
+  transform: translateY(-180%);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+@media (max-width: 64rem) {
+  .reading-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 48rem) {
+  body::before {
+    background-size: auto 100vh;
+    opacity: min(var(--theme-pattern-opacity, 0.12), 0.1);
+  }
+
+  .site-shell {
+    padding-inline: var(--page-gutter);
+  }
+
+  .archive-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .paper-panel {
+    background-image: none;
+    box-shadow: none;
+  }
+
+  .weather-meta > * + * {
+    padding-inline-start: 0;
+    border-inline-start: 0;
+  }
+}
+
+@media print {
+  :root {
+    --color-canvas: #fff;
+    --color-surface: #fff;
+    --color-ink: #111;
+    --color-ink-muted: #444;
+  }
+
+  body::before,
+  .atmosphere,
+  .rain-layer,
+  .paper-drift {
+    display: none !important;
+  }
+
+  .site-shell,
+  .reading-shell {
+    width: 100%;
+    max-width: none;
+    padding: 0;
+  }
+}

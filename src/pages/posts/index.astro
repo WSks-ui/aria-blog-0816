@@ -1,0 +1,23 @@
+---
+import ArticleRow from '@/components/content/ArticleRow.astro';
+import PageHeader from '@/components/content/PageHeader.astro';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { getPosts } from '@/lib/content';
+
+const posts = await getPosts();
+---
+
+<BaseLayout title="全部文章" description="Aria-7 的全部长文、笔记、项目、影像、代码与教程。">
+	<div class="page-shell">
+		<PageHeader eyebrow="ARCHIVE / ALL ENTRIES" title="全部文章" description="从最近一次记录向前浏览。每篇文章只归入一个主类型，并可通过多个标签交叉连接。" count={posts.length} />
+		<section class="page-list" aria-label="文章列表">
+			{posts.map((post, index) => <ArticleRow post={post} index={index + 1} />)}
+		</section>
+	</div>
+</BaseLayout>
+
+<style>
+	.page-shell { max-width: var(--content-max); margin-inline: auto; padding-inline: var(--page-gutter); }
+	.page-list { margin-top: 64px; }
+	@media (max-width: 760px) { .page-shell { padding-inline: 20px; } }
+</style>

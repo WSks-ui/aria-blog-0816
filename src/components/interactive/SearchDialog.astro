@@ -1,0 +1,400 @@
+---
+import { Search, X } from '@lucide/astro';
+
+interface Props {
+  class?: string;
+  indexUrl?: string;
+  limit?: number;
+  placeholder?: string;
+  triggerLabel?: string;
+}
+
+const {
+  class: className,
+  indexUrl = '/search-index.json',
+  limit = 8,
+  placeholder = '搜索文章、标签或正文',
+  triggerLabel = '搜索',
+} = Astro.props;
+
+const dialogId = `search-dialog-${Math.random().toString(36).slice(2, 10)}`;
+const titleId = `${dialogId}-title`;
+const statusId = `${dialogId}-status`;
+const resultsId = `${dialogId}-results`;
+---
+
+<div
+  class:list={['search-dialog', className]}
+  data-search-dialog-root
+  data-index-url={indexUrl}
+  data-result-limit={limit}
+>
+  <button
+    class="search-dialog__trigger"
+    type="button"
+    data-search-open
+    aria-haspopup="dialog"
+    aria-controls={dialogId}
+    aria-expanded="false"
+  >
+    <Search size={20} stroke-width={1.5} aria-hidden="true" />
+    <span class="search-dialog__trigger-label">{triggerLabel}</span>
+    <span class="search-dialog__shortcut" aria-hidden="true">/</span>
+  </button>
+
+  <dialog
+    class="search-dialog__window"
+    id={dialogId}
+    data-search-dialog
+    aria-labelledby={titleId}
+  >
+    <section class="search-dialog__surface">
+      <header class="search-dialog__header">
+        <h2 class="search-dialog__title" id={titleId}>站内搜索</h2>
+        <button
+          class="search-dialog__close"
+          type="button"
+          data-search-close
+          aria-label="关闭搜索"
+        >
+          <X size={20} stroke-width={1.5} aria-hidden="true" />
+        </button>
+      </header>
+
+      <label class="search-dialog__field">
+        <span class="search-dialog__field-label">搜索关键词</span>
+        <span class="search-dialog__input-wrap">
+          <Search size={20} stroke-width={1.5} aria-hidden="true" />
+          <input
+            class="search-dialog__input"
+            data-search-input
+            type="search"
+            name="q"
+            placeholder={placeholder}
+            autocomplete="off"
+            spellcheck="false"
+            enterkeyhint="search"
+            aria-controls={resultsId}
+            aria-describedby={statusId}
+          />
+        </span>
+      </label>
+
+      <p
+        class="search-dialog__status"
+        id={statusId}
+        data-search-status
+        role="status"
+        aria-live="polite"
+      >
+        输入关键词开始搜索
+      </p>
+      <ul
+        class="search-dialog__results"
+        id={resultsId}
+        data-search-results
+        aria-label="搜索结果"
+      ></ul>
+    </section>
+  </dialog>
+</div>
+
+<script>
+  interface SearchEntry {
+    title: string;
+    url: string;
+    excerpt: string;
+    tags: string[];
+    searchable: string;
+  }
+
+  const externalSearchTriggerCleanups = new WeakMap<HTMLElement, () => void>();
+  let activeSearchShortcutController: AbortController | null = null;
+
+  function initSearchDialogs() {
+    document.querySelectorAll<HTMLElement>('[data-search-dialog-root]').forEach((root) => {
+      if (root.dataset.interactiveReady === 'true') return;
+      root.dataset.interactiveReady = 'true';
+
+      const trigger = root.querySelector<HTMLButtonElement>('[data-search-open]');
+      const dialog = root.querySelector<HTMLDialogElement>('[data-search-dialog]');
+      const closeButton = root.querySelector<HTMLButtonElement>('[data-search-close]');
+      const input = root.querySelector<HTMLInputElement>('[data-search-input]');
+      const status = root.querySelector<HTMLElement>('[data-search-status]');
+      const resultList = root.querySelector<HTMLUListElement>('[data-search-results]');
+      if (!trigger || !dialog || !closeButton || !input || !status || !resultList) return;
+
+      const indexUrl = root.dataset.indexUrl || '/search-index.json';
+      const resultLimit = Math.max(1, Number(root.dataset.resultLimit) || 8);
+      const externalTriggers = Array.from(
+        document.querySelectorAll<HTMLElement>('[data-search-trigger]'),
+      );
+      const allTriggers: HTMLElement[] = [trigger, ...externalTriggers];
+      const fallbackTrigger = externalTriggers[0] ?? trigger;
+      let lastOpenTrigger: HTMLElement = fallbackTrigger;
+      let entries: SearchEntry[] | null = null;
+      let loadPromise: Promise<SearchEntry[]> | null = null;
+
+      allTriggers.forEach((dialogTrigger) => {
+        dialogTrigger.setAttribute('aria-haspopup', 'dialog');
+        dialogTrigger.setAttribute('aria-controls', dialog.id);
+        dialogTrigger.setAttribute('aria-expanded', 'false');
+      });
+      // 页眉已提供搜索入口时，避免全局弹层挂载点再显示一枚重复按钮。
+      trigger.hidden = externalTriggers.length > 0;
+
+      const normalize = (value: unknown) =>
+        String(value ?? '')
+          .normalize('NFKC')
+          .toLocaleLowerCase();
+
+      const safeResultUrl = (value: string) => {
+        try {
+          const url = new URL(value, window.location.href);
+          return ['http:', 'https:'].includes(url.protocol) ? url.href : null;
+        } catch {
+          return null;
+        }
+      };
+
+      const toSearchEntries = (payload: unknown): SearchEntry[] => {
+        let candidates: unknown[] = [];
+        if (Array.isArray(payload)) {
+          candidates = payload;
+        } else if (payload && typeof payload === 'object') {
+          const objectPayload = payload as Record<string, unknown>;
+          if (Array.isArray(objectPayload.items)) candidates = objectPayload.items;
+          else if (Array.isArray(objectPayload.entries)) candidates = objectPayload.entries;
+        }
+
+        return candidates.flatMap((candidate) => {
+          if (!candidate || typeof candidate !== 'object') return [];
+          const item = candidate as Record<string, unknown>;
+          const title = String(item.title ?? '').trim();
+          const url = safeResultUrl(String(item.url ?? item.href ?? '').trim());
+          // 搜索索引可能来自独立的生成流程，不让异常 scheme 进入可点击结果。
+          if (!title || !url) return [];
+
+          const excerpt = String(item.excerpt ?? item.description ?? item.summary ?? '').trim();
+          const content = String(item.content ?? item.text ?? '').trim();
+          const tags = Array.isArray(item.tags)
+            ? item.tags.map(String).filter(Boolean)
+            : String(item.tags ?? '')
+                .split(',')
+                .map((tag) => tag.trim())
+                .filter(Boolean);
+
+          return [{
+            title,
+            url,
+            excerpt,
+            tags,
+            searchable: normalize([title, excerpt, content, ...tags].join(' ')),
+          }];
+        });
+      };
+
+      const loadIndex = () => {
+        if (entries) return Promise.resolve(entries);
+        if (loadPromise) return loadPromise;
+
+        status.textContent = '正在载入搜索索引…';
+        loadPromise = fetch(indexUrl, { headers: { Accept: 'application/json' } })
+          .then((response) => {
+            if (!response.ok) throw new Error(`Search index returned ${response.status}`);
+            return response.json();
+          })
+          .then((payload) => {
+            entries = toSearchEntries(payload);
+            status.textContent = entries.length > 0
+              ? '输入关键词开始搜索'
+              : '搜索索引中暂无可用文章';
+            return entries;
+          })
+          .catch((error) => {
+            console.error('[SearchDialog] 无法读取搜索索引', error);
+            status.textContent = '搜索索引尚未生成，请稍后再试。';
+            entries = [];
+            return entries;
+          });
+        return loadPromise;
+      };
+
+      const renderResults = (query: string) => {
+        resultList.replaceChildren();
+        const normalizedQuery = normalize(query).trim();
+        if (!normalizedQuery) {
+          status.textContent = entries?.length ? '输入关键词开始搜索' : status.textContent;
+          return;
+        }
+
+        const tokens = normalizedQuery.split(/\s+/).filter(Boolean);
+        const matches = (entries ?? [])
+          .filter((entry) => tokens.every((token) => entry.searchable.includes(token)))
+          .map((entry) => {
+            const normalizedTitle = normalize(entry.title);
+            const score = normalizedTitle === normalizedQuery
+              ? 4
+              : normalizedTitle.startsWith(normalizedQuery)
+                ? 3
+                : normalizedTitle.includes(normalizedQuery)
+                  ? 2
+                  : 1;
+            return { entry, score };
+          })
+          .sort((a, b) => b.score - a.score || a.entry.title.localeCompare(b.entry.title, 'zh-CN'))
+          .slice(0, resultLimit);
+
+        matches.forEach(({ entry }) => {
+          const item = document.createElement('li');
+          item.className = 'search-dialog__result';
+          item.dataset.searchResult = '';
+
+          const link = document.createElement('a');
+          link.className = 'search-dialog__result-link';
+          link.dataset.searchResultLink = '';
+          link.href = entry.url;
+
+          const title = document.createElement('span');
+          title.className = 'search-dialog__result-title';
+          title.textContent = entry.title;
+          link.append(title);
+
+          if (entry.excerpt) {
+            const excerpt = document.createElement('span');
+            excerpt.className = 'search-dialog__result-excerpt';
+            excerpt.textContent = entry.excerpt;
+            link.append(excerpt);
+          }
+
+          if (entry.tags.length > 0) {
+            const tags = document.createElement('span');
+            tags.className = 'search-dialog__result-tags';
+            tags.textContent = entry.tags.map((tag) => `#${tag}`).join(' ');
+            link.append(tags);
+          }
+
+          item.append(link);
+          resultList.append(item);
+        });
+
+        status.textContent = matches.length > 0
+          ? `找到 ${matches.length} 条结果`
+          : '没有匹配结果';
+      };
+
+      const updateTriggerState = (expanded: boolean) => {
+        allTriggers.forEach((dialogTrigger) => {
+          dialogTrigger.setAttribute('aria-expanded', String(expanded));
+        });
+      };
+
+      const restoreTriggerFocus = () => {
+        if (lastOpenTrigger.isConnected && !lastOpenTrigger.hasAttribute('disabled')) {
+          lastOpenTrigger.focus();
+        }
+      };
+
+      const openDialog = async (opener: HTMLElement = fallbackTrigger) => {
+        lastOpenTrigger = opener;
+        if (!dialog.open) {
+          if (typeof dialog.showModal === 'function') dialog.showModal();
+          else dialog.setAttribute('open', '');
+        }
+        updateTriggerState(true);
+        await loadIndex();
+        // 索引较慢时用户可能已关闭弹窗，不要再把焦点抢回隐藏输入框。
+        if (!dialog.open) return;
+        renderResults(input.value);
+        input.focus();
+      };
+
+      const closeDialog = () => {
+        if (!dialog.open) return;
+        if (typeof dialog.close === 'function') dialog.close();
+        else {
+          dialog.removeAttribute('open');
+          updateTriggerState(false);
+          restoreTriggerFocus();
+        }
+      };
+
+      const isEditableTarget = (target: EventTarget | null) => {
+        const element = target instanceof HTMLElement ? target : null;
+        return Boolean(element?.closest('input, textarea, select, [contenteditable="true"]'));
+      };
+
+      trigger.addEventListener('click', () => void openDialog(trigger));
+      externalTriggers.forEach((externalTrigger) => {
+        // 持久化页眉在 Astro 页面切换后会复用，先移除旧弹窗的绑定再指向新实例。
+        externalSearchTriggerCleanups.get(externalTrigger)?.();
+        const handleExternalOpen = (event: Event) => {
+          event.preventDefault();
+          void openDialog(externalTrigger);
+        };
+        externalTrigger.addEventListener('click', handleExternalOpen);
+        externalSearchTriggerCleanups.set(
+          externalTrigger,
+          () => externalTrigger.removeEventListener('click', handleExternalOpen),
+        );
+      });
+      closeButton.addEventListener('click', closeDialog);
+      input.addEventListener('input', () => renderResults(input.value));
+
+      input.addEventListener('keydown', (event) => {
+        if (event.isComposing) return;
+        if (event.key !== 'ArrowDown') return;
+        const firstResult = resultList.querySelector<HTMLAnchorElement>('[data-search-result-link]');
+        if (firstResult) {
+          event.preventDefault();
+          firstResult.focus();
+        }
+      });
+
+      resultList.addEventListener('keydown', (event) => {
+        if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+        const links = Array.from(
+          resultList.querySelectorAll<HTMLAnchorElement>('[data-search-result-link]'),
+        );
+        const currentIndex = links.indexOf(document.activeElement as HTMLAnchorElement);
+        if (currentIndex < 0) return;
+        event.preventDefault();
+
+        if (event.key === 'ArrowUp' && currentIndex === 0) {
+          input.focus();
+          return;
+        }
+        const nextIndex = event.key === 'ArrowDown'
+          ? Math.min(currentIndex + 1, links.length - 1)
+          : Math.max(currentIndex - 1, 0);
+        links[nextIndex]?.focus();
+      });
+
+      dialog.addEventListener('click', (event) => {
+        if (event.target === dialog) closeDialog();
+      });
+      dialog.addEventListener('close', () => {
+        updateTriggerState(false);
+        restoreTriggerFocus();
+      });
+
+      activeSearchShortcutController?.abort();
+      const shortcutController = new AbortController();
+      activeSearchShortcutController = shortcutController;
+      document.addEventListener('keydown', (event) => {
+        if (event.defaultPrevented || event.isComposing) return;
+        const commandShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k';
+        const slashShortcut = event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey;
+        if ((commandShortcut || slashShortcut) && !isEditableTarget(event.target)) {
+          event.preventDefault();
+          void openDialog(fallbackTrigger);
+          return;
+        }
+        if (event.key === 'Escape' && dialog.open) closeDialog();
+      }, { signal: shortcutController.signal });
+    });
+  }
+
+  initSearchDialogs();
+  document.addEventListener('astro:page-load', initSearchDialogs);
+</script>

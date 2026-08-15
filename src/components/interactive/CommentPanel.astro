@@ -1,0 +1,122 @@
+---
+import { MessageCircle } from '@lucide/astro';
+
+interface Props {
+  class?: string;
+  title?: string;
+}
+
+const {
+  class: className,
+  title = '评论',
+} = Astro.props;
+
+const giscusConfig = {
+  repo: import.meta.env.PUBLIC_GISCUS_REPO,
+  repoId: import.meta.env.PUBLIC_GISCUS_REPO_ID,
+  category: import.meta.env.PUBLIC_GISCUS_CATEGORY,
+  categoryId: import.meta.env.PUBLIC_GISCUS_CATEGORY_ID,
+  mapping: import.meta.env.PUBLIC_GISCUS_MAPPING || 'pathname',
+  strict: import.meta.env.PUBLIC_GISCUS_STRICT || '0',
+  reactionsEnabled: import.meta.env.PUBLIC_GISCUS_REACTIONS_ENABLED || '1',
+  emitMetadata: import.meta.env.PUBLIC_GISCUS_EMIT_METADATA || '0',
+  inputPosition: import.meta.env.PUBLIC_GISCUS_INPUT_POSITION || 'top',
+  theme: import.meta.env.PUBLIC_GISCUS_THEME || 'preferred_color_scheme',
+  lang: import.meta.env.PUBLIC_GISCUS_LANG || 'zh-CN',
+  loading: import.meta.env.PUBLIC_GISCUS_LOADING || 'lazy',
+};
+
+const isConfigured = Boolean(
+  giscusConfig.repo
+  && giscusConfig.repoId
+  && giscusConfig.category
+  && giscusConfig.categoryId,
+);
+const titleId = `comment-panel-${Math.random().toString(36).slice(2, 10)}`;
+---
+
+<section
+  class:list={['comment-panel', className]}
+  data-comment-panel
+  data-configured={String(isConfigured)}
+  data-repo={giscusConfig.repo}
+  data-repo-id={giscusConfig.repoId}
+  data-category={giscusConfig.category}
+  data-category-id={giscusConfig.categoryId}
+  data-mapping={giscusConfig.mapping}
+  data-strict={giscusConfig.strict}
+  data-reactions-enabled={giscusConfig.reactionsEnabled}
+  data-emit-metadata={giscusConfig.emitMetadata}
+  data-input-position={giscusConfig.inputPosition}
+  data-theme={giscusConfig.theme}
+  data-lang={giscusConfig.lang}
+  data-loading={giscusConfig.loading}
+  aria-labelledby={titleId}
+>
+  <header class="comment-panel__header">
+    <MessageCircle size={20} stroke-width={1.5} aria-hidden="true" />
+    <h2 class="comment-panel__title" id={titleId}>{title}</h2>
+  </header>
+
+  {
+    isConfigured ? (
+      <div class="comment-panel__body" data-comment-container>
+        <p class="comment-panel__status" data-comment-status aria-live="polite">
+          正在加载评论区……
+        </p>
+        <noscript>请启用 JavaScript 以加载评论区。</noscript>
+      </div>
+    ) : (
+      <p class="comment-panel__unavailable">评论区将在站点上线后开放。</p>
+    )
+  }
+</section>
+
+<script>
+  function initCommentPanels() {
+    document.querySelectorAll<HTMLElement>('[data-comment-panel]').forEach((root) => {
+      if (root.dataset.interactiveReady === 'true') return;
+      root.dataset.interactiveReady = 'true';
+
+      if (root.dataset.configured !== 'true') return;
+      const container = root.querySelector<HTMLElement>('[data-comment-container]');
+      const status = root.querySelector<HTMLElement>('[data-comment-status]');
+      if (!container) return;
+
+      const script = document.createElement('script');
+      script.src = 'https://giscus.app/client.js';
+      script.async = true;
+      script.crossOrigin = 'anonymous';
+
+      // Giscus 通过 script 的 data-* 属性读取配置，保持此处映射与官方参数名一致。
+      const config: Record<string, string | undefined> = {
+        repo: root.dataset.repo,
+        'repo-id': root.dataset.repoId,
+        category: root.dataset.category,
+        'category-id': root.dataset.categoryId,
+        mapping: root.dataset.mapping,
+        strict: root.dataset.strict,
+        'reactions-enabled': root.dataset.reactionsEnabled,
+        'emit-metadata': root.dataset.emitMetadata,
+        'input-position': root.dataset.inputPosition,
+        theme: root.dataset.theme,
+        lang: root.dataset.lang,
+        loading: root.dataset.loading,
+      };
+
+      Object.entries(config).forEach(([key, value]) => {
+        if (value) script.setAttribute(`data-${key}`, value);
+      });
+
+      script.addEventListener('load', () => status?.remove(), { once: true });
+      script.addEventListener('error', () => {
+        if (status) status.textContent = '评论区加载失败，请稍后重试。';
+        root.dataset.loadError = 'true';
+      }, { once: true });
+      container.append(script);
+    });
+  }
+
+  initCommentPanels();
+  document.addEventListener('astro:page-load', initCommentPanels);
+</script>

@@ -1,0 +1,380 @@
+---
+import { POST_KINDS, POST_KIND_LABELS, type PostKind } from '../../data/site';
+import { getPostPath, sortPosts, type PostEntry } from '../../lib/content';
+
+interface Props {
+	posts: readonly PostEntry[];
+	heading?: string;
+}
+
+interface GraphNode {
+	post: PostEntry;
+	kind: PostKind;
+	x: number;
+	y: number;
+	centerX: number;
+	centerY: number;
+	labelLines: string[];
+}
+
+interface GraphEdge {
+	key: string;
+	path: string;
+	sharedTags: string[];
+}
+
+const { posts, heading = '文章关系图' } = Astro.props;
+const visiblePosts = sortPosts(posts.filter((post) => !post.data.draft));
+const graphPosts = [...visiblePosts].sort((left, right) => left.id.localeCompare(right.id));
+
+const width = 1160;
+const columnWidth = width / POST_KINDS.length;
+const nodeWidth = 150;
+const nodeHeight = 58;
+const rowHeight = 92;
+const headerHeight = 88;
+
+const groupedPosts = POST_KINDS.map((kind) => ({
+	kind,
+	posts: graphPosts.filter((post) => post.data.kind === kind),
+}));
+const maxRows = Math.max(1, ...groupedPosts.map((group) => group.posts.length));
+const height = Math.max(280, headerHeight + maxRows * rowHeight + 36);
+
+const splitLabel = (title: string) => {
+	const characters = Array.from(title);
+	const firstLine = characters.slice(0, 9).join('');
+	const secondLine = characters.slice(9, 17).join('');
+	if (characters.length > 17) return [firstLine, `${secondLine}…`];
+	return secondLine ? [firstLine, secondLine] : [firstLine];
+};
+
+const nodes: GraphNode[] = groupedPosts.flatMap((group, columnIndex) =>
+	group.posts.map((post, rowIndex) => {
+		const x = columnIndex * columnWidth + (columnWidth - nodeWidth) / 2;
+		const y = headerHeight + rowIndex * rowHeight;
+		return {
+			post,
+			kind: group.kind,
+			x,
+			y,
+			centerX: x + nodeWidth / 2,
+			centerY: y + nodeHeight / 2,
+			labelLines: splitLabel(post.data.title),
+		};
+	}),
+);
+
+const normalizeTag = (tag: string) => tag.trim().toLocaleLowerCase();
+const edges: GraphEdge[] = [];
+
+for (let sourceIndex = 0; sourceIndex < nodes.length; sourceIndex += 1) {
+	for (let targetIndex = sourceIndex + 1; targetIndex < nodes.length; targetIndex += 1) {
+		const source = nodes[sourceIndex];
+		const target = nodes[targetIndex];
+		const targetTags = new Set(target.post.data.tags.map(normalizeTag));
+		const sharedTags = source.post.data.tags.filter((tag) => targetTags.has(normalizeTag(tag)));
+		if (sharedTags.length === 0) continue;
+
+		const controlX = source.centerX === target.centerX
+			? source.centerX + columnWidth * 0.3
+			: (source.centerX + target.centerX) / 2;
+		edges.push({
+			key: `${source.post.id}--${target.post.id}`,
+			path: [
+				`M ${source.centerX.toFixed(2)} ${source.centerY.toFixed(2)}`,
+				`C ${controlX.toFixed(2)} ${source.centerY.toFixed(2)},`,
+				`${controlX.toFixed(2)} ${target.centerY.toFixed(2)},`,
+				`${target.centerX.toFixed(2)} ${target.centerY.toFixed(2)}`,
+			].join(' '),
+			sharedTags,
+		});
+	}
+}
+
+const kindColors = {
+	essay: '#1887aa',
+	note: '#55757e',
+	project: '#b87368',
+	photo: '#668570',
+	code: '#506784',
+	tutorial: '#8a7650',
+} as const satisfies Record<PostKind, string>;
+---
+
+<section class="article-graph">
+	<header class="article-graph__header">
+		<div>
+			<p>CONNECTIONS / SHARED TAGS</p>
+			<h2>{heading}</h2>
+		</div>
+		<p>{visiblePosts.length} 篇文章 / {edges.length} 条联系</p>
+	</header>
+
+	{visiblePosts.length > 0 ? (
+		<>
+			<div class="article-graph__canvas">
+				<svg
+					viewBox={`0 0 ${width} ${height}`}
+					role="img"
+					aria-label="文章关系图，连线表示两篇文章拥有相同标签"
+				>
+					<g class="article-graph__guides" aria-hidden="true">
+						{POST_KINDS.map((kind, index) => {
+							const centerX = index * columnWidth + columnWidth / 2;
+							return (
+								<>
+									<line x1={centerX} y1="54" x2={centerX} y2={height - 18} />
+									<text x={centerX} y="32" text-anchor="middle">{POST_KIND_LABELS[kind]}</text>
+								</>
+							);
+						})}
+					</g>
+
+					<g class="article-graph__edges" aria-hidden="true">
+						{edges.map((edge) => (
+							<path
+								data-edge={edge.key}
+								d={edge.path}
+								stroke-width={0.7 + Math.min(3, edge.sharedTags.length) * 0.45}
+							/>
+						))}
+					</g>
+
+					<g class="article-graph__nodes">
+						{nodes.map((node) => (
+							<a
+								class="article-graph__node"
+								href={getPostPath(node.post)}
+								tabindex="0"
+								aria-label={`${node.post.data.title}，${POST_KIND_LABELS[node.kind]}`}
+							>
+								<title>{node.post.data.title}；标签：{node.post.data.tags.join('、')}</title>
+								<rect
+									class="article-graph__focus-ring"
+									x={node.x - 4}
+									y={node.y - 4}
+									width={nodeWidth + 8}
+									height={nodeHeight + 8}
+									rx="6"
+								/>
+								<rect
+									class="article-graph__node-surface"
+									x={node.x}
+									y={node.y}
+									width={nodeWidth}
+									height={nodeHeight}
+									rx="4"
+								/>
+								<rect
+									x={node.x + 12}
+									y={node.y + 14}
+									width="7"
+									height="7"
+									fill={kindColors[node.kind]}
+								/>
+								<text class="article-graph__node-label" x={node.x + 28} y={node.y + 23}>
+									{node.labelLines.map((line, lineIndex) => (
+										<tspan x={node.x + 28} dy={lineIndex === 0 ? 0 : 17}>{line}</tspan>
+									))}
+								</text>
+							</a>
+						))}
+					</g>
+				</svg>
+			</div>
+
+			<section class="article-graph__fallback" aria-label="文章关系图的列表视图">
+				<h3>文章列表</h3>
+				<ul>
+					{visiblePosts.map((post) => (
+						<li>
+							<span style={`--kind-color: ${kindColors[post.data.kind]}`} aria-hidden="true"></span>
+							<div>
+								<small>{POST_KIND_LABELS[post.data.kind]}</small>
+								<a href={getPostPath(post)}>{post.data.title}</a>
+								<p>{post.data.tags.map((tag) => `#${tag}`).join(' ')}</p>
+							</div>
+						</li>
+					))}
+				</ul>
+			</section>
+		</>
+	) : (
+		<p class="article-graph__empty">尚无已发布文章。</p>
+	)}
+</section>
+
+<style>
+	.article-graph {
+		color: var(--ink);
+	}
+
+	.article-graph__header {
+		display: flex;
+		align-items: end;
+		justify-content: space-between;
+		gap: 2rem;
+		padding: 1.5rem 0;
+		border-block: 1px solid var(--line);
+	}
+
+	.article-graph__header p,
+	.article-graph__fallback h3 {
+		margin: 0;
+		color: var(--ink-muted);
+		font-family: var(--font-ui);
+		font-size: 0.625rem;
+		font-weight: 500;
+		line-height: 1.5;
+	}
+
+	.article-graph__header h2 {
+		margin: 0.35rem 0 0;
+		font-family: var(--font-display);
+		font-size: var(--text-xl);
+		font-weight: 500;
+		line-height: var(--leading-title);
+	}
+
+	.article-graph__canvas {
+		overflow-x: auto;
+		border-bottom: 1px solid var(--line);
+		background: color-mix(in srgb, var(--paper-0) 82%, transparent);
+	}
+
+	.article-graph svg {
+		display: block;
+		width: 100%;
+		min-width: 58rem;
+		height: auto;
+	}
+
+	.article-graph__guides line {
+		stroke: var(--line);
+		stroke-dasharray: 2 7;
+		stroke-width: 1;
+	}
+
+	.article-graph__guides text {
+		fill: var(--ink-muted);
+		font-family: var(--font-ui);
+		font-size: 10px;
+	}
+
+	.article-graph__edges path {
+		fill: none;
+		stroke: var(--accent-strong);
+		stroke-opacity: 0.34;
+	}
+
+	.article-graph__node {
+		color: var(--ink);
+		outline: none;
+	}
+
+	.article-graph__node-surface {
+		fill: var(--paper-0);
+		stroke: var(--line-strong);
+		stroke-width: 1;
+	}
+
+	.article-graph__focus-ring {
+		fill: none;
+		stroke: transparent;
+		stroke-width: 2;
+	}
+
+	.article-graph__node:hover .article-graph__node-surface {
+		stroke: var(--accent-strong);
+	}
+
+	.article-graph__node:focus-visible .article-graph__focus-ring {
+		stroke: var(--color-focus);
+	}
+
+	.article-graph__node-label {
+		fill: currentColor;
+		font-family: var(--font-display);
+		font-size: 11px;
+		pointer-events: none;
+	}
+
+	.article-graph__fallback {
+		padding: 1.5rem 0;
+	}
+
+	.article-graph__fallback h3 {
+		margin-bottom: 0.75rem;
+	}
+
+	.article-graph__fallback ul {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0 2rem;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.article-graph__fallback li {
+		display: grid;
+		grid-template-columns: 0.5rem minmax(0, 1fr);
+		gap: 0.75rem;
+		padding: 0.85rem 0;
+		border-top: 1px solid var(--line);
+	}
+
+	.article-graph__fallback li > span {
+		width: 0.45rem;
+		height: 0.45rem;
+		margin-top: 0.45rem;
+		background: var(--kind-color);
+	}
+
+	.article-graph__fallback small {
+		display: block;
+		margin-bottom: 0.2rem;
+		color: var(--ink-muted);
+		font-family: var(--font-ui);
+		font-size: 0.625rem;
+	}
+
+	.article-graph__fallback a {
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: var(--text-base);
+		line-height: 1.45;
+		text-underline-offset: 0.2em;
+	}
+
+	.article-graph__fallback p {
+		margin: 0.25rem 0 0;
+		color: var(--ink-muted);
+		font-family: var(--font-ui);
+		font-size: 0.6875rem;
+		line-height: 1.5;
+	}
+
+	.article-graph__empty {
+		margin: 0;
+		padding: 3rem 0;
+		color: var(--ink-muted);
+	}
+
+	@media (max-width: 48rem) {
+		.article-graph__header {
+			align-items: start;
+			flex-direction: column;
+			gap: 0.5rem;
+		}
+
+		.article-graph__canvas {
+			display: none;
+		}
+
+		.article-graph__fallback ul {
+			grid-template-columns: 1fr;
+		}
+	}
+</style>

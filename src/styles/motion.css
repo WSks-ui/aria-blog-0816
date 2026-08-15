@@ -1,0 +1,75 @@
+@keyframes rain-drift {
+  from {
+    transform: translate3d(0, -1.5%, 0);
+  }
+  to {
+    transform: translate3d(-0.6%, 1.5%, 0);
+  }
+}
+
+@keyframes paper-settle {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -0.75rem, 0) rotate(-2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+}
+
+@keyframes line-reveal {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.motion-rain-drift {
+  animation: rain-drift 14s var(--ease-drift) infinite alternate;
+  will-change: transform;
+}
+
+.motion-paper-settle {
+  animation: paper-settle var(--duration-slow) var(--ease-rain) both;
+}
+
+.motion-line-reveal {
+  transform-origin: left center;
+  animation: line-reveal var(--duration-slow) var(--ease-rain) both;
+}
+
+.interactive-lift {
+  transition:
+    color var(--duration-fast) ease,
+    border-color var(--duration-fast) ease,
+    background-color var(--duration-fast) ease,
+    transform var(--duration-fast) ease;
+}
+
+.interactive-lift:hover {
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+
+  .interactive-lift:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 48rem) {
+  .motion-rain-drift {
+    animation: none;
+  }
+}

@@ -1,0 +1,94 @@
+---
+const year = new Date().getFullYear();
+---
+
+<footer class="site-footer">
+	<div class="site-footer__signal" aria-hidden="true">
+		<img src="/assets/brand/rain-archive-mark.svg" alt="" width="72" height="72" />
+		<span></span>
+	</div>
+	<div>
+		<p class="site-footer__name">Aria-7 / Rain Archive</p>
+		<p class="site-footer__note">记录学习、创作与仍在形成的想法。</p>
+	</div>
+	<nav aria-label="页脚导航">
+		<a href="/about/">关于</a>
+		<a href="/archive/">归档</a>
+		<a href="/connections/">关系图</a>
+		<a href="/rss.xml">RSS</a>
+	</nav>
+	<p class="site-footer__copy">© {year} Aria-7</p>
+</footer>
+
+<style>
+	.site-footer {
+		display: grid;
+		grid-template-columns: 120px 1fr auto;
+		gap: 32px;
+		align-items: center;
+		max-width: var(--content-max);
+		min-height: 240px;
+		margin: var(--space-32) auto 0;
+		padding: var(--space-16) var(--page-gutter);
+		border-top: 1px solid var(--line);
+		background: var(--night-1);
+		color: var(--night-text);
+	}
+
+	.site-footer__signal {
+		display: grid;
+		grid-template-columns: 72px 1fr;
+		align-items: center;
+	}
+
+	.site-footer__signal img {
+		filter: brightness(0) invert(1);
+		opacity: 0.9;
+	}
+
+	.site-footer__signal span {
+		height: 1px;
+		background: rgb(242 245 244 / 35%);
+	}
+
+	.site-footer__name {
+		margin: 0 0 8px;
+		font-family: var(--font-display);
+		font-size: 26px;
+	}
+
+	.site-footer__note,
+	.site-footer__copy {
+		margin: 0;
+		font-family: var(--font-ui);
+		font-size: 12px;
+		color: var(--night-muted);
+	}
+
+	.site-footer nav {
+		display: flex;
+		gap: 22px;
+	}
+
+	.site-footer a {
+		color: var(--night-text);
+		font-family: var(--font-ui);
+		font-size: 12px;
+	}
+
+	.site-footer__copy {
+		grid-column: 2 / -1;
+	}
+
+	@media (max-width: 760px) {
+		.site-footer {
+			grid-template-columns: 1fr;
+		}
+
+		.site-footer nav,
+		.site-footer__copy {
+			grid-column: auto;
+			flex-wrap: wrap;
+		}
+	}
+</style>

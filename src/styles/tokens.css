@@ -1,0 +1,105 @@
+:root {
+  color-scheme: light;
+
+  /* 雨天档案以高明度冷灰为纸面，青色只承担状态与导引。 */
+  --color-canvas: #edf1f1;
+  --color-surface: #f7f8f6;
+  --color-surface-muted: #dce8eb;
+  --color-ink: #27373b;
+  --color-ink-muted: #607378;
+  --color-line: #9bb6bd;
+  --color-line-strong: #55757e;
+  --color-rain: #59b8cf;
+  --color-rain-deep: #1887aa;
+  --color-rain-pale: #b9dfe8;
+  --color-paper: #f3f2ec;
+  --color-warm: #c78e82;
+  --color-focus: #006f91;
+  --color-selection: #99d8e6;
+  --color-danger: #aa4f46;
+
+  --font-sans: "Inter", "Avenir Next", "Segoe UI", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --font-serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "SimSun", serif;
+  --font-display: "Noto Serif SC", "Source Han Serif SC", "Songti SC", serif;
+  --font-mono: "IBM Plex Mono", "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-md: 1.125rem;
+  --text-lg: 1.375rem;
+  --text-xl: 1.75rem;
+  --text-2xl: 2.25rem;
+  --text-3xl: 3.25rem;
+  --text-hero: 4.5rem;
+
+  --leading-tight: 1.16;
+  --leading-title: 1.28;
+  --leading-copy: 1.78;
+  --leading-ui: 1.45;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+  --space-9: 6rem;
+  --space-10: 8rem;
+
+  --page-gutter: clamp(1rem, 4vw, 4.5rem);
+  --content-width: 68rem;
+  --reading-width: 68ch;
+  --rail-width: 15rem;
+  --header-height: 4.5rem;
+  --frame-inset: clamp(0.75rem, 2vw, 1.5rem);
+
+  --border-hairline: 1px solid color-mix(in srgb, var(--color-line), transparent 24%);
+  --border-strong: 1px solid var(--color-line-strong);
+  --shadow-paper: 0 1.25rem 3.5rem rgb(31 71 81 / 10%);
+  --shadow-night: 0 1.5rem 4rem rgb(0 0 0 / 32%);
+
+  --z-background: -1;
+  --z-base: 0;
+  --z-sticky: 20;
+  --z-overlay: 40;
+  --z-dialog: 60;
+
+  --duration-fast: 140ms;
+  --duration-base: 260ms;
+  --duration-slow: 520ms;
+  --ease-rain: cubic-bezier(0.22, 0.75, 0.28, 1);
+  --ease-drift: cubic-bezier(0.33, 0, 0.2, 1);
+
+  /* 页面组件的稳定语义别名，底层色板调整时无需改动组件。 */
+  --content-max: var(--content-width);
+  --paper-0: var(--color-surface);
+  --ink: var(--color-ink);
+  --ink-muted: var(--color-ink-muted);
+  --accent-soft: var(--color-rain-pale);
+  --accent-strong: var(--color-rain-deep);
+  --line: var(--color-line);
+  --line-strong: var(--color-line-strong);
+  --night-0: #091114;
+  --night-1: #101d22;
+  --night-text: #edf1ef;
+  --night-muted: #a8b8bb;
+  --font-ui: var(--font-sans);
+  --space-16: 1rem;
+  --space-32: 2rem;
+  --rain-opacity: 0.16;
+}
+
+@media (max-width: 48rem) {
+  :root {
+    --text-lg: 1.25rem;
+    --text-xl: 1.5rem;
+    --text-2xl: 1.875rem;
+    --text-3xl: 2.375rem;
+    --text-hero: 3rem;
+    --header-height: 4rem;
+    --leading-copy: 1.72;
+  }
+}

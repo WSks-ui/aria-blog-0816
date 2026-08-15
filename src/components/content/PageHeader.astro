@@ -1,0 +1,111 @@
+---
+interface Props {
+	eyebrow: string;
+	title: string;
+	description?: string;
+	count?: number;
+}
+
+const { eyebrow, title, description, count } = Astro.props;
+---
+
+<header class="page-header">
+	<div class="page-header__rail">
+		<span>{eyebrow}</span>
+		{count !== undefined && <strong>{String(count).padStart(2, '0')}</strong>}
+	</div>
+	<div class="page-header__main">
+		<h1>{title}</h1>
+		{description && <p>{description}</p>}
+	</div>
+	<div class="page-header__mark" aria-hidden="true">
+		<img src="/assets/brand/rain-archive-mark.svg" alt="" width="84" height="84" />
+	</div>
+</header>
+
+<style>
+	.page-header {
+		display: grid;
+		grid-template-columns: 140px minmax(0, 1fr) 120px;
+		gap: 32px;
+		align-items: end;
+		min-height: 300px;
+		padding-block: 88px 48px;
+		border-bottom: 1px solid var(--line);
+	}
+
+	.page-header__rail {
+		display: grid;
+		gap: 18px;
+		align-self: stretch;
+		align-content: space-between;
+		padding-right: 22px;
+		border-right: 1px solid var(--line);
+		font-family: var(--font-ui);
+		font-size: 10px;
+		color: var(--ink-muted);
+		overflow-wrap: anywhere;
+	}
+
+	.page-header__rail strong {
+		font-size: 28px;
+		font-weight: 400;
+		color: var(--accent-strong);
+	}
+
+	.page-header h1 {
+		max-width: 900px;
+		margin: 0;
+		font-family: var(--font-display);
+		font-size: 72px;
+		font-weight: 500;
+		line-height: 1.16;
+		overflow-wrap: anywhere;
+	}
+
+	.page-header p {
+		max-width: 680px;
+		margin: 22px 0 0;
+		font-size: 15px;
+		line-height: 1.85;
+		color: var(--ink-muted);
+		overflow-wrap: anywhere;
+	}
+
+	.page-header__mark {
+		display: grid;
+		place-items: center;
+		align-self: center;
+		opacity: 0.56;
+	}
+
+	@media (max-width: 1000px) {
+		/* 通用页头在平板宽度收一级字号，区间内保持固定。 */
+		.page-header h1 {
+			font-size: 56px;
+		}
+	}
+
+	@media (max-width: 760px) {
+		.page-header {
+			grid-template-columns: 1fr;
+			min-height: auto;
+			padding-block: 56px 36px;
+		}
+
+		.page-header__rail {
+			grid-template-columns: 1fr auto;
+			padding: 0 0 14px;
+			border-right: 0;
+			border-bottom: 1px solid var(--line);
+		}
+
+		.page-header__mark {
+			display: none;
+		}
+
+		.page-header h1 {
+			font-size: 42px;
+		}
+	}
+</style>

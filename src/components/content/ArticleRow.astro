@@ -1,0 +1,142 @@
+---
+import { ArrowUpRight } from '@lucide/astro';
+import type { PostEntry } from '@/lib/content';
+import { getPostPath } from '@/lib/content';
+import { POST_KIND_LABELS } from '@/data/site';
+import KindLabel from './KindLabel.astro';
+
+interface Props {
+	post: PostEntry;
+	index?: number;
+	showSummary?: boolean;
+}
+
+const { post, index, showSummary = true } = Astro.props;
+const dateText = new Intl.DateTimeFormat('zh-CN', {
+	year: 'numeric',
+	month: '2-digit',
+	day: '2-digit',
+}).format(post.data.publishedAt);
+---
+
+<article class="article-row">
+	<div class="article-row__index">
+		{index !== undefined ? String(index).padStart(2, '0') : dateText.slice(0, 7)}
+	</div>
+	<div class="article-row__body">
+		<KindLabel kind={post.data.kind} />
+		<h3><a href={getPostPath(post)}>{post.data.title}</a></h3>
+		{showSummary && <p>{post.data.summary}</p>}
+	</div>
+	<div class="article-row__meta">
+		<time datetime={post.data.publishedAt.toISOString()}>{dateText}</time>
+		<div class="article-row__tags">
+			{post.data.tags.slice(0, 2).map((tag) => <a href={`/tags/${encodeURIComponent(tag)}/`}>#{tag}</a>)}
+		</div>
+		<span>{POST_KIND_LABELS[post.data.kind]}</span>
+	</div>
+	<a class="article-row__go" href={getPostPath(post)} aria-label={`阅读《${post.data.title}》`}>
+		<ArrowUpRight size={20} stroke-width={1.5} aria-hidden="true" />
+	</a>
+</article>
+
+<style>
+	.article-row {
+		display: grid;
+		grid-template-columns: 72px minmax(0, 1fr) minmax(180px, 0.35fr) 44px;
+		gap: 22px;
+		align-items: center;
+		min-height: 132px;
+		padding-block: 24px;
+		border-top: 1px solid var(--line);
+	}
+
+	.article-row:last-child {
+		border-bottom: 1px solid var(--line);
+	}
+
+	.article-row__index,
+	.article-row__meta,
+	.article-row__tags {
+		font-family: var(--font-ui);
+		font-size: 10px;
+		color: var(--ink-muted);
+	}
+
+	.article-row__index {
+		align-self: stretch;
+		padding-top: 3px;
+		border-right: 1px solid var(--line);
+	}
+
+	.article-row h3 {
+		margin: 8px 0 6px;
+		font-family: var(--font-display);
+		font-size: 21px;
+		font-weight: 500;
+		line-height: 1.45;
+	}
+
+	.article-row h3 a {
+		color: var(--ink);
+		text-decoration: none;
+	}
+
+	.article-row h3 a:hover {
+		color: var(--accent-strong);
+	}
+
+	.article-row__body > p {
+		max-width: 680px;
+		margin: 0;
+		font-size: 13px;
+		line-height: 1.75;
+		color: var(--ink-muted);
+	}
+
+	.article-row__meta {
+		display: grid;
+		gap: 8px;
+		align-content: center;
+	}
+
+	.article-row__tags {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+
+	.article-row__tags a {
+		color: var(--accent-strong);
+		text-decoration: none;
+	}
+
+	.article-row__go {
+		display: grid;
+		width: 44px;
+		height: 44px;
+		place-items: center;
+		border-left: 1px solid var(--line);
+		color: var(--ink-muted);
+	}
+
+	.article-row:hover .article-row__go {
+		color: var(--accent-strong);
+	}
+
+	@media (max-width: 760px) {
+		.article-row {
+			grid-template-columns: 36px minmax(0, 1fr) 44px;
+			gap: 14px;
+		}
+
+		.article-row__meta {
+			grid-column: 2;
+		}
+
+		.article-row__go {
+			grid-column: 3;
+			grid-row: 1 / 3;
+		}
+	}
+</style>

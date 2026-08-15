@@ -1,0 +1,90 @@
+---
+interface Props {
+	mode?: 'clear' | 'rain' | 'night';
+	label?: string;
+}
+
+const { mode = 'rain', label } = Astro.props;
+---
+
+<section class={`weather-front weather-front--${mode}`} data-weather-front={mode}>
+	{label && <p class="weather-front__label">FRONT / {label}</p>}
+	<div class="weather-front__content">
+		<slot />
+	</div>
+</section>
+
+<script>
+	const fronts = document.querySelectorAll<HTMLElement>('[data-weather-front]');
+	const activeFronts = new Map<Element, number>();
+
+	const updateFront = () => {
+		const active = [...activeFronts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] as HTMLElement | undefined;
+		if (active?.dataset.weatherFront) {
+			document.documentElement.dataset.readingFront = active.dataset.weatherFront;
+		} else {
+			delete document.documentElement.dataset.readingFront;
+		}
+	};
+
+	const observer = new IntersectionObserver(
+		(entries) => {
+			entries.forEach((entry) => {
+				if (entry.isIntersecting) activeFronts.set(entry.target, entry.intersectionRatio);
+				else activeFronts.delete(entry.target);
+			});
+			updateFront();
+		},
+		{ rootMargin: '-20% 0px -55%', threshold: [0, 0.25, 0.5, 0.75] },
+	);
+
+	fronts.forEach((front) => observer.observe(front));
+</script>
+
+<style>
+	.weather-front {
+		position: relative;
+		margin-block: var(--space-16);
+		padding: 32px 36px 34px;
+		border-block: 1px solid var(--line);
+		isolation: isolate;
+	}
+
+	.weather-front::before {
+		position: absolute;
+		inset: 0;
+		z-index: -1;
+		background: var(--front-bg, transparent);
+		content: '';
+		opacity: 0.74;
+	}
+
+	.weather-front--clear {
+		--front-bg: var(--paper-0);
+	}
+
+	.weather-front--rain {
+		--front-bg: color-mix(in srgb, var(--accent-soft) 35%, transparent);
+	}
+
+	.weather-front--night {
+		--front-bg: var(--night-1);
+		--ink: var(--night-text);
+		--ink-muted: var(--night-muted);
+		--line: rgb(242 245 244 / 22%);
+		color: var(--night-text);
+	}
+
+	.weather-front__label {
+		margin: 0 0 24px;
+		font-family: var(--font-ui);
+		font-size: 10px;
+		color: var(--ink-muted);
+	}
+
+	@media (max-width: 760px) {
+		.weather-front {
+			padding-inline: 20px;
+		}
+	}
+</style>

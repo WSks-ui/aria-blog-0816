@@ -1,0 +1,452 @@
+---
+import { ChevronLeft, ChevronRight } from '@lucide/astro';
+
+import { getPostPath, sortPosts, type PostEntry } from '../../lib/content';
+
+interface Props {
+	posts: readonly PostEntry[];
+	heading?: string;
+}
+
+interface CalendarCell {
+	day: number | null;
+	dateTime: string | null;
+	posts: PostEntry[];
+}
+
+interface CalendarMonth {
+	year: number;
+	month: number;
+	key: string;
+	label: string;
+	cells: CalendarCell[];
+}
+
+const { posts, heading = '文章日历' } = Astro.props;
+const visiblePosts = sortPosts(posts.filter((post) => !post.data.draft));
+const chronologicalPosts = [...visiblePosts].reverse();
+const weekdayLabels = ['一', '二', '三', '四', '五', '六', '日'];
+const pad = (value: number) => String(value).padStart(2, '0');
+
+const toDateParts = (date: Date) => ({
+	year: date.getUTCFullYear(),
+	month: date.getUTCMonth(),
+	day: date.getUTCDate(),
+});
+
+const months: CalendarMonth[] = [];
+
+if (chronologicalPosts.length > 0) {
+	const first = toDateParts(chronologicalPosts[0].data.publishedAt);
+	const last = toDateParts(chronologicalPosts.at(-1)!.data.publishedAt);
+	let year = first.year;
+	let month = first.month;
+
+	// 连续生成月份，空月份也保留，前后翻页时不会产生时间跳跃。
+	while (year < last.year || (year === last.year && month <= last.month)) {
+		const firstWeekday = (new Date(Date.UTC(year, month, 1)).getUTCDay() + 6) % 7;
+		const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+		const postsByDay = new Map<number, PostEntry[]>();
+
+		for (const post of chronologicalPosts) {
+			const parts = toDateParts(post.data.publishedAt);
+			if (parts.year !== year || parts.month !== month) continue;
+			const entries = postsByDay.get(parts.day) ?? [];
+			entries.push(post);
+			postsByDay.set(parts.day, entries);
+		}
+
+		// 固定六周共 42 格，切换月份时日历高度保持稳定。
+		const cells = Array.from({ length: 42 }, (_, cellIndex): CalendarCell => {
+			const day = cellIndex - firstWeekday + 1;
+			if (day < 1 || day > daysInMonth) return { day: null, dateTime: null, posts: [] };
+			return {
+				day,
+				dateTime: `${year}-${pad(month + 1)}-${pad(day)}`,
+				posts: postsByDay.get(day) ?? [],
+			};
+		});
+
+		months.push({
+			year,
+			month,
+			key: `${year}-${pad(month + 1)}`,
+			label: `${year} / ${pad(month + 1)}`,
+			cells,
+		});
+
+		month += 1;
+		if (month === 12) {
+			month = 0;
+			year += 1;
+		}
+	}
+}
+
+const initialMonthIndex = Math.max(0, months.length - 1);
+const listDateFormatter = new Intl.DateTimeFormat('zh-CN', {
+	year: 'numeric',
+	month: '2-digit',
+	day: '2-digit',
+	timeZone: 'UTC',
+});
+---
+
+<section class="archive-calendar" data-archive-calendar data-initial-index={initialMonthIndex}>
+	<header class="archive-calendar__header">
+		<div>
+			<p>ARCHIVE / CALENDAR</p>
+			<h2>{heading}</h2>
+		</div>
+		{months.length > 0 && (
+			<nav class="archive-calendar__navigation" aria-label="切换归档月份" data-calendar-navigation>
+				<button
+					type="button"
+					aria-label="查看上一个月"
+					title="上一个月"
+					data-calendar-previous
+					disabled={initialMonthIndex === 0}
+				>
+					<ChevronLeft size={20} stroke-width={1.5} aria-hidden="true" />
+				</button>
+				<span class="archive-calendar__month-label" aria-live="polite" data-calendar-label>
+					{months[initialMonthIndex]?.label}
+				</span>
+				<button
+					type="button"
+					aria-label="查看下一个月"
+					title="下一个月"
+					data-calendar-next
+					disabled={initialMonthIndex === months.length - 1}
+				>
+					<ChevronRight size={20} stroke-width={1.5} aria-hidden="true" />
+				</button>
+			</nav>
+		)}
+	</header>
+
+	{months.length > 0 ? (
+		<div class="archive-calendar__months" data-calendar-months>
+			{months.map((calendarMonth, monthIndex) => (
+				<div
+					class="archive-calendar__month"
+					data-calendar-month={calendarMonth.key}
+					data-calendar-month-label={calendarMonth.label}
+					hidden={monthIndex !== initialMonthIndex}
+				>
+					<table>
+						<caption class="sr-only">{calendarMonth.year} 年 {calendarMonth.month + 1} 月文章日历</caption>
+						<thead>
+							<tr>
+								{weekdayLabels.map((weekday) => <th scope="col">{weekday}</th>)}
+							</tr>
+						</thead>
+						<tbody>
+							{Array.from({ length: 6 }, (_, weekIndex) => (
+								<tr>
+									{calendarMonth.cells.slice(weekIndex * 7, weekIndex * 7 + 7).map((cell) => (
+										<td class:list={{ 'has-posts': cell.posts.length > 0, 'is-empty': cell.day === null }}>
+											{cell.day !== null && (
+												<>
+													<time datetime={cell.dateTime ?? undefined}>{pad(cell.day)}</time>
+													{cell.posts.length > 0 && (
+														<ul>
+															{cell.posts.map((post) => (
+																<li><a href={getPostPath(post)}>{post.data.title}</a></li>
+															))}
+														</ul>
+													)}
+												</>
+											)}
+										</td>
+									))}
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</div>
+			))}
+		</div>
+	) : (
+		<p class="archive-calendar__empty">尚无已发布文章。</p>
+	)}
+
+	<section class="archive-calendar__fallback" aria-label="文章时间列表">
+		<h3>按时间浏览</h3>
+		{visiblePosts.length > 0 ? (
+			<ol>
+				{visiblePosts.map((post) => (
+					<li>
+						<time datetime={post.data.publishedAt.toISOString()}>
+							{listDateFormatter.format(post.data.publishedAt)}
+						</time>
+						<a href={getPostPath(post)}>{post.data.title}</a>
+					</li>
+				))}
+			</ol>
+		) : (
+			<p>尚无已发布文章。</p>
+		)}
+	</section>
+</section>
+
+<script>
+	function initArchiveCalendars() {
+		document.querySelectorAll<HTMLElement>('[data-archive-calendar]').forEach((root) => {
+			if (root.dataset.calendarReady === 'true') return;
+			root.dataset.calendarReady = 'true';
+
+			const panels = Array.from(root.querySelectorAll<HTMLElement>('[data-calendar-month]'));
+			const label = root.querySelector<HTMLElement>('[data-calendar-label]');
+			const previous = root.querySelector<HTMLButtonElement>('[data-calendar-previous]');
+			const next = root.querySelector<HTMLButtonElement>('[data-calendar-next]');
+			const navigation = root.querySelector<HTMLElement>('[data-calendar-navigation]');
+			if (panels.length === 0 || !label || !previous || !next || !navigation) return;
+
+			let activeIndex = Math.min(
+				panels.length - 1,
+				Math.max(0, Number(root.dataset.initialIndex) || 0),
+			);
+
+			const showMonth = (nextIndex: number) => {
+				activeIndex = Math.min(panels.length - 1, Math.max(0, nextIndex));
+				panels.forEach((panel, index) => {
+					panel.hidden = index !== activeIndex;
+				});
+				label.textContent = panels[activeIndex]?.dataset.calendarMonthLabel ?? '';
+				previous.disabled = activeIndex === 0;
+				next.disabled = activeIndex === panels.length - 1;
+			};
+
+			previous.addEventListener('click', () => showMonth(activeIndex - 1));
+			next.addEventListener('click', () => showMonth(activeIndex + 1));
+			navigation.addEventListener('keydown', (event) => {
+				const destination = {
+					ArrowLeft: activeIndex - 1,
+					PageUp: activeIndex - 1,
+					ArrowRight: activeIndex + 1,
+					PageDown: activeIndex + 1,
+					Home: 0,
+					End: panels.length - 1,
+				}[event.key];
+				if (destination === undefined) return;
+				event.preventDefault();
+				showMonth(destination);
+			});
+
+			showMonth(activeIndex);
+		});
+	}
+
+	initArchiveCalendars();
+	document.addEventListener('astro:page-load', initArchiveCalendars);
+</script>
+
+<style>
+	.archive-calendar {
+		border-block: 1px solid var(--line);
+		color: var(--ink);
+	}
+
+	.archive-calendar__header {
+		display: flex;
+		min-height: 6.5rem;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1.5rem;
+		padding: 1.25rem 0;
+	}
+
+	.archive-calendar__header p,
+	.archive-calendar__fallback h3 {
+		margin: 0 0 0.35rem;
+		color: var(--ink-muted);
+		font-family: var(--font-ui);
+		font-size: 0.625rem;
+		font-weight: 500;
+		line-height: 1.4;
+	}
+
+	.archive-calendar__header h2 {
+		margin: 0;
+		font-family: var(--font-display);
+		font-size: var(--text-xl);
+		font-weight: 500;
+		line-height: var(--leading-title);
+	}
+
+	.archive-calendar__navigation {
+		display: grid;
+		grid-template-columns: 2.75rem minmax(8.5rem, auto) 2.75rem;
+		align-items: center;
+		border: 1px solid var(--line);
+	}
+
+	.archive-calendar__navigation button {
+		display: grid;
+		width: 2.75rem;
+		height: 2.75rem;
+		padding: 0;
+		place-items: center;
+		border: 0;
+		background: transparent;
+		color: var(--ink);
+		cursor: pointer;
+	}
+
+	.archive-calendar__navigation button + *,
+	.archive-calendar__month-label + button {
+		border-inline-start: 1px solid var(--line);
+	}
+
+	.archive-calendar__navigation button:hover:not(:disabled),
+	.archive-calendar__navigation button:focus-visible {
+		background: var(--color-surface-muted);
+		color: var(--accent-strong);
+	}
+
+	.archive-calendar__navigation button:disabled {
+		color: var(--ink-muted);
+		cursor: not-allowed;
+		opacity: 0.4;
+	}
+
+	.archive-calendar__month-label {
+		display: grid;
+		height: 2.75rem;
+		place-items: center;
+		font-family: var(--font-mono);
+		font-size: var(--text-xs);
+	}
+
+	.archive-calendar__month[hidden] {
+		display: none;
+	}
+
+	.archive-calendar table {
+		width: 100%;
+		border-collapse: collapse;
+		table-layout: fixed;
+	}
+
+	.archive-calendar th {
+		height: 2.25rem;
+		border: 1px solid var(--line);
+		color: var(--ink-muted);
+		font-family: var(--font-ui);
+		font-size: 0.625rem;
+		font-weight: 500;
+	}
+
+	.archive-calendar td {
+		height: 7.5rem;
+		padding: 0.6rem;
+		vertical-align: top;
+		border: 1px solid var(--line);
+		background: color-mix(in srgb, var(--paper-0) 78%, transparent);
+	}
+
+	.archive-calendar td.is-empty {
+		background: color-mix(in srgb, var(--color-surface-muted) 28%, transparent);
+	}
+
+	.archive-calendar td.has-posts {
+		box-shadow: inset 2px 0 var(--accent-strong);
+	}
+
+	.archive-calendar td > time {
+		display: block;
+		margin-bottom: 0.45rem;
+		color: var(--ink-muted);
+		font-family: var(--font-mono);
+		font-size: 0.625rem;
+	}
+
+	.archive-calendar td ul {
+		display: grid;
+		gap: 0.35rem;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.archive-calendar td a {
+		display: -webkit-box;
+		overflow: hidden;
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: 0.75rem;
+		line-height: 1.45;
+		text-decoration-color: var(--line-strong);
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+	}
+
+	.archive-calendar td a:hover,
+	.archive-calendar td a:focus-visible {
+		color: var(--accent-strong);
+		text-decoration-color: currentColor;
+	}
+
+	.archive-calendar__fallback {
+		padding: 1.25rem 0;
+	}
+
+	.archive-calendar__fallback ol {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.archive-calendar__fallback li {
+		display: grid;
+		grid-template-columns: 8.5rem minmax(0, 1fr);
+		gap: 1rem;
+		padding: 0.8rem 0;
+		border-top: 1px solid var(--line);
+	}
+
+	.archive-calendar__fallback time {
+		color: var(--ink-muted);
+		font-family: var(--font-mono);
+		font-size: var(--text-xs);
+	}
+
+	.archive-calendar__fallback a {
+		color: var(--ink);
+		font-family: var(--font-display);
+		text-underline-offset: 0.2em;
+	}
+
+	.archive-calendar__empty {
+		margin: 0;
+		padding: 3rem 0;
+		color: var(--ink-muted);
+	}
+
+	@media (min-width: 48.001rem) {
+		.archive-calendar[data-calendar-ready='true'] .archive-calendar__fallback {
+			display: none;
+		}
+	}
+
+	@media (max-width: 48rem) {
+		.archive-calendar__header {
+			min-height: auto;
+		}
+
+		.archive-calendar__navigation,
+		.archive-calendar__months {
+			display: none;
+		}
+
+		.archive-calendar__fallback {
+			display: block;
+		}
+
+		.archive-calendar__fallback li {
+			grid-template-columns: 1fr;
+			gap: 0.25rem;
+		}
+	}
+</style>

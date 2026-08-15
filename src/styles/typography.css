@@ -1,0 +1,168 @@
+body {
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-copy);
+  letter-spacing: 0;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-weight: 500;
+  line-height: var(--leading-title);
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+h1 {
+  max-width: 18ch;
+  font-size: var(--text-3xl);
+}
+
+h2 {
+  font-size: var(--text-2xl);
+}
+
+h3 {
+  font-size: var(--text-xl);
+}
+
+h4 {
+  font-size: var(--text-lg);
+}
+
+p,
+li,
+dd {
+  overflow-wrap: anywhere;
+}
+
+/* 动态标题、标签和工具名称可能含连续英文或 URL，统一允许在容器边界内断行。 */
+:where(a, button, summary, label, output) {
+  overflow-wrap: anywhere;
+}
+
+:where(button, input, textarea, select) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+small,
+.meta,
+.eyebrow,
+.scene-label {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  line-height: var(--leading-ui);
+  letter-spacing: 0;
+}
+
+.eyebrow,
+.scene-label {
+  color: var(--color-rain-deep);
+  text-transform: uppercase;
+}
+
+.display-title {
+  max-width: 13ch;
+  margin-block: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-hero);
+  font-weight: 400;
+  line-height: var(--leading-tight);
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+
+.reading-prose {
+  width: min(100%, var(--reading-width));
+  font-family: var(--font-serif);
+  font-size: var(--text-md);
+}
+
+.reading-prose :where(p, ul, ol, blockquote, pre, table, figure) {
+  margin-block: 0 var(--space-5);
+}
+
+.reading-prose :where(h2, h3, h4) {
+  margin-block: var(--space-8) var(--space-4);
+}
+
+.reading-prose :where(a) {
+  color: var(--color-rain-deep);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.22em;
+}
+
+.reading-prose :where(a:hover) {
+  text-decoration-thickness: 2px;
+}
+
+.reading-prose :where(blockquote) {
+  margin-inline: 0;
+  padding-inline: var(--space-5);
+  border-inline-start: 2px solid var(--color-rain);
+  color: var(--color-ink-muted);
+  font-style: normal;
+}
+
+.reading-prose :where(code) {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+}
+
+.reading-prose :where(:not(pre) > code) {
+  padding: 0.12em 0.35em;
+  border: var(--border-hairline);
+  background: color-mix(in srgb, var(--color-surface-muted), transparent 32%);
+}
+
+.reading-prose :where(pre) {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: var(--space-5);
+  border: var(--border-hairline);
+  background: color-mix(in srgb, var(--color-surface), var(--color-rain-pale) 18%);
+  line-height: 1.62;
+  tab-size: 2;
+}
+
+.reading-prose :where(hr) {
+  width: min(100%, 18rem);
+  margin-block: var(--space-8);
+  margin-inline: 0;
+  border: 0;
+  border-block-start: var(--border-hairline);
+}
+
+.reading-prose :where(figcaption) {
+  margin-block-start: var(--space-2);
+  color: var(--color-ink-muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--leading-ui);
+}
+
+@media (max-width: 48rem) {
+  .reading-prose {
+    font-size: var(--text-base);
+  }
+
+  .reading-prose :where(h2, h3, h4) {
+    margin-block-start: var(--space-7);
+  }
+}

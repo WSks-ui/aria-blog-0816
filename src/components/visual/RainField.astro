@@ -1,0 +1,81 @@
+<div class="rain-field" aria-hidden="true">
+	<div class="rain-field__lines"></div>
+	<div class="rain-field__paper rain-field__paper--a"></div>
+	<div class="rain-field__paper rain-field__paper--b"></div>
+	<div class="rain-field__paper rain-field__paper--c"></div>
+</div>
+
+<style>
+	.rain-field {
+		position: fixed;
+		inset: 0;
+		z-index: -1;
+		overflow: hidden;
+		pointer-events: none;
+	}
+
+	.rain-field__lines {
+		position: absolute;
+		inset: 0;
+		background-image: url('/assets/patterns/rain-lines.svg');
+		background-position: center;
+		background-size: cover;
+		opacity: var(--rain-opacity, 0.2);
+		mix-blend-mode: multiply;
+	}
+
+	.rain-field__paper {
+		position: absolute;
+		width: 11px;
+		aspect-ratio: 1;
+		border: 1px solid var(--line-strong);
+		background: color-mix(in srgb, var(--paper-0) 72%, transparent);
+		animation: paper-drift 12s linear infinite;
+	}
+
+	.rain-field__paper--a {
+		top: 18%;
+		left: 8%;
+	}
+
+	.rain-field__paper--b {
+		top: 36%;
+		right: 12%;
+		width: 18px;
+		animation-delay: -7s;
+	}
+
+	.rain-field__paper--c {
+		bottom: 14%;
+		left: 64%;
+		width: 7px;
+		animation-delay: -3s;
+	}
+
+	:global(html[data-weather-mode='clear']) .rain-field {
+		display: none;
+	}
+
+	:global(html[data-weather-mode='night']) .rain-field__lines {
+		mix-blend-mode: screen;
+		opacity: 0.1;
+	}
+
+	@keyframes paper-drift {
+		0% {
+			transform: translate3d(0, -16px, 0) rotate(0deg);
+		}
+		50% {
+			transform: translate3d(9px, 16px, 0) rotate(12deg);
+		}
+		100% {
+			transform: translate3d(0, 48px, 0) rotate(20deg);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.rain-field__paper {
+			animation: none;
+		}
+	}
+</style>

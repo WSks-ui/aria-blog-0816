@@ -1,0 +1,111 @@
+---
+import { CalendarDays, Clock3, CloudRain, MapPin } from '@lucide/astro';
+
+interface Props {
+	date: Date;
+	minutes?: number;
+	weather?: {
+		condition: string;
+		temperature: number | null;
+		location: string;
+	};
+	compact?: boolean;
+}
+
+const { date, minutes, weather, compact = false } = Astro.props;
+const dateText = new Intl.DateTimeFormat('zh-CN', {
+	year: 'numeric',
+	month: '2-digit',
+	day: '2-digit',
+}).format(date);
+---
+
+<dl class:list={['post-meta', { 'post-meta--compact': compact }]}>
+	<div>
+		<CalendarDays size={14} stroke-width={1.5} aria-hidden="true" />
+		<dt>发布</dt>
+		<dd><time datetime={date.toISOString()}>{dateText}</time></dd>
+	</div>
+	{minutes && (
+		<div>
+			<Clock3 size={14} stroke-width={1.5} aria-hidden="true" />
+			<dt>阅读</dt>
+			<dd>{minutes} min</dd>
+		</div>
+	)}
+	{weather && (
+		<>
+			<div>
+				<CloudRain size={14} stroke-width={1.5} aria-hidden="true" />
+				<dt>天气</dt>
+				<dd>{weather.condition}{weather.temperature === null ? '' : ` / ${weather.temperature}°C`}</dd>
+			</div>
+			{!compact && (
+				<div>
+					<MapPin size={14} stroke-width={1.5} aria-hidden="true" />
+					<dt>位置</dt>
+					<dd>{weather.location}</dd>
+				</div>
+			)}
+		</>
+	)}
+</dl>
+
+<style>
+	.post-meta {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0;
+		margin: 0;
+		border-block: 1px solid var(--line);
+	}
+
+	.post-meta > div {
+		display: grid;
+		grid-template-columns: 18px auto;
+		grid-template-rows: auto auto;
+		min-width: 126px;
+		padding: 12px 18px 12px 0;
+	}
+
+	.post-meta > div + div {
+		padding-left: 18px;
+		border-left: 1px solid var(--line);
+	}
+
+	.post-meta svg {
+		grid-row: 1 / 3;
+		margin-top: 2px;
+		color: var(--accent-strong);
+	}
+
+	.post-meta dt,
+	.post-meta dd {
+		margin: 0;
+		font-family: var(--font-ui);
+		font-size: 9px;
+		line-height: 1.45;
+	}
+
+	.post-meta dt {
+		color: var(--ink-muted);
+	}
+
+	.post-meta dd {
+		font-size: 11px;
+		color: var(--ink);
+	}
+
+	.post-meta--compact {
+		border: 0;
+	}
+
+	.post-meta--compact > div {
+		min-width: auto;
+		padding: 0 14px 0 0;
+	}
+
+	.post-meta--compact > div + div {
+		padding-left: 14px;
+	}
+</style>

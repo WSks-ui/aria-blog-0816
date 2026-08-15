@@ -1,0 +1,23 @@
+---
+import ArticleGraph from '@/components/content/ArticleGraph.astro';
+import PageHeader from '@/components/content/PageHeader.astro';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { getPosts } from '@/lib/content';
+
+const posts = await getPosts();
+---
+
+<BaseLayout title="伞骨关系图" description="通过共享标签查看文章之间的关系。">
+	<div class="page-shell">
+		<PageHeader eyebrow="MAP / CONNECTIONS" title="伞骨关系图" description="文章按内容类型分列，共享标签形成连接线。它不是推荐算法，只呈现已经写下的关系。" count={posts.length} />
+		<div class="graph-mount">
+			<ArticleGraph posts={posts} heading="共享标签形成的联系" />
+		</div>
+	</div>
+</BaseLayout>
+
+<style>
+	.page-shell { max-width: var(--content-max); margin-inline: auto; padding-inline: var(--page-gutter); }
+	.graph-mount { margin-top: 64px; }
+	@media (max-width: 760px) { .page-shell { padding-inline: 20px; } }
+</style>

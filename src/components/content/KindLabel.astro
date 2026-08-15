@@ -1,0 +1,43 @@
+---
+interface Props {
+	kind: 'essay' | 'note' | 'project' | 'photo' | 'code' | 'tutorial';
+}
+
+const { kind } = Astro.props;
+const labels = {
+	essay: 'ESSAY / 长文',
+	note: 'NOTE / 学习笔记',
+	project: 'PROJECT / 项目',
+	photo: 'FRAME / 摄影与插画',
+	code: 'CODE / 代码笔记',
+	tutorial: 'GUIDE / 教程',
+};
+---
+
+<span class={`kind-label kind-label--${kind}`}>
+	<span aria-hidden="true"></span>
+	{labels[kind]}
+</span>
+
+<style>
+	.kind-label {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		font-family: var(--font-ui);
+		font-size: 10px;
+		line-height: 1.4;
+		color: var(--ink-muted);
+	}
+
+	.kind-label > span {
+		width: 7px;
+		aspect-ratio: 1;
+		border: 1px solid var(--accent-strong);
+	}
+
+	.kind-label--project > span,
+	.kind-label--tutorial > span {
+		background: var(--accent-strong);
+	}
+</style>

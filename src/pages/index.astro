@@ -1,17 +1,195 @@
 ---
+import { ArrowRight, CalendarRange, Network, Search } from '@lucide/astro';
+import ArticleRow from '@/components/content/ArticleRow.astro';
+import KindLabel from '@/components/content/KindLabel.astro';
+import PostMeta from '@/components/content/PostMeta.astro';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { POST_KIND_LABELS, POST_KINDS } from '@/data/site';
+import { collectTagCounts, getPostPath, getPosts } from '@/lib/content';
 
+const posts = await getPosts();
+const featured = posts.find((post) => post.data.featured) ?? posts[0];
+const recent = posts.filter((post) => post.id !== featured?.id).slice(0, 5);
+const tagCounts = collectTagCounts(posts).slice(0, 8);
+const kindCounts = POST_KINDS.map((kind) => ({
+	kind,
+	count: posts.filter((post) => post.data.kind === kind).length,
+}));
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+<BaseLayout>
+	<div class="home-shell">
+		<section class="home-hero" aria-labelledby="home-title">
+			<img class="home-hero__media home-hero__media--day" src="/assets/covers/default-day.webp" alt="抽象雨伞、纸片与制图网格组成的雨天档案场景" width="1600" height="900" />
+			<img class="home-hero__media home-hero__media--night" src="/assets/covers/default-night.webp" alt="" width="1600" height="900" aria-hidden="true" />
+			<div class="home-hero__overlay" aria-hidden="true"></div>
+			<div class="home-hero__status">
+				<span>SCENE / HOME</span>
+				<span data-weather-theme-label>THEME / RAIN</span>
+				<span>LOC / CN</span>
+			</div>
+			<div class="home-hero__copy">
+				<p>PERSONAL ARCHIVE / 2026</p>
+				<h1 id="home-title">Aria-7</h1>
+				<strong>雨线之外，保存仍在形成的知识与观察。</strong>
+				<span>长文、学习笔记、项目、影像、代码与教程。</span>
+			</div>
+			<a class="home-hero__enter" href={featured ? getPostPath(featured) : '/posts/'}>
+				<span>进入最新场景</span>
+				<ArrowRight size={20} stroke-width={1.5} aria-hidden="true" />
+			</a>
+		</section>
+
+		{featured && (
+			<section class="featured-band" aria-labelledby="featured-title">
+				<div class="section-index">
+					<span>01</span>
+					<p>FEATURED RECORD</p>
+				</div>
+				<div class="featured-band__copy">
+					<KindLabel kind={featured.data.kind} />
+					<h2 id="featured-title"><a href={getPostPath(featured)}>{featured.data.title}</a></h2>
+					<p>{featured.data.summary}</p>
+					<PostMeta date={featured.data.publishedAt} weather={featured.data.readingWeather} compact />
+				</div>
+				<a class="featured-band__visual" href={getPostPath(featured)} aria-label={`阅读《${featured.data.title}》`}>
+					<img src={featured.data.cover ?? '/assets/covers/default-night.webp'} alt="" width="760" height="430" />
+					<span>OPEN / RECORD</span>
+				</a>
+			</section>
+		)}
+
+		<section class="home-section" aria-labelledby="recent-title">
+			<header class="section-heading">
+				<div>
+					<p>02 / LATEST ENTRIES</p>
+					<h2 id="recent-title">最近记录</h2>
+				</div>
+				<a href="/posts/">查看全部 <ArrowRight size={17} stroke-width={1.5} aria-hidden="true" /></a>
+			</header>
+			<div class="article-list">
+				{recent.map((post, index) => <ArticleRow post={post} index={index + 1} />)}
+			</div>
+		</section>
+
+		<section class="index-grid" aria-labelledby="index-title">
+			<header class="section-heading index-grid__heading">
+				<div>
+					<p>03 / INDEX SYSTEM</p>
+					<h2 id="index-title">寻找一条路径</h2>
+				</div>
+			</header>
+			<div class="kind-index">
+				{kindCounts.map(({ kind, count }, index) => (
+					<a href={`/types/${kind}/`}>
+						<span>{String(index + 1).padStart(2, '0')}</span>
+						<strong>{POST_KIND_LABELS[kind]}</strong>
+						<small>{String(count).padStart(2, '0')} ENTRIES</small>
+					</a>
+				))}
+			</div>
+			<div class="tag-index">
+				<p>TAGS / FREQUENCY</p>
+				{tagCounts.map((tag) => (
+					<a href={`/tags/${encodeURIComponent(tag.label)}/`}>
+						<span>#{tag.label}</span>
+						<small>{tag.count}</small>
+					</a>
+				))}
+			</div>
+		</section>
+
+		<section class="explore-band" aria-label="探索工具">
+			<a href="/archive/">
+				<CalendarRange size={24} stroke-width={1.4} aria-hidden="true" />
+				<span>按时间寻找</span>
+				<strong>雨日历</strong>
+			</a>
+			<a href="/connections/">
+				<Network size={24} stroke-width={1.4} aria-hidden="true" />
+				<span>按关联寻找</span>
+				<strong>伞骨关系图</strong>
+			</a>
+			<button type="button" data-search-trigger>
+				<Search size={24} stroke-width={1.4} aria-hidden="true" />
+				<span>按词语寻找</span>
+				<strong>搜索档案</strong>
+			</button>
+		</section>
+	</div>
+</BaseLayout>
+
+<style>
+	.home-shell { max-width: var(--content-max); margin-inline: auto; padding-inline: var(--page-gutter); }
+	.home-hero { position: relative; min-height: clamp(500px, calc(100vh - 290px), 620px); margin-top: 28px; overflow: hidden; background: var(--accent-soft); color: var(--ink); }
+	.home-hero__media, .home-hero__overlay { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+	.home-hero__media--night { display: none; }
+	.home-hero__overlay { background: rgb(243 244 242 / 16%); }
+	:global(html[data-weather-mode='night']) .home-hero__media--day { display: none; }
+	:global(html[data-weather-mode='night']) .home-hero__media--night { display: block; }
+	:global(html[data-weather-mode='night']) .home-hero__overlay { background: rgb(9 17 20 / 8%); }
+	.home-hero__status { position: absolute; top: 22px; right: 24px; display: flex; gap: 20px; font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
+	.home-hero__copy { position: absolute; top: 50%; left: clamp(34px, 7vw, 112px); width: min(660px, 55%); transform: translateY(-50%); }
+	.home-hero__copy p, .home-hero__copy span { font-family: var(--font-ui); font-size: 11px; color: var(--ink-muted); }
+	.home-hero h1 { margin: 18px 0 10px; font-family: var(--font-display); font-size: 152px; font-weight: 500; line-height: 0.96; overflow-wrap: anywhere; }
+	.home-hero__copy strong { display: block; max-width: 620px; margin-bottom: 14px; font-family: var(--font-display); font-size: 34px; font-weight: 500; line-height: 1.5; overflow-wrap: anywhere; }
+	.home-hero__enter { position: absolute; right: 24px; bottom: 24px; display: inline-flex; min-height: 44px; align-items: center; gap: 18px; padding: 0 14px 0 18px; border: 1px solid var(--ink); background: color-mix(in srgb, var(--paper-0) 86%, transparent); font-family: var(--font-ui); font-size: 11px; color: var(--ink); text-decoration: none; }
+	.featured-band { display: grid; grid-template-columns: 120px minmax(360px, 0.9fr) minmax(420px, 1.1fr); min-height: 440px; margin-top: 36px; border-block: 1px solid var(--line); }
+	.section-index { display: flex; flex-direction: column; justify-content: space-between; padding: 28px 22px 28px 0; border-right: 1px solid var(--line); font-family: var(--font-ui); color: var(--ink-muted); }
+	.section-index span { font-size: 34px; color: var(--accent-strong); }
+	.section-index p { margin: 0; font-size: 9px; writing-mode: vertical-rl; }
+	.featured-band__copy { display: flex; flex-direction: column; justify-content: center; padding: 48px; }
+	.featured-band h2 { margin: 18px 0; font-family: var(--font-display); font-size: 58px; font-weight: 500; line-height: 1.25; overflow-wrap: anywhere; }
+	.featured-band h2 a { color: var(--ink); text-decoration: none; }
+	.featured-band__copy > p { margin: 0 0 28px; font-size: 14px; line-height: 1.85; color: var(--ink-muted); }
+	.featured-band__visual { position: relative; display: block; min-height: 440px; overflow: hidden; }
+	.featured-band__visual img { width: 100%; height: 100%; object-fit: cover; transition: transform 700ms ease-out; }
+	.featured-band__visual:hover img { transform: scale(1.018); }
+	.featured-band__visual span { position: absolute; right: 18px; bottom: 16px; font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
+	.home-section, .index-grid { margin-top: 112px; }
+	.section-heading { display: flex; align-items: end; justify-content: space-between; gap: 32px; margin-bottom: 34px; }
+	.section-heading p { margin: 0 0 10px; font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
+	.section-heading h2 { margin: 0; font-family: var(--font-display); font-size: 36px; font-weight: 500; }
+	.section-heading > a { display: inline-flex; min-height: 44px; align-items: center; gap: 8px; font-family: var(--font-ui); font-size: 11px; color: var(--accent-strong); text-decoration: none; }
+	.index-grid { display: grid; grid-template-columns: 1.55fr 0.85fr; gap: 64px; }
+	.index-grid__heading { grid-column: 1 / -1; margin-bottom: -24px; }
+	.kind-index { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+	.kind-index a { display: grid; min-height: 142px; align-content: space-between; padding: 18px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--ink); text-decoration: none; }
+	.kind-index a:hover { background: var(--accent-soft); }
+	.kind-index span, .kind-index small, .tag-index p, .tag-index small { font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
+	.kind-index strong { font-family: var(--font-display); font-size: 19px; font-weight: 500; }
+	.tag-index { padding-top: 16px; border-top: 1px solid var(--line); }
+	.tag-index p { margin: 0 0 22px; }
+	.tag-index a { display: flex; min-height: 44px; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); font-family: var(--font-ui); font-size: 12px; color: var(--ink); text-decoration: none; }
+	.explore-band { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 112px; border-block: 1px solid var(--line); }
+	.explore-band > * { display: grid; grid-template-columns: 34px 1fr; grid-template-rows: auto auto; gap: 4px 12px; min-height: 128px; align-content: center; padding: 24px 32px; border: 0; border-right: 1px solid var(--line); background: transparent; color: var(--ink); text-align: left; text-decoration: none; cursor: pointer; }
+	.explore-band > *:last-child { border-right: 0; }
+	.explore-band svg { grid-row: 1 / 3; color: var(--accent-strong); }
+	.explore-band span { font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
+	.explore-band strong { font-family: var(--font-display); font-size: 18px; font-weight: 500; }
+	@media (max-width: 1000px) {
+		/* 首页展示字阶只在版式切换点变化，避免阅读过程中连续缩放。 */
+		.home-hero h1 { font-size: 104px; }
+		.home-hero__copy strong { font-size: 28px; }
+		.featured-band { grid-template-columns: 90px 1fr; }
+		.featured-band h2 { font-size: 46px; }
+		.featured-band__visual { grid-column: 1 / -1; }
+		.index-grid { grid-template-columns: 1fr; }
+	}
+	@media (max-width: 760px) {
+		.home-shell { padding-inline: 20px; }
+		.home-hero { min-height: 420px; }
+		.home-hero__overlay { background: rgb(243 244 242 / 46%); }
+		.home-hero__copy { left: 26px; width: calc(100% - 52px); }
+		.home-hero h1 { font-size: 72px; }
+		.home-hero__copy strong { font-size: 24px; }
+		.home-hero__status { left: 24px; right: auto; flex-wrap: wrap; }
+		.featured-band { grid-template-columns: 1fr; }
+		.section-index { flex-direction: row; padding: 18px 0; border-right: 0; border-bottom: 1px solid var(--line); }
+		.section-index p { writing-mode: horizontal-tb; }
+		.featured-band__copy { padding: 36px 24px; }
+		.featured-band h2 { font-size: 36px; }
+		.kind-index, .explore-band { grid-template-columns: 1fr; }
+		.explore-band > * { border-right: 0; border-bottom: 1px solid var(--line); }
+	}
+</style>
