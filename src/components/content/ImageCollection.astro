@@ -1,0 +1,364 @@
+---
+import { ChevronLeft, ChevronRight, Maximize2, Plus } from '@lucide/astro';
+import type { ImageCollectionItem } from '@/data/image-collection';
+
+interface Props {
+	items: readonly ImageCollectionItem[];
+}
+
+const { items } = Astro.props;
+const firstItem = items[0];
+// 底片墙按固定批次渐进展开；以后收藏数量增加时只需调整这一处。
+const CONTACT_SHEET_BATCH_SIZE = 10;
+---
+
+{firstItem && (
+	<section
+		class="image-collection"
+		data-image-collection
+		data-contact-batch-size={CONTACT_SHEET_BATCH_SIZE}
+		style={`--gallery-accent: ${firstItem.accent};`}
+		aria-label="图片收藏"
+	>
+		<script is:inline type="application/json" data-image-collection-data set:html={JSON.stringify(items)}></script>
+		<div class="image-collection__telemetry" aria-hidden="true">
+			<span>VISUAL ARCHIVE / LOCAL</span>
+			<span>{String(items.length).padStart(3, '0')} FRAMES</span>
+			<span>AR-7 / CONTACT SHEET</span>
+		</div>
+
+		<div class="gallery-stage" data-gallery-stage>
+			<div class="gallery-stage__image-wrap">
+				<img
+					data-gallery-image
+					src={firstItem.src}
+					alt={firstItem.alt}
+					width={firstItem.width}
+					height={firstItem.height}
+					fetchpriority="high"
+					decoding="async"
+				/>
+				<div class="gallery-stage__crosshair" aria-hidden="true"></div>
+				<span class="gallery-stage__grain" aria-hidden="true"></span>
+			</div>
+
+			<div class="gallery-stage__caption">
+				<div class="gallery-stage__index">
+					<strong data-gallery-index>01</strong>
+					<span>/ {String(items.length).padStart(2, '0')}</span>
+				</div>
+				<div class="gallery-stage__copy">
+					<p data-gallery-title>{firstItem.title}</p>
+				</div>
+				<div class="gallery-stage__meta">
+					<span data-gallery-dimensions>{firstItem.width} × {firstItem.height}</span>
+					<span data-gallery-credit>{firstItem.credit}</span>
+				</div>
+				<div class="gallery-stage__controls">
+					<button type="button" aria-label="上一张" data-tooltip="上一张" data-gallery-previous>
+						<ChevronLeft size={19} stroke-width={1.5} aria-hidden="true" />
+					</button>
+					<button type="button" aria-label="下一张" data-tooltip="下一张" data-gallery-next>
+						<ChevronRight size={19} stroke-width={1.5} aria-hidden="true" />
+					</button>
+					<button type="button" aria-label="全屏查看" data-tooltip="全屏查看" data-gallery-fullscreen>
+						<Maximize2 size={18} stroke-width={1.5} aria-hidden="true" />
+					</button>
+				</div>
+			</div>
+		</div>
+
+		<div class="gallery-strip" role="tablist" aria-label="选择图片">
+			{items.map((item, index) => (
+				<button
+					type="button"
+					role="tab"
+					aria-label={`查看《${item.title}》`}
+					aria-selected={index === 0 ? 'true' : 'false'}
+					data-gallery-select={index}
+					style={`--item-accent: ${item.accent};`}
+				>
+					<span>{String(index + 1).padStart(2, '0')}</span>
+					<img src={item.thumbnail} alt="" width={item.width} height={item.height} loading="lazy" decoding="async" />
+				</button>
+			))}
+		</div>
+
+		<section class="contact-sheet" aria-labelledby="contact-sheet-title">
+			<header>
+				<div>
+					<p>CONTACT SHEET / {String(items.length).padStart(3, '0')}</p>
+					<h2 id="contact-sheet-title">收藏底片</h2>
+				</div>
+				<span>ONLINE SOURCES / CONTACT FOR REMOVAL</span>
+			</header>
+			<div class="contact-sheet__grid">
+				{items.map((item, index) => (
+					<button
+						type="button"
+						class:list={['contact-frame', `contact-frame--${item.size}`]}
+						hidden={index >= CONTACT_SHEET_BATCH_SIZE}
+						aria-label={`在主画幅查看《${item.title}》`}
+						data-contact-select={index}
+						data-contact-frame
+						style={`--item-accent: ${item.accent};`}
+					>
+						<img src={item.thumbnail} alt="" width={item.width} height={item.height} loading="lazy" decoding="async" />
+						<span class="contact-frame__scrim" aria-hidden="true"></span>
+						<span class="contact-frame__caption">
+							<small>{String(index + 1).padStart(2, '0')} / FRAME</small>
+							<strong>{item.title}</strong>
+						</span>
+					</button>
+				))}
+			</div>
+			{items.length > CONTACT_SHEET_BATCH_SIZE && (
+				<div class="contact-sheet__load-row" data-contact-load-row>
+					<button type="button" data-contact-load-more>
+						<Plus size={18} stroke-width={1.5} aria-hidden="true" />
+						<span>继续加载</span>
+						<small><b data-contact-remaining>{String(items.length - CONTACT_SHEET_BATCH_SIZE).padStart(2, '0')}</b> FRAMES REMAIN</small>
+					</button>
+				</div>
+			)}
+		</section>
+	</section>
+)}
+
+<script>
+	interface GalleryItem {
+		id: string;
+		title: string;
+		src: string;
+		alt: string;
+		description: string;
+		credit: string;
+		width: number;
+		height: number;
+		accent: string;
+	}
+
+	function initImageCollections() {
+		document.querySelectorAll<HTMLElement>('[data-image-collection]').forEach((root) => {
+			if (root.dataset.galleryReady === 'true') return;
+			root.dataset.galleryReady = 'true';
+			const dataNode = root.querySelector<HTMLScriptElement>('[data-image-collection-data]');
+			const stage = root.querySelector<HTMLElement>('[data-gallery-stage]');
+			const stageImage = root.querySelector<HTMLImageElement>('[data-gallery-image]');
+			const indexNode = root.querySelector<HTMLElement>('[data-gallery-index]');
+			const titleNode = root.querySelector<HTMLElement>('[data-gallery-title]');
+			const dimensionsNode = root.querySelector<HTMLElement>('[data-gallery-dimensions]');
+			const creditNode = root.querySelector<HTMLElement>('[data-gallery-credit]');
+			const selectors = [...root.querySelectorAll<HTMLButtonElement>('[data-gallery-select]')];
+			const contactSelectors = [...root.querySelectorAll<HTMLButtonElement>('[data-contact-select]')];
+			const contactFrames = [...root.querySelectorAll<HTMLButtonElement>('[data-contact-frame]')];
+			const loadMoreButton = root.querySelector<HTMLButtonElement>('[data-contact-load-more]');
+			const loadRow = root.querySelector<HTMLElement>('[data-contact-load-row]');
+			const remainingNode = root.querySelector<HTMLElement>('[data-contact-remaining]');
+			if (!dataNode?.textContent || !stage || !stageImage) return;
+
+			let items: GalleryItem[] = [];
+			try {
+				items = JSON.parse(dataNode.textContent) as GalleryItem[];
+			} catch {
+				return;
+			}
+			if (items.length === 0) return;
+			const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+			const contactBatchSize = Number(root.dataset.contactBatchSize ?? 10);
+			let activeIndex = 0;
+			let selectionToken = 0;
+
+			const commitItem = (item: GalleryItem, index: number) => {
+				stageImage.src = item.src;
+				stageImage.alt = item.alt;
+				stageImage.width = item.width;
+				stageImage.height = item.height;
+				if (indexNode) indexNode.textContent = String(index + 1).padStart(2, '0');
+				if (titleNode) titleNode.textContent = item.title;
+				if (dimensionsNode) dimensionsNode.textContent = `${item.width} × ${item.height}`;
+				if (creditNode) creditNode.textContent = item.credit;
+				root.style.setProperty('--gallery-accent', item.accent);
+				selectors.forEach((selector, selectorIndex) => selector.setAttribute('aria-selected', String(selectorIndex === index)));
+			};
+
+			const selectItem = async (requestedIndex: number, scrollToStage = false) => {
+				const index = (requestedIndex + items.length) % items.length;
+				const item = items[index];
+				if (!item || (index === activeIndex && !scrollToStage)) return;
+				activeIndex = index;
+				selectionToken += 1;
+				const token = selectionToken;
+				selectors.forEach((selector, selectorIndex) => selector.setAttribute('aria-selected', String(selectorIndex === index)));
+				if (scrollToStage) stage.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+
+				// 先在内存中解码下一张，确认可显示后才让当前画面退场，避免加载期间暴露空白画布。
+				const preload = new Image();
+				preload.src = item.src;
+				try {
+					await preload.decode();
+				} catch {
+					// decode 在部分浏览器会因缓存策略拒绝，但完成 load 后图片仍可正常交给主画幅。
+				}
+				if (token !== selectionToken) return;
+				if (reduceMotion) {
+					commitItem(item, index);
+					return;
+				}
+				stage.classList.add('is-switching');
+				window.setTimeout(() => {
+					if (token !== selectionToken) return;
+					commitItem(item, index);
+					requestAnimationFrame(() => stage.classList.remove('is-switching'));
+				}, 190);
+			};
+
+			selectors.forEach((selector) => {
+				selector.addEventListener('click', () => selectItem(Number(selector.dataset.gallerySelect ?? 0)));
+			});
+			contactSelectors.forEach((selector) => {
+				selector.addEventListener('click', () => selectItem(Number(selector.dataset.contactSelect ?? 0), true));
+			});
+			loadMoreButton?.addEventListener('click', () => {
+				const hiddenFrames = contactFrames.filter((frame) => frame.hidden);
+				const nextFrames = hiddenFrames.slice(0, contactBatchSize);
+				nextFrames.forEach((frame, frameIndex) => {
+					frame.classList.add('is-loading');
+					frame.hidden = false;
+					window.setTimeout(() => frame.classList.remove('is-loading'), reduceMotion ? 0 : frameIndex * 70 + 30);
+				});
+				const remaining = hiddenFrames.length - nextFrames.length;
+				if (remainingNode) remainingNode.textContent = String(remaining).padStart(2, '0');
+				if (remaining === 0 && loadRow) loadRow.hidden = true;
+			});
+			root.querySelector('[data-gallery-previous]')?.addEventListener('click', () => selectItem(activeIndex - 1));
+			root.querySelector('[data-gallery-next]')?.addEventListener('click', () => selectItem(activeIndex + 1));
+			root.querySelector('[data-gallery-fullscreen]')?.addEventListener('click', async () => {
+				try {
+					if (document.fullscreenElement) await document.exitFullscreen();
+					else await stage.requestFullscreen();
+				} catch {
+					// 浏览器策略可能禁止非直接手势触发的全屏，失败时保留当前画幅即可。
+				}
+			});
+
+			root.addEventListener('keydown', (event) => {
+				if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+				event.preventDefault();
+				selectItem(activeIndex + (event.key === 'ArrowRight' ? 1 : -1));
+			});
+			stage.addEventListener('pointermove', (event) => {
+				const bounds = stage.getBoundingClientRect();
+				stage.style.setProperty('--gallery-pointer-x', `${event.clientX - bounds.left}px`);
+				stage.style.setProperty('--gallery-pointer-y', `${event.clientY - bounds.top}px`);
+				stage.classList.add('is-inspecting');
+			});
+			stage.addEventListener('pointerleave', () => stage.classList.remove('is-inspecting'));
+		});
+	}
+
+	initImageCollections();
+	document.addEventListener('astro:page-load', initImageCollections);
+</script>
+
+<style>
+	.image-collection { margin-top: 42px; }
+	.image-collection__telemetry { display: grid; grid-template-columns: 1fr auto 1fr; gap: 24px; align-items: center; min-height: 42px; border-block: 1px solid var(--line); font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
+	.image-collection__telemetry span:nth-child(2) { color: var(--gallery-accent); transition: color 480ms var(--ease-rain); }
+	.image-collection__telemetry span:last-child { text-align: right; }
+	.gallery-stage { --gallery-pointer-x: 50%; --gallery-pointer-y: 50%; position: relative; isolation: isolate; display: grid; grid-template-rows: minmax(0, 1fr) 88px; height: clamp(620px, 76vh, 820px); overflow: hidden; background: #071014; color: #edf1ef; }
+	.gallery-stage::before,
+	.gallery-stage::after { position: absolute; z-index: 5; width: 42px; height: 42px; border-color: var(--gallery-accent); content: ''; opacity: 0.8; transition: border-color 480ms var(--ease-rain); pointer-events: none; }
+	.gallery-stage::before { top: 18px; left: 18px; border-top: 1px solid; border-left: 1px solid; }
+	.gallery-stage::after { right: 18px; bottom: 106px; border-right: 1px solid; border-bottom: 1px solid; }
+	.gallery-stage__image-wrap { position: relative; display: grid; min-height: 0; place-items: center; overflow: hidden; background: #071014; }
+	.gallery-stage__image-wrap > img { display: block; width: 100%; height: 100%; object-fit: contain; opacity: 1; transform: scale(1); transition: opacity 380ms var(--ease-rain), transform 760ms var(--ease-drift); }
+	.gallery-stage.is-switching .gallery-stage__image-wrap > img { opacity: 0; transform: scale(0.992); }
+	.gallery-stage__grain { position: absolute; inset: 0; background-image: url('/assets/patterns/paper-drift.svg'); background-size: 720px auto; mix-blend-mode: screen; opacity: 0.055; pointer-events: none; }
+	.gallery-stage__crosshair { position: absolute; z-index: 3; top: var(--gallery-pointer-y); left: var(--gallery-pointer-x); width: 1px; height: 1px; opacity: 0; transition: opacity 240ms var(--ease-rain); pointer-events: none; }
+	.gallery-stage__crosshair::before,
+	.gallery-stage__crosshair::after { position: absolute; background: color-mix(in srgb, var(--gallery-accent) 62%, transparent); content: ''; }
+	.gallery-stage__crosshair::before { top: -24px; left: 0; width: 1px; height: 48px; }
+	.gallery-stage__crosshair::after { top: 0; left: -24px; width: 48px; height: 1px; }
+	.gallery-stage.is-inspecting .gallery-stage__crosshair { opacity: 0.72; }
+	.gallery-stage__caption { display: grid; grid-template-columns: 82px minmax(0, 1fr) minmax(220px, auto) auto; gap: 24px; align-items: center; min-height: 88px; padding: 14px 20px; border-top: 1px solid #39545c; background: #0b181c; }
+	.gallery-stage__index { display: flex; align-items: baseline; gap: 5px; font-family: var(--font-ui); color: #8ea2a8; }
+	.gallery-stage__index strong { font-size: 30px; font-weight: 400; color: var(--gallery-accent); transition: color 480ms var(--ease-rain); }
+	.gallery-stage__index span { font-size: 9px; }
+	.gallery-stage__copy { display: grid; gap: 6px; min-width: 0; }
+	.gallery-stage__copy p { margin: 0; font-family: var(--font-display); font-size: 20px; }
+	.gallery-stage__meta { display: grid; gap: 7px; font-family: var(--font-ui); font-size: 8px; color: #8ea2a8; }
+	.gallery-stage__controls { display: flex; gap: 2px; }
+	.gallery-stage__controls button { display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid #39545c; background: transparent; color: #a8b8bb; cursor: pointer; }
+	.gallery-stage__controls button:hover,
+	.gallery-stage__controls button:focus-visible { border-color: var(--gallery-accent); color: var(--gallery-accent); }
+	.gallery-stage:fullscreen { width: 100vw; height: 100vh; }
+	.gallery-stage:fullscreen::after { bottom: 106px; }
+	.gallery-strip { display: grid; grid-template-columns: repeat(11, minmax(0, 1fr)); gap: 1px; margin-top: 1px; background: var(--line); border-bottom: 1px solid var(--line); }
+	.gallery-strip button { position: relative; aspect-ratio: 1; padding: 0; overflow: hidden; border: 0; background: var(--paper-0); cursor: pointer; }
+	.gallery-strip img { width: 100%; height: 100%; object-fit: cover; opacity: 0.62; filter: saturate(0.68); transition: opacity 420ms var(--ease-rain), filter 420ms var(--ease-rain), transform 680ms var(--ease-drift); }
+	.gallery-strip button > span { position: absolute; z-index: 2; top: 7px; left: 7px; font-family: var(--font-ui); font-size: 8px; color: #edf1ef; text-shadow: 0 1px 4px rgb(0 0 0 / 56%); }
+	.gallery-strip button::after { position: absolute; right: 0; bottom: 0; left: 0; height: 3px; background: var(--item-accent); content: ''; transform: scaleX(0); transform-origin: left; transition: transform 520ms var(--ease-drift); }
+	.gallery-strip button:hover img,
+	.gallery-strip button:focus-visible img,
+	.gallery-strip button[aria-selected='true'] img { opacity: 1; filter: saturate(1); transform: scale(1.045); }
+	.gallery-strip button[aria-selected='true']::after { transform: scaleX(1); }
+	.contact-sheet { margin-top: 132px; padding-top: 32px; border-top: 1px solid var(--line); }
+	.contact-sheet > header { display: flex; align-items: end; justify-content: space-between; gap: 32px; margin-bottom: 38px; }
+	.contact-sheet header p,
+	.contact-sheet header > span { margin: 0; font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
+	.contact-sheet h2 { margin: 8px 0 0; font-family: var(--font-display); font-size: 40px; font-weight: 500; }
+	.contact-sheet__grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-auto-flow: dense; grid-auto-rows: 148px; gap: 12px; }
+	.contact-frame { position: relative; isolation: isolate; padding: 0; overflow: hidden; border: 1px solid var(--line); background: #071014; color: #edf1ef; text-align: left; cursor: pointer; }
+	.contact-frame--feature { grid-column: span 8; grid-row: span 3; }
+	.contact-frame--wide { grid-column: span 8; grid-row: span 2; }
+	.contact-frame--standard { grid-column: span 4; grid-row: span 2; }
+	.contact-frame--portrait { grid-column: span 4; grid-row: span 4; }
+	.contact-frame img { width: 100%; height: 100%; object-fit: cover; filter: saturate(0.82) contrast(0.96); transform: scale(1.002); transition: filter 700ms var(--ease-rain), transform 1100ms var(--ease-drift); }
+	.contact-frame__scrim { position: absolute; inset: 0; z-index: 1; background: linear-gradient(180deg, transparent 42%, rgb(5 13 16 / 78%)); opacity: 0.78; transition: opacity 520ms var(--ease-rain); }
+	.contact-frame__caption { position: absolute; z-index: 2; right: 18px; bottom: 16px; left: 18px; display: flex; align-items: end; justify-content: space-between; gap: 20px; }
+	.contact-frame__caption small { font-family: var(--font-ui); font-size: 8px; color: color-mix(in srgb, var(--item-accent) 84%, #edf1ef); }
+	.contact-frame__caption strong { max-width: 20ch; font-family: var(--font-display); font-size: 17px; font-weight: 500; text-align: right; }
+	.contact-frame::after { position: absolute; z-index: 3; top: 0; bottom: 0; left: 0; width: 3px; background: var(--item-accent); content: ''; transform: scaleY(0); transform-origin: bottom; transition: transform 620ms var(--ease-drift); }
+	.contact-frame:hover img,
+	.contact-frame:focus-visible img { filter: saturate(1.04) contrast(1.02); transform: scale(1.026); }
+	.contact-frame:hover .contact-frame__scrim,
+	.contact-frame:focus-visible .contact-frame__scrim { opacity: 0.5; }
+	.contact-frame:hover::after,
+	.contact-frame:focus-visible::after { transform: scaleY(1); }
+	.contact-frame.is-loading { opacity: 0; transform: translateY(24px) scale(0.992); }
+	.contact-frame { transition: opacity 560ms var(--ease-rain), transform 760ms var(--ease-drift); }
+	.contact-sheet__load-row { display: grid; margin-top: 28px; border-block: 1px solid var(--line); }
+	.contact-sheet__load-row button { display: grid; grid-template-columns: 32px 1fr auto; gap: 16px; align-items: center; min-height: 68px; padding: 0 18px; border: 0; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+	.contact-sheet__load-row button:hover,
+	.contact-sheet__load-row button:focus-visible { background: color-mix(in srgb, var(--gallery-accent) 8%, transparent); color: var(--gallery-accent); }
+	.contact-sheet__load-row span { font-family: var(--font-display); font-size: 16px; }
+	.contact-sheet__load-row small { font-family: var(--font-ui); font-size: 8px; color: var(--ink-muted); }
+	.contact-sheet__load-row b { font-weight: 400; color: var(--gallery-accent); }
+	@media (prefers-reduced-motion: reduce) {
+		.gallery-stage__image-wrap > img,
+		.gallery-strip img,
+		.contact-frame img,
+		.contact-frame::after,
+		.contact-frame { transition: none; }
+	}
+	@media (max-width: 1000px) {
+		.gallery-stage { height: 680px; }
+		.gallery-stage__caption { grid-template-columns: 70px minmax(0, 1fr) auto; }
+		.gallery-stage__meta { display: none; }
+		.gallery-strip { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+		.contact-sheet__grid { grid-auto-rows: 126px; }
+	}
+	@media (max-width: 760px) {
+		.image-collection__telemetry span:last-child { display: none; }
+		.gallery-stage { height: 620px; grid-template-rows: minmax(0, 1fr) 150px; }
+		.gallery-stage__caption { grid-template-columns: 54px minmax(0, 1fr); gap: 12px; }
+		.gallery-stage__controls { grid-column: 1 / -1; }
+		.gallery-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+		.contact-sheet__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 150px; }
+		.contact-frame--feature,
+		.contact-frame--wide,
+		.contact-frame--standard,
+		.contact-frame--portrait { grid-column: span 1; grid-row: span 2; }
+	}
+</style>
