@@ -11,7 +11,7 @@ const navItems = [
 	{ href: '/types/essay/', label: '长文' },
 	{ href: '/types/note/', label: '笔记' },
 	{ href: '/types/project/', label: '项目' },
-	{ href: '/types/photo/', label: '影像' },
+	{ href: '/types/photo/', label: '底片' },
 	{ href: '/types/tutorial/', label: '教程' },
 	{ href: '/archive/', label: '归档' },
 ];
@@ -26,9 +26,10 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 		<span class="site-brand__meta">RAIN ARCHIVE / 001</span>
 	</a>
 
-	<nav class="site-nav" aria-label="主导航">
+	<nav class="site-nav" aria-label="主导航" data-site-nav>
+		<span class="site-nav__indicator" aria-hidden="true" data-site-nav-indicator></span>
 		{navItems.map((item) => (
-			<a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined}>
+			<a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined} data-site-nav-link>
 				{item.label}
 			</a>
 		))}
@@ -50,6 +51,63 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 		<slot name="weather-control" />
 	</div>
 </header>
+
+<script>
+	function initSiteHeaderNavigation() {
+		document.querySelectorAll<HTMLElement>('[data-site-nav]').forEach((nav) => {
+			if (nav.dataset.navigationReady === 'true') return;
+			nav.dataset.navigationReady = 'true';
+			const indicator = nav.querySelector<HTMLElement>('[data-site-nav-indicator]');
+			const links = [...nav.querySelectorAll<HTMLElement>('[data-site-nav-link]')];
+			// 首页没有匹配的栏目路由时，以“长文”作为视觉起点；进入具体栏目后仍优先使用真实当前项。
+			const activeLink = nav.querySelector<HTMLElement>('[data-site-nav-link][aria-current="page"]')
+				?? links[0]
+				?? null;
+			let currentTarget: HTMLElement | null = activeLink;
+			if (!indicator) return;
+
+			const moveIndicator = (link: HTMLElement | null, placeImmediately = false) => {
+				currentTarget = link;
+				if (!link) {
+					nav.dataset.navCursorVisible = 'false';
+					return;
+				}
+				const navBounds = nav.getBoundingClientRect();
+				const linkBounds = link.getBoundingClientRect();
+				const horizontalInset = 12;
+				indicator.style.setProperty('--nav-indicator-x', `${linkBounds.left - navBounds.left - horizontalInset}px`);
+				indicator.style.setProperty('--nav-indicator-width', `${linkBounds.width + horizontalInset * 2}px`);
+				if (placeImmediately) indicator.classList.add('is-placing');
+				nav.dataset.navCursorVisible = 'true';
+				if (placeImmediately) requestAnimationFrame(() => indicator.classList.remove('is-placing'));
+			};
+
+			links.forEach((link) => {
+				link.addEventListener('pointerenter', () => moveIndicator(link, nav.dataset.navCursorVisible !== 'true'));
+				link.addEventListener('focus', () => moveIndicator(link, nav.dataset.navCursorVisible !== 'true'));
+			});
+			nav.addEventListener('pointerleave', () => {
+				const focusedLink = document.activeElement instanceof HTMLElement && nav.contains(document.activeElement)
+					? document.activeElement.closest<HTMLElement>('[data-site-nav-link]')
+					: null;
+				moveIndicator(focusedLink ?? activeLink);
+			});
+			nav.addEventListener('focusout', () => {
+				requestAnimationFrame(() => {
+					if (!nav.contains(document.activeElement)) moveIndicator(activeLink);
+				});
+			});
+
+			// 字体载入、窗口变化或工具区宽度改变后重新测量，避免指示器与文字错位。
+			const resizeObserver = new ResizeObserver(() => moveIndicator(currentTarget, true));
+			resizeObserver.observe(nav);
+			requestAnimationFrame(() => moveIndicator(activeLink, true));
+		});
+	}
+
+	initSiteHeaderNavigation();
+	document.addEventListener('astro:page-load', initSiteHeaderNavigation);
+</script>
 
 <style>
 	.site-header {
@@ -97,13 +155,49 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 	}
 
 	.site-nav {
+		position: relative;
+		isolation: isolate;
 		display: flex;
 		justify-content: center;
 		gap: clamp(16px, 2vw, 34px);
 	}
 
+	.site-nav__indicator {
+		position: absolute;
+		z-index: 0;
+		top: 6px;
+		left: 0;
+		width: var(--nav-indicator-width, 0px);
+		height: 32px;
+		opacity: 0;
+		transform: translate3d(var(--nav-indicator-x, 0px), 0, 0);
+		transition: transform 520ms var(--ease-drift), width 420ms var(--ease-rain), opacity 220ms var(--ease-rain);
+		will-change: transform, width;
+		pointer-events: none;
+	}
+
+	.site-nav__indicator::after {
+		position: absolute;
+		right: 0;
+		bottom: 0;
+		left: 0;
+		height: 1px;
+		background: color-mix(in srgb, var(--accent-strong) 88%, var(--ink));
+		box-shadow: 0 1px 0 color-mix(in srgb, var(--accent-strong) 22%, transparent);
+		content: '';
+	}
+
+	.site-nav[data-nav-cursor-visible='true'] .site-nav__indicator {
+		opacity: 1;
+	}
+
+	.site-nav__indicator.is-placing {
+		transition: none;
+	}
+
 	.site-nav a {
 		position: relative;
+		z-index: 1;
 		padding-block: 12px;
 		font-family: var(--font-ui);
 		font-size: 13px;
@@ -111,27 +205,10 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 		text-decoration: none;
 	}
 
-	.site-nav a::before {
-		position: absolute;
-		bottom: 5px;
-		left: 0;
-		width: 100%;
-		height: 1px;
-		background: var(--accent-strong);
-		content: '';
-		transform: scaleX(0);
-		transform-origin: left;
-		transition: transform var(--duration-fast) ease-out;
-	}
-
 	.site-nav a:hover,
+	.site-nav a:focus-visible,
 	.site-nav a[aria-current='page'] {
 		color: var(--ink);
-	}
-
-	.site-nav a:hover::before,
-	.site-nav a[aria-current='page']::before {
-		transform: scaleX(1);
 	}
 
 	.site-tools {
@@ -181,5 +258,9 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 		.site-tools > :global(a:last-of-type) {
 			display: none;
 		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.site-nav__indicator { transition: none; }
 	}
 </style>

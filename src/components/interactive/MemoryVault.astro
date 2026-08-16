@@ -1,5 +1,5 @@
 ---
-import { BookOpen, BookmarkPlus, Download, Trash2 } from '@lucide/astro';
+import { BookOpen, BookmarkPlus, Download, Trash2, X } from '@lucide/astro';
 
 interface Props {
   class?: string;
@@ -12,7 +12,7 @@ interface Props {
 const {
   class: className,
   maxLength = 500,
-  scopeSelector = 'article',
+  scopeSelector = '#main-content',
   storageKey = 'aria7-memory-vault',
   title = '记忆库',
 } = Astro.props;
@@ -50,14 +50,20 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
       <output class="memory-vault__count" data-memory-count aria-label="收藏数量">0</output>
     </button>
   </div>
+	<output class="memory-vault__selection" data-memory-selection aria-live="polite" hidden></output>
 
   <div class="memory-vault__panel" id={panelId} data-memory-panel hidden>
     <header class="memory-vault__panel-header">
       <h2 class="memory-vault__title">{title}</h2>
-      <button class="memory-vault__export" type="button" data-memory-export disabled>
-        <Download size={20} stroke-width={1.5} aria-hidden="true" />
-        <span>导出 JSON</span>
-      </button>
+	  <div class="memory-vault__panel-tools">
+		<button class="memory-vault__export" type="button" data-memory-export disabled>
+		  <Download size={20} stroke-width={1.5} aria-hidden="true" />
+		  <span data-memory-export-label>导出 JSON</span>
+		</button>
+		<button class="memory-vault__close" type="button" data-memory-close aria-label="关闭记忆库">
+		  <X size={20} stroke-width={1.5} aria-hidden="true" />
+		</button>
+	  </div>
     </header>
     <p class="memory-vault__status" data-memory-status aria-live="polite">
       在正文中选择句子后即可收藏。
@@ -83,6 +89,12 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
     createdAt: string;
   }
 
+  interface CachedSelection {
+    text: string;
+    rect: DOMRect;
+    pageKey: string;
+  }
+
   function initMemoryVaults() {
     document.querySelectorAll<HTMLElement>('[data-memory-vault]').forEach((root) => {
       if (root.dataset.interactiveReady === 'true') return;
@@ -90,19 +102,27 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
 
       const saveButton = root.querySelector<HTMLButtonElement>('[data-memory-save]');
       const toggleButton = root.querySelector<HTMLButtonElement>('[data-memory-toggle]');
+      const closeButton = root.querySelector<HTMLButtonElement>('[data-memory-close]');
       const panel = root.querySelector<HTMLElement>('[data-memory-panel]');
       const status = root.querySelector<HTMLElement>('[data-memory-status]');
       const empty = root.querySelector<HTMLElement>('[data-memory-empty]');
       const list = root.querySelector<HTMLOListElement>('[data-memory-list]');
       const exportButton = root.querySelector<HTMLButtonElement>('[data-memory-export]');
+      const exportLabel = root.querySelector<HTMLElement>('[data-memory-export-label]');
+      const selectionStatus = root.querySelector<HTMLOutputElement>('[data-memory-selection]');
       const deleteTemplate = root.querySelector<HTMLTemplateElement>('[data-memory-delete-template]');
-      if (!saveButton || !toggleButton || !panel || !status || !empty || !list || !exportButton || !deleteTemplate) return;
+      if (!saveButton || !toggleButton || !closeButton || !panel || !status || !empty || !list || !exportButton || !exportLabel || !selectionStatus || !deleteTemplate) return;
 
       const storageKey = root.dataset.storageKey || 'aria7-memory-vault';
       const maxLength = Math.max(20, Number(root.dataset.maxLength) || 500);
       let records: MemoryRecord[] = [];
-      let lastValidSelection = '';
+      let cachedSelection: CachedSelection | null = null;
       let scope: HTMLElement | null = null;
+      let pendingDeleteId: string | null = null;
+      let deleteResetTimer = 0;
+	  let hidePanelTimer = 0;
+      let selectionFrame = 0;
+	  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
       try {
         scope = document.querySelector<HTMLElement>(root.dataset.scopeSelector || 'article');
@@ -153,20 +173,72 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
       };
 
       const normalizeSelection = (value: string) => value.replace(/\s+/g, ' ').trim();
+	  const currentPageKey = () => `${window.location.origin}${window.location.pathname}${window.location.search}`;
+	  let preserveSelectionUntil = 0;
 
-      const getValidSelection = () => {
-        if (!scope) return '';
+      const getValidSelection = (): CachedSelection | null => {
+        if (!scope) return null;
         const selection = window.getSelection();
-        if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return '';
+        if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return null;
         const range = selection.getRangeAt(0);
         const ancestor = range.commonAncestorContainer.nodeType === Node.TEXT_NODE
           ? range.commonAncestorContainer.parentElement
           : range.commonAncestorContainer;
 
-        // 选区必须完全属于正文，且不能来自记忆库自身，避免误存按钮文字。
-        if (!(ancestor instanceof Node) || !scope.contains(ancestor) || root.contains(ancestor)) return '';
-        return normalizeSelection(selection.toString());
+        // 起止节点都必须在内容区内，避免跨越导航或工具栏的混合选区被误存。
+        if (
+          !(ancestor instanceof Node)
+          || !scope.contains(ancestor)
+          || !scope.contains(range.startContainer)
+          || !scope.contains(range.endContainer)
+          || root.contains(ancestor)
+        ) return null;
+
+		const text = normalizeSelection(selection.toString());
+		if (!text) return null;
+		return { text, rect: range.getBoundingClientRect(), pageKey: currentPageKey() };
       };
+
+	  const clearSelectionFeedback = () => {
+		cachedSelection = null;
+		root.dataset.selectionReady = 'false';
+		selectionStatus.hidden = true;
+		selectionStatus.textContent = '';
+	  };
+
+	  const updateSelectionFeedback = (selection: CachedSelection | null) => {
+		if (!selection) {
+			if (performance.now() >= preserveSelectionUntil) clearSelectionFeedback();
+			return;
+		}
+		cachedSelection = selection;
+		root.dataset.selectionReady = 'true';
+		selectionStatus.hidden = false;
+		selectionStatus.textContent = `QUOTE / ${selection.text.length}`;
+	  };
+
+	  const animatePaperCapture = (selection: CachedSelection) => {
+		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+		const target = toggleButton.getBoundingClientRect();
+		const width = Math.min(320, Math.max(138, selection.rect.width));
+		const paper = document.createElement('span');
+		paper.className = 'memory-vault__capture';
+		paper.textContent = selection.text.slice(0, 86);
+		paper.style.left = `${selection.rect.left}px`;
+		paper.style.top = `${selection.rect.top}px`;
+		paper.style.width = `${width}px`;
+		document.body.append(paper);
+
+		const targetX = target.left + target.width / 2 - selection.rect.left - width / 2;
+		const targetY = target.top + target.height / 2 - selection.rect.top - 22;
+		paper.animate([
+			{ opacity: 0, transform: 'translate3d(0, 10px, 0) scale(0.98) rotate(-1deg)' },
+			{ opacity: 1, offset: 0.18, transform: 'translate3d(0, 0, 0) scale(1) rotate(-1deg)' },
+			{ opacity: 0.9, offset: 0.7, transform: `translate3d(${targetX * 0.72}px, ${targetY * 0.72}px, 0) scale(0.62) rotate(4deg)` },
+			{ opacity: 0, transform: `translate3d(${targetX}px, ${targetY}px, 0) scale(0.12) rotate(8deg)` },
+		], { duration: 760, easing: 'cubic-bezier(0.22, 0.75, 0.28, 1)' })
+			.finished.finally(() => paper.remove());
+	  };
 
       const safeSourceUrl = (value: string) => {
         try {
@@ -177,16 +249,30 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
         }
       };
 
-      const render = () => {
+	  const clearDeleteConfirmation = () => {
+		window.clearTimeout(deleteResetTimer);
+		pendingDeleteId = null;
+		list.querySelectorAll<HTMLButtonElement>('[data-memory-delete]').forEach((control) => {
+			delete control.dataset.confirming;
+			const id = control.dataset.memoryId;
+			const record = records.find((item) => item.id === id);
+			if (record) control.setAttribute('aria-label', `删除收藏：${record.text.slice(0, 24)}`);
+		});
+	  };
+
+      const render = (enteringId = '') => {
+		clearDeleteConfirmation();
         list.replaceChildren();
         syncCountDisplays();
         empty.hidden = records.length > 0;
         exportButton.disabled = records.length === 0;
 
-        records.forEach((record) => {
+        records.forEach((record, index) => {
           const item = document.createElement('li');
           item.className = 'memory-vault__item';
           item.dataset.memoryId = record.id;
+		  item.style.setProperty('--paper-rank', String(Math.min(index, 5)));
+		  if (record.id === enteringId) item.dataset.entering = 'true';
 
           const quote = document.createElement('blockquote');
           quote.className = 'memory-vault__quote';
@@ -217,34 +303,50 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
       };
 
       const setPanelOpen = (open: boolean) => {
-        panel.hidden = !open;
+		window.clearTimeout(hidePanelTimer);
         toggleButton.setAttribute('aria-expanded', String(open));
         root.dataset.open = String(open);
+		if (open) {
+			panel.hidden = false;
+			panel.inert = false;
+			return;
+		}
+		panel.inert = true;
+		if (reduceMotion.matches) {
+			panel.hidden = true;
+			return;
+		}
+		hidePanelTimer = window.setTimeout(() => {
+			if (root.dataset.open !== 'true') panel.hidden = true;
+		}, 230);
       };
 
       document.addEventListener('selectionchange', () => {
-        const selectedText = getValidSelection();
-        if (selectedText) lastValidSelection = selectedText;
+		cancelAnimationFrame(selectionFrame);
+		selectionFrame = requestAnimationFrame(() => updateSelectionFeedback(getValidSelection()));
       });
 
       saveButton.addEventListener('pointerdown', () => {
-        const selectedText = getValidSelection();
-        if (selectedText) lastValidSelection = selectedText;
+		const selection = getValidSelection();
+		if (selection) cachedSelection = selection;
+		preserveSelectionUntil = performance.now() + 500;
       });
 
       saveButton.addEventListener('click', () => {
-        const selectedText = getValidSelection() || lastValidSelection;
+		const selection = getValidSelection() ?? cachedSelection;
         if (!scope) {
           status.textContent = '未找到可收藏的正文区域。';
           setPanelOpen(true);
           return;
         }
-        if (!selectedText) {
+		if (!selection || selection.pageKey !== currentPageKey()) {
+		  clearSelectionFeedback();
           status.textContent = '请先在正文中选择一句文字。';
           setPanelOpen(true);
           return;
         }
-        if (selectedText.length > maxLength) {
+		const selectedText = selection.text;
+		if (selectedText.length > maxLength) {
           status.textContent = `选中文字超过 ${maxLength} 字，请缩短后重试。`;
           setPanelOpen(true);
           return;
@@ -269,14 +371,19 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
           records.shift();
           return;
         }
-        lastValidSelection = '';
+		animatePaperCapture(selection);
+		clearSelectionFeedback();
         status.textContent = '已收藏到本机记忆库。';
-        render();
+		render(record.id);
         setPanelOpen(true);
         window.getSelection()?.removeAllRanges();
       });
 
-      toggleButton.addEventListener('click', () => setPanelOpen(panel.hasAttribute('hidden')));
+	  toggleButton.addEventListener('click', () => setPanelOpen(root.dataset.open !== 'true'));
+	  closeButton.addEventListener('click', () => {
+		setPanelOpen(false);
+		toggleButton.focus();
+	  });
 
       list.addEventListener('click', (event) => {
         const button = event.target instanceof Element
@@ -284,11 +391,25 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
           : null;
         const id = button?.dataset.memoryId;
         if (!id) return;
+		if (pendingDeleteId !== id) {
+			clearDeleteConfirmation();
+			pendingDeleteId = id;
+			button.dataset.confirming = 'true';
+			button.setAttribute('aria-label', '再次点击确认删除这条收藏');
+			status.textContent = '再次点击删除按钮以确认；该状态会在 3 秒后取消。';
+			deleteResetTimer = window.setTimeout(clearDeleteConfirmation, 3000);
+			return;
+		}
+
+		const deletedIndex = records.findIndex((record) => record.id === id);
         const previousRecords = records;
         records = records.filter((record) => record.id !== id);
         if (writeRecords()) {
+		  clearDeleteConfirmation();
           status.textContent = '已删除收藏。';
           render();
+		  const nextFocus = list.querySelectorAll<HTMLButtonElement>('[data-memory-delete]')[Math.max(0, deletedIndex - 1)];
+		  (nextFocus ?? toggleButton).focus();
         } else {
           records = previousRecords;
         }
@@ -296,19 +417,47 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
 
       exportButton.addEventListener('click', () => {
         if (records.length === 0) return;
-        const payload = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), records }, null, 2);
-        const objectUrl = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
-        const link = document.createElement('a');
-        link.href = objectUrl;
-        link.download = `aria7-memory-vault-${new Date().toISOString().slice(0, 10)}.json`;
-        link.hidden = true;
-        document.body.append(link);
-        link.click();
-        link.remove();
-        // 等浏览器接管下载后再释放 URL，避免极少数实现中下载尚未启动就失效。
-        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
-        status.textContent = `已导出 ${records.length} 条收藏。`;
+		exportButton.dataset.state = 'preparing';
+		exportButton.setAttribute('aria-busy', 'true');
+		exportLabel.textContent = '整理纸片';
+		try {
+			const payload = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), records }, null, 2);
+			const objectUrl = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
+			const link = document.createElement('a');
+			link.href = objectUrl;
+			link.download = `aria7-memory-vault-${new Date().toISOString().slice(0, 10)}.json`;
+			link.hidden = true;
+			document.body.append(link);
+			link.click();
+			link.remove();
+			// 部分浏览器会异步接管下载，延迟释放对象 URL 可以避免空文件。
+			window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1200);
+			exportButton.dataset.state = 'requested';
+			exportLabel.textContent = '已请求下载';
+			status.textContent = `已请求下载 ${records.length} 条收藏。`;
+		} catch (error) {
+			console.error('[MemoryVault] 导出失败', error);
+			exportButton.dataset.state = 'error';
+			exportLabel.textContent = '导出失败';
+			status.textContent = '记忆库暂时无法导出，请稍后重试。';
+		} finally {
+			exportButton.removeAttribute('aria-busy');
+			window.setTimeout(() => {
+				delete exportButton.dataset.state;
+				exportLabel.textContent = '导出 JSON';
+			}, 1800);
+		}
       });
+
+	  document.addEventListener('keydown', (event) => {
+		// 搜索等模态窗口优先消费 Escape，避免一次按键同时关闭两层界面。
+		if (event.defaultPrevented || document.querySelector('dialog[open]')) return;
+		if (event.key === 'Escape' && root.dataset.open === 'true') {
+			event.preventDefault();
+			setPanelOpen(false);
+			toggleButton.focus();
+		}
+	  });
 
       window.addEventListener('storage', (event) => {
         if (event.key !== storageKey && event.key !== null) return;

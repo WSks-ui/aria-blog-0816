@@ -1,5 +1,6 @@
 ---
 import { Search, X } from '@lucide/astro';
+import { POST_KIND_LABELS, POST_KINDS } from '@/data/site';
 
 interface Props {
   class?: string;
@@ -80,6 +81,15 @@ const resultsId = `${dialogId}-results`;
         </span>
       </label>
 
+	  <div class="search-dialog__filters" role="group" aria-label="按内容类型筛选">
+		<button type="button" data-search-kind="" data-kind-label="全部" aria-pressed="true">全部</button>
+		{POST_KINDS.map((kind) => (
+			<button type="button" data-search-kind={kind} data-kind-label={POST_KIND_LABELS[kind]} aria-pressed="false">
+				{POST_KIND_LABELS[kind]}
+			</button>
+		))}
+	  </div>
+
       <p
         class="search-dialog__status"
         id={statusId}
@@ -105,6 +115,9 @@ const resultsId = `${dialogId}-results`;
     url: string;
     excerpt: string;
     tags: string[];
+    kind: string;
+    kindLabel: string;
+    content: string;
     searchable: string;
   }
 
@@ -122,7 +135,10 @@ const resultsId = `${dialogId}-results`;
       const input = root.querySelector<HTMLInputElement>('[data-search-input]');
       const status = root.querySelector<HTMLElement>('[data-search-status]');
       const resultList = root.querySelector<HTMLUListElement>('[data-search-results]');
-      if (!trigger || !dialog || !closeButton || !input || !status || !resultList) return;
+      const filterButtons = Array.from(
+        root.querySelectorAll<HTMLButtonElement>('[data-search-kind]'),
+      );
+      if (!trigger || !dialog || !closeButton || !input || !status || !resultList || filterButtons.length === 0) return;
 
       const indexUrl = root.dataset.indexUrl || '/search-index.json';
       const resultLimit = Math.max(1, Number(root.dataset.resultLimit) || 8);
@@ -134,6 +150,11 @@ const resultsId = `${dialogId}-results`;
       let lastOpenTrigger: HTMLElement = fallbackTrigger;
       let entries: SearchEntry[] | null = null;
       let loadPromise: Promise<SearchEntry[]> | null = null;
+      let activeKind = '';
+      let loadState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
+      const kindLabels = new Map(
+        filterButtons.map((button) => [button.dataset.searchKind ?? '', button.dataset.kindLabel ?? '']),
+      );
 
       allTriggers.forEach((dialogTrigger) => {
         dialogTrigger.setAttribute('aria-haspopup', 'dialog');
@@ -177,6 +198,7 @@ const resultsId = `${dialogId}-results`;
 
           const excerpt = String(item.excerpt ?? item.description ?? item.summary ?? '').trim();
           const content = String(item.content ?? item.text ?? '').trim();
+          const kind = String(item.kind ?? '').trim();
           const tags = Array.isArray(item.tags)
             ? item.tags.map(String).filter(Boolean)
             : String(item.tags ?? '')
@@ -189,6 +211,9 @@ const resultsId = `${dialogId}-results`;
             url,
             excerpt,
             tags,
+            kind,
+            kindLabel: kindLabels.get(kind) || kind.toUpperCase() || '记录',
+            content,
             searchable: normalize([title, excerpt, content, ...tags].join(' ')),
           }];
         });
@@ -198,6 +223,7 @@ const resultsId = `${dialogId}-results`;
         if (entries) return Promise.resolve(entries);
         if (loadPromise) return loadPromise;
 
+        loadState = 'loading';
         status.textContent = '正在载入搜索索引…';
         loadPromise = fetch(indexUrl, { headers: { Accept: 'application/json' } })
           .then((response) => {
@@ -206,6 +232,7 @@ const resultsId = `${dialogId}-results`;
           })
           .then((payload) => {
             entries = toSearchEntries(payload);
+            loadState = 'ready';
             status.textContent = entries.length > 0
               ? '输入关键词开始搜索'
               : '搜索索引中暂无可用文章';
@@ -214,22 +241,84 @@ const resultsId = `${dialogId}-results`;
           .catch((error) => {
             console.error('[SearchDialog] 无法读取搜索索引', error);
             status.textContent = '搜索索引尚未生成，请稍后再试。';
-            entries = [];
-            return entries;
+            loadState = 'error';
+            loadPromise = null;
+            return [];
           });
         return loadPromise;
+      };
+
+      const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+      const appendHighlightedText = (target: HTMLElement, value: string, tokens: string[]) => {
+        const visibleTokens = tokens
+          .map((token) => token.trim())
+          .filter(Boolean)
+          .sort((a, b) => b.length - a.length);
+        if (visibleTokens.length === 0) {
+          target.textContent = value;
+          return;
+        }
+
+        const pattern = new RegExp(`(${visibleTokens.map(escapeRegExp).join('|')})`, 'gi');
+        value.split(pattern).forEach((part) => {
+          if (!part) return;
+          if (visibleTokens.some((token) => normalize(part) === normalize(token))) {
+            const mark = document.createElement('mark');
+            mark.className = 'search-dialog__mark';
+            mark.textContent = part;
+            target.append(mark);
+          } else {
+            target.append(document.createTextNode(part));
+          }
+        });
+      };
+
+      const getMatchExcerpt = (entry: SearchEntry, normalizedTokens: string[]) => {
+        if (normalizedTokens.some((token) => normalize(entry.excerpt).includes(token))) {
+          return entry.excerpt;
+        }
+        // 搜索索引保留 Markdown 原文；片段展示只去除常见标记，不使用 innerHTML 解释不受信任内容。
+        const compactContent = entry.content
+          .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+          .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+          .replace(/(^|\s)[#>*_`~-]+(?=\s|$)/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        const normalizedContent = normalize(compactContent);
+        const matchIndex = normalizedTokens
+          .map((token) => normalizedContent.indexOf(token))
+          .filter((index) => index >= 0)
+          .sort((a, b) => a - b)[0];
+        if (matchIndex === undefined) return entry.excerpt;
+        const start = Math.max(0, matchIndex - 42);
+        const end = Math.min(compactContent.length, matchIndex + 92);
+        return `${start > 0 ? '…' : ''}${compactContent.slice(start, end)}${end < compactContent.length ? '…' : ''}`;
       };
 
       const renderResults = (query: string) => {
         resultList.replaceChildren();
         const normalizedQuery = normalize(query).trim();
+		if (loadState === 'loading') {
+			status.textContent = '正在载入搜索索引…';
+			return;
+		}
+		if (loadState === 'error') {
+			status.textContent = '搜索索引载入失败；再次打开搜索时会重试。';
+			return;
+		}
         if (!normalizedQuery) {
-          status.textContent = entries?.length ? '输入关键词开始搜索' : status.textContent;
+          status.textContent = entries?.length
+              ? activeKind
+                ? `已选择 ${kindLabels.get(activeKind) ?? activeKind}，输入关键词开始搜索`
+                : '输入关键词开始搜索'
+              : status.textContent;
           return;
         }
 
         const tokens = normalizedQuery.split(/\s+/).filter(Boolean);
-        const matches = (entries ?? [])
+        const rankedMatches = (entries ?? [])
+          .filter((entry) => !activeKind || entry.kind === activeKind)
           .filter((entry) => tokens.every((token) => entry.searchable.includes(token)))
           .map((entry) => {
             const normalizedTitle = normalize(entry.title);
@@ -242,35 +331,47 @@ const resultsId = `${dialogId}-results`;
                   : 1;
             return { entry, score };
           })
-          .sort((a, b) => b.score - a.score || a.entry.title.localeCompare(b.entry.title, 'zh-CN'))
-          .slice(0, resultLimit);
+          .sort((a, b) => b.score - a.score || a.entry.title.localeCompare(b.entry.title, 'zh-CN'));
+        const totalMatches = rankedMatches.length;
+        const matches = rankedMatches.slice(0, resultLimit);
 
-        matches.forEach(({ entry }) => {
+        matches.forEach(({ entry }, index) => {
           const item = document.createElement('li');
           item.className = 'search-dialog__result';
           item.dataset.searchResult = '';
+          item.style.setProperty('--result-index', String(index));
 
           const link = document.createElement('a');
           link.className = 'search-dialog__result-link';
           link.dataset.searchResultLink = '';
+          link.dataset.articleTransitionLink = '';
           link.href = entry.url;
+
+          const meta = document.createElement('span');
+          meta.className = 'search-dialog__result-meta';
+          const resultIndex = document.createElement('span');
+          resultIndex.textContent = String(index + 1).padStart(2, '0');
+          const kind = document.createElement('span');
+          kind.textContent = entry.kindLabel;
+          meta.append(resultIndex, kind);
 
           const title = document.createElement('span');
           title.className = 'search-dialog__result-title';
-          title.textContent = entry.title;
-          link.append(title);
+          appendHighlightedText(title, entry.title, tokens);
+          link.append(meta, title);
 
-          if (entry.excerpt) {
+          const matchExcerpt = getMatchExcerpt(entry, tokens);
+          if (matchExcerpt) {
             const excerpt = document.createElement('span');
             excerpt.className = 'search-dialog__result-excerpt';
-            excerpt.textContent = entry.excerpt;
+            appendHighlightedText(excerpt, matchExcerpt, tokens);
             link.append(excerpt);
           }
 
           if (entry.tags.length > 0) {
             const tags = document.createElement('span');
             tags.className = 'search-dialog__result-tags';
-            tags.textContent = entry.tags.map((tag) => `#${tag}`).join(' ');
+            appendHighlightedText(tags, entry.tags.map((tag) => `#${tag}`).join(' '), tokens);
             link.append(tags);
           }
 
@@ -278,9 +379,19 @@ const resultsId = `${dialogId}-results`;
           resultList.append(item);
         });
 
-        status.textContent = matches.length > 0
-          ? `找到 ${matches.length} 条结果`
+        status.textContent = totalMatches > 0
+          ? totalMatches > matches.length
+            ? `找到 ${totalMatches} 条结果，当前显示前 ${matches.length} 条`
+            : `找到 ${totalMatches} 条结果`
           : '没有匹配结果';
+      };
+
+      const setActiveKind = (kind: string) => {
+        activeKind = kind;
+        filterButtons.forEach((button) => {
+          button.setAttribute('aria-pressed', String((button.dataset.searchKind ?? '') === kind));
+        });
+        renderResults(input.value);
       };
 
       const updateTriggerState = (expanded: boolean) => {
@@ -341,18 +452,34 @@ const resultsId = `${dialogId}-results`;
       closeButton.addEventListener('click', closeDialog);
       input.addEventListener('input', () => renderResults(input.value));
 
+      filterButtons.forEach((button, buttonIndex) => {
+        button.addEventListener('click', () => setActiveKind(button.dataset.searchKind ?? ''));
+        button.addEventListener('keydown', (event) => {
+          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+          event.preventDefault();
+          const direction = event.key === 'ArrowRight' ? 1 : -1;
+          const nextIndex = (buttonIndex + direction + filterButtons.length) % filterButtons.length;
+          filterButtons[nextIndex]?.focus();
+          filterButtons[nextIndex]?.click();
+        });
+      });
+
       input.addEventListener('keydown', (event) => {
         if (event.isComposing) return;
-        if (event.key !== 'ArrowDown') return;
-        const firstResult = resultList.querySelector<HTMLAnchorElement>('[data-search-result-link]');
-        if (firstResult) {
+        const links = Array.from(resultList.querySelectorAll<HTMLAnchorElement>('[data-search-result-link]'));
+        const target = event.key === 'ArrowUp' ? links.at(-1) : links[0];
+        if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && target) {
           event.preventDefault();
-          firstResult.focus();
+          target.focus();
+        }
+        if (event.key === 'Enter' && links[0]) {
+          event.preventDefault();
+          links[0].click();
         }
       });
 
       resultList.addEventListener('keydown', (event) => {
-        if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+        if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
         const links = Array.from(
           resultList.querySelectorAll<HTMLAnchorElement>('[data-search-result-link]'),
         );
@@ -360,6 +487,14 @@ const resultsId = `${dialogId}-results`;
         if (currentIndex < 0) return;
         event.preventDefault();
 
+        if (event.key === 'Home') {
+          links[0]?.focus();
+          return;
+        }
+        if (event.key === 'End') {
+          links.at(-1)?.focus();
+          return;
+        }
         if (event.key === 'ArrowUp' && currentIndex === 0) {
           input.focus();
           return;
@@ -370,10 +505,21 @@ const resultsId = `${dialogId}-results`;
         links[nextIndex]?.focus();
       });
 
+      const updateKeyboardResult = (target: EventTarget | null) => {
+		const node = target instanceof Node ? target : null;
+        resultList.querySelectorAll<HTMLElement>('[data-search-result]').forEach((item) => {
+			item.dataset.keyboardActive = String(Boolean(node && item.contains(node)));
+        });
+	  };
+
+	  // 焦点回到输入框或筛选器时同步清除结果强调线，避免残留键盘选中态。
+	  dialog.addEventListener('focusin', (event) => updateKeyboardResult(event.target));
+
       dialog.addEventListener('click', (event) => {
         if (event.target === dialog) closeDialog();
       });
       dialog.addEventListener('close', () => {
+		updateKeyboardResult(null);
         updateTriggerState(false);
         restoreTriggerFocus();
       });
@@ -390,7 +536,10 @@ const resultsId = `${dialogId}-results`;
           void openDialog(fallbackTrigger);
           return;
         }
-        if (event.key === 'Escape' && dialog.open) closeDialog();
+		if (event.key === 'Escape' && dialog.open) {
+			event.preventDefault();
+			closeDialog();
+		}
       }, { signal: shortcutController.signal });
     });
   }
