@@ -74,6 +74,7 @@ const {
         root.querySelectorAll<HTMLButtonElement>('[data-weather-mode-value]'),
       );
       const darkPreference = window.matchMedia('(prefers-color-scheme: dark)');
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
       let hasStoredPreference = false;
 
       const readStoredMode = (): WeatherMode | null => {
@@ -87,11 +88,19 @@ const {
         }
       };
 
-      const applyMode = (mode: WeatherMode, persist = false) => {
+      const commitMode = (mode: WeatherMode, persist = false, initial = false) => {
+        const previousMode = isWeatherMode(document.documentElement.dataset.weatherMode ?? null)
+          ? document.documentElement.dataset.weatherMode as WeatherMode
+          : null;
         document.documentElement.dataset.weatherMode = mode;
         document.documentElement.dataset.theme = mode === 'night' ? 'night' : 'light';
         document.documentElement.style.colorScheme = mode === 'night' ? 'dark' : 'light';
         root.dataset.activeMode = mode;
+        delete root.dataset.pendingMode;
+        const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]:not([media])');
+        if (themeColor) {
+          themeColor.content = mode === 'night' ? '#091114' : mode === 'clear' ? '#f5f6f4' : '#edf1f1';
+        }
 
         buttons.forEach((button) => {
           const selected = button.dataset.weatherModeValue === mode;
@@ -114,29 +123,55 @@ const {
         }
 
         document.dispatchEvent(
-          new CustomEvent('weather-mode-change', { detail: { mode } }),
+          new CustomEvent('weather-mode-change', {
+            detail: { mode, previousMode, source: persist ? 'control' : 'system', initial },
+          }),
         );
       };
 
+      const requestMode = (mode: WeatherMode, persist = false, initial = false) => {
+        const previousMode = isWeatherMode(document.documentElement.dataset.weatherMode ?? null)
+          ? document.documentElement.dataset.weatherMode as WeatherMode
+          : null;
+        if (initial || previousMode === mode || reduceMotion.matches) {
+          commitMode(mode, persist, initial);
+          return;
+        }
+
+        let committed = false;
+        const commit = () => {
+          if (committed) return;
+          committed = true;
+          commitMode(mode, persist, false);
+        };
+        root.dataset.pendingMode = mode;
+        const request = new CustomEvent('weather-mode-request', {
+          cancelable: true,
+          detail: { mode, previousMode, commit },
+        });
+        // 没有转场组件接管请求时立即提交，确保控件可以独立复用。
+        if (document.dispatchEvent(request)) commit();
+      };
+
       const storedMode = readStoredMode();
-      applyMode(storedMode ?? (darkPreference.matches ? 'night' : 'rain'));
+      requestMode(storedMode ?? (darkPreference.matches ? 'night' : 'rain'), false, true);
 
       buttons.forEach((button) => {
         button.addEventListener('click', () => {
           const mode = button.dataset.weatherModeValue;
-          if (mode && isWeatherMode(mode)) applyMode(mode, true);
+          if (mode && isWeatherMode(mode)) requestMode(mode, true);
         });
       });
 
       darkPreference.addEventListener('change', (event) => {
-        if (!hasStoredPreference) applyMode(event.matches ? 'night' : 'rain');
+        if (!hasStoredPreference) requestMode(event.matches ? 'night' : 'rain');
       });
 
       window.addEventListener('storage', (event) => {
         if (event.key !== storageKey && event.key !== null) return;
         const mode = isWeatherMode(event.newValue) ? event.newValue : null;
         hasStoredPreference = mode !== null;
-        applyMode(mode ?? (darkPreference.matches ? 'night' : 'rain'));
+        requestMode(mode ?? (darkPreference.matches ? 'night' : 'rain'));
       });
     });
   }

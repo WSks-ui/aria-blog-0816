@@ -1,0 +1,223 @@
+<div class="weather-transition" data-weather-transition aria-hidden="true">
+	<div class="weather-transition__curtain">
+		<span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+	</div>
+	<div class="weather-transition__exposure"></div>
+	<div class="weather-transition__night-grid"></div>
+	<div class="weather-transition__axis"></div>
+	<span class="weather-transition__label" data-weather-transition-label>MODE / RAIN</span>
+</div>
+
+<script>
+	type WeatherMode = 'clear' | 'rain' | 'night';
+
+	interface WeatherModeRequestDetail {
+		mode?: WeatherMode;
+		previousMode?: WeatherMode;
+		commit?: () => void;
+	}
+
+	function initWeatherTransitions() {
+		document.querySelectorAll<HTMLElement>('[data-weather-transition]').forEach((root) => {
+			if (root.dataset.interactiveReady === 'true') return;
+			root.dataset.interactiveReady = 'true';
+
+			const label = root.querySelector<HTMLElement>('[data-weather-transition-label]');
+			const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+			let commitTimer = 0;
+			let cleanupTimer = 0;
+			let primeFrame = 0;
+			let startFrame = 0;
+			let generation = 0;
+
+			const clearPendingTransition = () => {
+				window.clearTimeout(commitTimer);
+				window.clearTimeout(cleanupTimer);
+				window.cancelAnimationFrame(primeFrame);
+				window.cancelAnimationFrame(startFrame);
+				root.classList.remove('is-animating');
+			};
+
+			const handleModeRequest = (event: Event) => {
+				if (!(event instanceof CustomEvent)) return;
+				const detail = event.detail as WeatherModeRequestDetail;
+				if (!detail.mode || detail.mode === detail.previousMode || typeof detail.commit !== 'function') return;
+				if (reduceMotion.matches) return;
+				event.preventDefault();
+
+				generation += 1;
+				const activeGeneration = generation;
+				clearPendingTransition();
+				root.dataset.mode = detail.mode;
+				if (label) label.textContent = `MODE / ${detail.mode.toUpperCase()}`;
+				document.documentElement.dataset.weatherTransition = detail.mode;
+				const commitDelay = detail.mode === 'night' ? 520 : detail.mode === 'rain' ? 650 : 260;
+				const cleanupDelay = detail.mode === 'night' ? 1220 : detail.mode === 'rain' ? 1180 : 900;
+
+				// 跨两个绘制帧重启动画，避免 offsetWidth 强制同步结算整页 SVG 与混合层。
+				primeFrame = window.requestAnimationFrame(() => {
+					startFrame = window.requestAnimationFrame(() => {
+						if (generation !== activeGeneration) return;
+						root.classList.add('is-animating');
+						// 遮罩达到完全覆盖后再提交主题，封面颜色与滤镜重建不会暴露在可见帧中。
+						commitTimer = window.setTimeout(detail.commit!, commitDelay);
+						cleanupTimer = window.setTimeout(() => {
+							if (generation !== activeGeneration) return;
+							root.classList.remove('is-animating');
+							delete document.documentElement.dataset.weatherTransition;
+						}, cleanupDelay);
+					});
+				});
+			};
+
+			document.addEventListener('weather-mode-request', handleModeRequest);
+		});
+	}
+
+	initWeatherTransitions();
+	document.addEventListener('astro:page-load', initWeatherTransitions);
+</script>
+
+<style>
+	.weather-transition {
+		position: fixed;
+		inset: 0;
+		z-index: 58;
+		overflow: hidden;
+		visibility: hidden;
+		pointer-events: none;
+	}
+
+	.weather-transition.is-animating {
+		visibility: visible;
+		pointer-events: auto;
+	}
+
+	.weather-transition__curtain,
+	.weather-transition__exposure,
+	.weather-transition__night-grid,
+	.weather-transition__axis {
+		position: absolute;
+		inset: 0;
+	}
+
+	.weather-transition__curtain {
+		display: grid;
+		grid-template-columns: repeat(8, 1fr);
+	}
+
+	.weather-transition__curtain span {
+		--curtain-from: -104%;
+		--curtain-to: 104%;
+		background: color-mix(in srgb, var(--color-rain) 88%, var(--paper-0));
+		transform: translateY(var(--curtain-from));
+	}
+
+	.weather-transition__curtain span:nth-child(even) {
+		--curtain-from: 104%;
+		--curtain-to: -104%;
+	}
+
+	.weather-transition__exposure {
+		background: #f7f8f6;
+		opacity: 0;
+	}
+
+	.weather-transition__night-grid {
+		background-color: #05090b;
+		background-image:
+			linear-gradient(rgb(117 197 216 / 15%) 1px, transparent 1px),
+			linear-gradient(90deg, rgb(117 197 216 / 15%) 1px, transparent 1px);
+		background-size: 72px 72px;
+		opacity: 0;
+		clip-path: inset(50% 0 50% 0);
+	}
+
+	.weather-transition__axis {
+		top: 50%;
+		bottom: auto;
+		height: 1px;
+		background: #edf1ef;
+		box-shadow: 0 0 18px rgb(117 197 216 / 70%);
+		opacity: 0;
+		transform: scaleX(0);
+	}
+
+	.weather-transition__label {
+		position: absolute;
+		top: calc(50% + 18px);
+		right: 32px;
+		font-family: var(--font-ui);
+		font-size: 9px;
+		color: #edf1ef;
+		opacity: 0;
+	}
+
+	.weather-transition[data-mode='rain'].is-animating .weather-transition__curtain span {
+		animation: weather-rain-curtain 880ms var(--ease-rain) both;
+		animation-delay: calc((var(--curtain-order, 0)) * 34ms);
+	}
+
+	.weather-transition__curtain span:nth-child(1) { --curtain-order: 0; }
+	.weather-transition__curtain span:nth-child(2) { --curtain-order: 1; }
+	.weather-transition__curtain span:nth-child(3) { --curtain-order: 2; }
+	.weather-transition__curtain span:nth-child(4) { --curtain-order: 3; }
+	.weather-transition__curtain span:nth-child(5) { --curtain-order: 4; }
+	.weather-transition__curtain span:nth-child(6) { --curtain-order: 5; }
+	.weather-transition__curtain span:nth-child(7) { --curtain-order: 6; }
+	.weather-transition__curtain span:nth-child(8) { --curtain-order: 7; }
+
+	.weather-transition[data-mode='clear'].is-animating .weather-transition__exposure {
+		animation: weather-clear-exposure 820ms ease-out both;
+	}
+
+	.weather-transition[data-mode='night'].is-animating .weather-transition__night-grid {
+		animation: weather-night-boot 1160ms var(--ease-rain) both;
+	}
+
+	.weather-transition[data-mode='night'].is-animating .weather-transition__axis {
+		animation: weather-night-axis 940ms var(--ease-rain) both;
+	}
+
+	.weather-transition[data-mode='night'].is-animating .weather-transition__label {
+		animation: weather-night-label 1120ms ease-out both;
+	}
+
+	@keyframes weather-rain-curtain {
+		0% { opacity: 0; transform: translateY(var(--curtain-from)); }
+		18% { opacity: 0.92; }
+		48%, 80% { opacity: 1; transform: translateY(0); }
+		100% { opacity: 0; transform: translateY(var(--curtain-to)); }
+	}
+
+	@keyframes weather-clear-exposure {
+		0% { opacity: 0; }
+		22% { opacity: 1; }
+		42% { opacity: 1; }
+		100% { opacity: 0; }
+	}
+
+	@keyframes weather-night-boot {
+		0% { opacity: 0; clip-path: inset(50% 0 50% 0); }
+		20% { opacity: 1; clip-path: inset(48% 0 48% 0); }
+		43%, 58% { opacity: 1; clip-path: inset(0); }
+		100% { opacity: 0; clip-path: inset(0); }
+	}
+
+	@keyframes weather-night-axis {
+		0% { opacity: 0; transform: scaleX(0); }
+		18% { opacity: 1; }
+		46%, 68% { opacity: 1; transform: scaleX(1); }
+		100% { opacity: 0; transform: scaleX(1); }
+	}
+
+	@keyframes weather-night-label {
+		0%, 32% { opacity: 0; transform: translateY(-6px); }
+		48%, 76% { opacity: 1; transform: translateY(0); }
+		100% { opacity: 0; }
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.weather-transition { display: none; }
+	}
+</style>

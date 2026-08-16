@@ -152,7 +152,7 @@ const listDateFormatter = new Intl.DateTimeFormat('zh-CN', {
 													{cell.posts.length > 0 && (
 														<ul>
 															{cell.posts.map((post) => (
-																<li><a href={getPostPath(post)}>{post.data.title}</a></li>
+																<li><a href={getPostPath(post)} data-article-transition-link>{post.data.title}</a></li>
 															))}
 														</ul>
 													)}
@@ -180,7 +180,7 @@ const listDateFormatter = new Intl.DateTimeFormat('zh-CN', {
 						<time datetime={post.data.publishedAt.toISOString()}>
 							{listDateFormatter.format(post.data.publishedAt)}
 						</time>
-						<a href={getPostPath(post)}>{post.data.title}</a>
+						<a href={getPostPath(post)} data-article-transition-link>{post.data.title}</a>
 					</li>
 				))}
 			</ol>

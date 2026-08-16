@@ -1,0 +1,294 @@
+<div class="route-transition" data-route-transition aria-hidden="true">
+	<div class="route-transition__backdrop"></div>
+	<svg class="route-transition__corridor" viewBox="0 0 1000 600" preserveAspectRatio="none">
+		<path d="M0 0 500 300 1000 0M0 600 500 300 1000 600M0 0 500 300 0 600M1000 0 500 300 1000 600" />
+		<path d="M92 55 500 300 908 55M92 545 500 300 908 545M188 112 500 300 812 112M188 488 500 300 812 488" />
+	</svg>
+	<div class="route-transition__rain">
+		<span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+		<span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+	</div>
+	<div class="route-transition__papers">
+		<span></span><span></span><span></span><span></span><span></span><span></span>
+		<span></span><span></span><span></span><span></span><span></span><span></span>
+	</div>
+	<div class="route-transition__axis"></div>
+	<span class="route-transition__label">ROUTE / SCENE SHIFT</span>
+</div>
+
+<script>
+	const ROUTE_ARRIVAL_KEY = 'aria7-route-arrival';
+
+	function initRouteTransition() {
+		const root = document.querySelector<HTMLElement>('[data-route-transition]');
+		if (!root || root.dataset.interactiveReady === 'true') return;
+		root.dataset.interactiveReady = 'true';
+
+		const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+		let navigationTimer = 0;
+		let arrivalTimer = 0;
+		let safetyTimer = 0;
+		let arrivalPrimeFrame = 0;
+		let arrivalFrame = 0;
+		let navigating = false;
+
+		const resetTransition = () => {
+			window.clearTimeout(navigationTimer);
+			window.clearTimeout(arrivalTimer);
+			window.clearTimeout(safetyTimer);
+			window.cancelAnimationFrame(arrivalPrimeFrame);
+			window.cancelAnimationFrame(arrivalFrame);
+			navigating = false;
+			root.classList.remove('is-leaving', 'is-arrival-ready', 'is-arriving');
+			delete document.documentElement.dataset.routeTransition;
+			delete document.documentElement.dataset.routeArrival;
+			try {
+				window.sessionStorage.removeItem(ROUTE_ARRIVAL_KEY);
+			} catch {
+				// 会话存储不可用时无需额外清理，视觉状态仍由当前页面解除。
+			}
+		};
+
+		if (document.documentElement.dataset.routeArrival === 'true' && !reduceMotion.matches) {
+			// 先用不透明遮罩接住 HTML 首帧，再移除 body 黑底；下一帧才开始退场，
+			// 否则遮罩淡出时下层仍是黑色，末尾会整页突然显现为一次白闪。
+			root.classList.add('is-arrival-ready');
+			arrivalPrimeFrame = window.requestAnimationFrame(() => {
+				arrivalFrame = window.requestAnimationFrame(() => {
+					delete document.documentElement.dataset.routeArrival;
+					root.classList.remove('is-arrival-ready');
+					root.classList.add('is-arriving');
+					arrivalTimer = window.setTimeout(resetTransition, 680);
+				});
+			});
+		} else {
+			delete document.documentElement.dataset.routeArrival;
+		}
+
+		document.addEventListener('click', (event) => {
+			if (!(event instanceof MouseEvent) || event.defaultPrevented) return;
+			if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+			if (navigating) {
+				event.preventDefault();
+				return;
+			}
+
+			const target = event.target;
+			if (!(target instanceof Element)) return;
+			const link = target.closest('a[data-article-transition-link]');
+			if (!link || link.hasAttribute('download')) return;
+			const rawTarget = link.getAttribute('target');
+			const rawHref = link.getAttribute('href');
+			if (!rawHref || rawHref.startsWith('#') || link.hasAttribute('data-scene-link')) return;
+			if (rawTarget && rawTarget !== '_self') return;
+
+			// 关系图中的入口是 SVGAnchorElement，必须读取属性值，不能依赖 HTMLAnchorElement.href。
+			const destination = new URL(rawHref, window.location.href);
+			const sameDocument = destination.origin === window.location.origin
+				&& destination.pathname === window.location.pathname
+				&& destination.search === window.location.search;
+			if (destination.origin !== window.location.origin || sameDocument) return;
+			if (reduceMotion.matches) return;
+
+			event.preventDefault();
+			navigating = true;
+			// 到达动画尚未结束时也允许继续导航，但必须先取消旧清理任务，
+			// 避免它在离场中途移除遮罩并取消本次 navigationTimer。
+			window.clearTimeout(arrivalTimer);
+			window.cancelAnimationFrame(arrivalPrimeFrame);
+			window.cancelAnimationFrame(arrivalFrame);
+			root.classList.remove('is-arrival-ready', 'is-arriving');
+			root.classList.add('is-leaving');
+			document.documentElement.dataset.routeTransition = 'leaving';
+
+			navigationTimer = window.setTimeout(() => {
+				// 标记绑定具体目标，并在真正导航前才写入；浏览器后退或重定向不会让无关页面误播入场。
+				try {
+					window.sessionStorage.setItem(ROUTE_ARRIVAL_KEY, JSON.stringify({
+						pathname: destination.pathname,
+						search: destination.search,
+					}));
+				} catch {
+					// 隐私模式禁用会话存储时仍完成离场与导航，只省略下一页的反向镜头。
+				}
+				// 哈希导航、浏览器拦截或异常路由都不应把全屏遮罩永久留在当前页面。
+				safetyTimer = window.setTimeout(resetTransition, 1400);
+				window.location.assign(destination.href);
+			}, 800);
+		});
+
+		// 浏览器从往返缓存恢复旧页面时，离场类可能被完整保存，必须立刻解除遮罩。
+		window.addEventListener('pageshow', (event) => {
+			if (event.persisted) resetTransition();
+		});
+	}
+
+	initRouteTransition();
+	document.addEventListener('astro:page-load', initRouteTransition);
+</script>
+
+<style>
+	.route-transition {
+		position: fixed;
+		inset: 0;
+		z-index: 70;
+		overflow: hidden;
+		visibility: hidden;
+		pointer-events: none;
+		perspective: 900px;
+	}
+
+	.route-transition.is-leaving,
+	.route-transition.is-arrival-ready,
+	.route-transition.is-arriving {
+		visibility: visible;
+	}
+
+	.route-transition.is-leaving,
+	.route-transition.is-arrival-ready {
+		pointer-events: auto;
+	}
+
+	.route-transition.is-arrival-ready .route-transition__backdrop {
+		opacity: 1;
+	}
+
+	.route-transition__backdrop,
+	.route-transition__corridor,
+	.route-transition__rain,
+	.route-transition__papers,
+	.route-transition__axis {
+		position: absolute;
+		inset: 0;
+	}
+
+	.route-transition__backdrop {
+		background: #071014;
+		opacity: 0;
+	}
+
+	.route-transition__corridor {
+		width: 100%;
+		height: 100%;
+		fill: none;
+		stroke: #75c5d8;
+		stroke-width: 1;
+		stroke-dasharray: 1300;
+		opacity: 0;
+		vector-effect: non-scaling-stroke;
+	}
+
+	.route-transition__rain span {
+		--rain-x: 5%;
+		--rain-delay: 0ms;
+		position: absolute;
+		top: -42vh;
+		left: var(--rain-x);
+		width: 1px;
+		height: 38vh;
+		background: #b7e4ec;
+		box-shadow: 0 0 12px rgb(117 197 216 / 58%);
+		opacity: 0;
+		transform: rotate(8deg);
+	}
+
+	.route-transition__rain span:nth-child(2) { --rain-x: 13%; --rain-delay: 54ms; height: 24vh; }
+	.route-transition__rain span:nth-child(3) { --rain-x: 22%; --rain-delay: 16ms; height: 46vh; }
+	.route-transition__rain span:nth-child(4) { --rain-x: 31%; --rain-delay: 88ms; height: 31vh; }
+	.route-transition__rain span:nth-child(5) { --rain-x: 39%; --rain-delay: 34ms; height: 52vh; }
+	.route-transition__rain span:nth-child(6) { --rain-x: 47%; --rain-delay: 112ms; height: 28vh; }
+	.route-transition__rain span:nth-child(7) { --rain-x: 55%; --rain-delay: 6ms; height: 44vh; }
+	.route-transition__rain span:nth-child(8) { --rain-x: 62%; --rain-delay: 72ms; height: 34vh; }
+	.route-transition__rain span:nth-child(9) { --rain-x: 69%; --rain-delay: 28ms; height: 49vh; }
+	.route-transition__rain span:nth-child(10) { --rain-x: 76%; --rain-delay: 98ms; height: 25vh; }
+	.route-transition__rain span:nth-child(11) { --rain-x: 82%; --rain-delay: 46ms; height: 40vh; }
+	.route-transition__rain span:nth-child(12) { --rain-x: 88%; --rain-delay: 126ms; height: 55vh; }
+	.route-transition__rain span:nth-child(13) { --rain-x: 93%; --rain-delay: 20ms; height: 30vh; }
+	.route-transition__rain span:nth-child(14) { --rain-x: 98%; --rain-delay: 80ms; height: 42vh; }
+
+	.route-transition__papers span {
+		--paper-x: -42vw;
+		--paper-y: -34vh;
+		--paper-r: -18deg;
+		--paper-delay: 0ms;
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		width: 58px;
+		height: 72px;
+		border: 1px solid #87a2aa;
+		background: #edf1ef;
+		box-shadow: 0 12px 34px rgb(0 0 0 / 22%);
+		opacity: 0;
+		transform: translate(var(--paper-x), var(--paper-y)) rotate(var(--paper-r));
+	}
+
+	.route-transition__papers span:nth-child(2) { --paper-x: -24vw; --paper-y: -45vh; --paper-r: 14deg; --paper-delay: 34ms; width: 42px; height: 55px; }
+	.route-transition__papers span:nth-child(3) { --paper-x: 8vw; --paper-y: -39vh; --paper-r: -26deg; --paper-delay: 12ms; width: 76px; height: 94px; }
+	.route-transition__papers span:nth-child(4) { --paper-x: 34vw; --paper-y: -27vh; --paper-r: 22deg; --paper-delay: 58ms; }
+	.route-transition__papers span:nth-child(5) { --paper-x: 43vw; --paper-y: -2vh; --paper-r: -12deg; --paper-delay: 20ms; width: 46px; height: 60px; }
+	.route-transition__papers span:nth-child(6) { --paper-x: 32vw; --paper-y: 31vh; --paper-r: 31deg; --paper-delay: 72ms; width: 70px; height: 86px; }
+	.route-transition__papers span:nth-child(7) { --paper-x: 5vw; --paper-y: 38vh; --paper-r: -8deg; --paper-delay: 42ms; }
+	.route-transition__papers span:nth-child(8) { --paper-x: -19vw; --paper-y: 43vh; --paper-r: 18deg; --paper-delay: 86ms; width: 48px; height: 61px; }
+	.route-transition__papers span:nth-child(9) { --paper-x: -39vw; --paper-y: 26vh; --paper-r: -30deg; --paper-delay: 24ms; width: 70px; height: 88px; }
+	.route-transition__papers span:nth-child(10) { --paper-x: -46vw; --paper-y: 3vh; --paper-r: 9deg; --paper-delay: 64ms; width: 44px; height: 57px; }
+	.route-transition__papers span:nth-child(11) { --paper-x: 17vw; --paper-y: 17vh; --paper-r: -22deg; --paper-delay: 6ms; width: 38px; height: 50px; }
+	.route-transition__papers span:nth-child(12) { --paper-x: -12vw; --paper-y: -11vh; --paper-r: 27deg; --paper-delay: 76ms; width: 34px; height: 44px; }
+
+	.route-transition__axis {
+		top: 50%;
+		bottom: auto;
+		height: 1px;
+		background: #d9f2f5;
+		box-shadow: 0 0 20px rgb(117 197 216 / 88%);
+		opacity: 0;
+		transform: scaleX(0);
+	}
+
+	.route-transition__label {
+		position: absolute;
+		right: 28px;
+		bottom: 24px;
+		font-family: var(--font-ui);
+		font-size: 9px;
+		color: #edf1ef;
+		opacity: 0;
+	}
+
+	.route-transition.is-leaving .route-transition__backdrop { animation: route-backdrop-in 760ms ease-out both; }
+	.route-transition.is-leaving .route-transition__corridor { animation: route-corridor-in 720ms var(--ease-rain) both; }
+	.route-transition.is-leaving .route-transition__rain span { animation: route-rain 620ms linear var(--rain-delay) both; }
+	.route-transition.is-leaving .route-transition__papers span { animation: route-paper-in 620ms var(--ease-rain) var(--paper-delay) both; }
+	.route-transition.is-leaving .route-transition__axis { animation: route-axis-in 720ms var(--ease-rain) both; }
+	.route-transition.is-leaving .route-transition__label { animation: route-label-in 700ms ease-out both; }
+
+	.route-transition.is-arriving .route-transition__backdrop { animation: route-backdrop-out 600ms ease-out both; }
+	.route-transition.is-arriving .route-transition__corridor { animation: route-corridor-out 560ms var(--ease-rain) both; }
+	.route-transition.is-arriving .route-transition__papers span { animation: route-paper-out 520ms var(--ease-rain) var(--paper-delay) both; }
+	.route-transition.is-arriving .route-transition__axis { animation: route-axis-out 540ms var(--ease-rain) both; }
+	.route-transition.is-arriving .route-transition__label { animation: route-label-out 440ms ease-out both; }
+
+	@keyframes route-backdrop-in { from { opacity: 0; } 72% { opacity: 0.94; } 90%, to { opacity: 1; } }
+	@keyframes route-backdrop-out { from { opacity: 1; } 24% { opacity: 0.92; } to { opacity: 0; } }
+	@keyframes route-corridor-in { from { opacity: 0; stroke-dashoffset: 1300; } 30% { opacity: 0.64; } to { opacity: 0.22; stroke-dashoffset: 0; } }
+	@keyframes route-corridor-out { from { opacity: 0.3; stroke-dashoffset: 0; } to { opacity: 0; stroke-dashoffset: -1300; } }
+	@keyframes route-rain { from { opacity: 0; transform: translateY(-20vh) rotate(8deg); } 18%, 72% { opacity: 0.74; } to { opacity: 0; transform: translateY(150vh) rotate(8deg); } }
+	@keyframes route-paper-in {
+		0% { opacity: 0; transform: translate(var(--paper-x), var(--paper-y)) rotate(var(--paper-r)) scale(1); }
+		22% { opacity: 0.92; }
+		100% { opacity: 0; transform: translate(-29px, -36px) rotate(150deg) scale(0.08); }
+	}
+	@keyframes route-paper-out {
+		0% { opacity: 0; transform: translate(-29px, -36px) rotate(150deg) scale(0.08); }
+		28% { opacity: 0.76; }
+		100% { opacity: 0; transform: translate(var(--paper-x), var(--paper-y)) rotate(var(--paper-r)) scale(1); }
+	}
+	@keyframes route-axis-in { 0%, 18% { opacity: 0; transform: scaleX(0); } 48%, 84% { opacity: 0.9; transform: scaleX(1); } 100% { opacity: 0; transform: scaleX(1); } }
+	@keyframes route-axis-out { from { opacity: 0.9; transform: scaleX(1); } to { opacity: 0; transform: scaleX(0); } }
+	@keyframes route-label-in { 0%, 35% { opacity: 0; transform: translateY(8px); } 58%, 88% { opacity: 0.82; transform: translateY(0); } to { opacity: 0; } }
+	@keyframes route-label-out { from { opacity: 0.82; } to { opacity: 0; } }
+
+	@media (prefers-reduced-motion: reduce) {
+		.route-transition { display: none; }
+	}
+</style>

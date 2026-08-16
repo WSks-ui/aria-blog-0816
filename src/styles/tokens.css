@@ -51,6 +51,7 @@
 
   --page-gutter: clamp(1rem, 4vw, 4.5rem);
   --content-width: 68rem;
+  --content-wide: 80rem;
   --reading-width: 68ch;
   --rail-width: 15rem;
   --header-height: 4.5rem;

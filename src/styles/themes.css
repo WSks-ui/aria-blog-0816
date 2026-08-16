@@ -113,9 +113,13 @@ body[data-theme="night"] {
 [data-weather="clear"] .paper-drift,
 [data-weather-mode="clear"] .atmosphere,
 [data-weather-mode="clear"] .rain-layer,
-[data-weather-mode="clear"] .paper-drift,
-[data-weather-mode="clear"] .rain-field {
+[data-weather-mode="clear"] .paper-drift {
   display: none;
+}
+
+[data-weather-mode="clear"] .rain-field {
+  visibility: hidden;
+  opacity: 0;
 }
 
 [data-weather-mode="night"] .rain-field__lines {

@@ -3,6 +3,8 @@ import SiteFooter from '@/components/shell/SiteFooter.astro';
 import SiteFrame from '@/components/shell/SiteFrame.astro';
 import SiteHeader from '@/components/shell/SiteHeader.astro';
 import RainField from '@/components/visual/RainField.astro';
+import RouteTransition from '@/components/visual/RouteTransition.astro';
+import WeatherTransition from '@/components/visual/WeatherTransition.astro';
 import { MemoryVault, SearchDialog, WeatherModeControl } from '@/components/interactive';
 import '@/styles/global.css';
 
@@ -35,6 +37,7 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 		<meta name="generator" content={Astro.generator} />
 		<meta name="description" content={description} />
 		<meta name="theme-color" content="#f3f4f2" />
+		<meta name="theme-color" content="#091114" media="(prefers-color-scheme: dark)" />
 		<link rel="canonical" href={canonical} />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<link rel="alternate" type="application/rss+xml" title="Aria-7 RSS" href="/rss.xml" />
@@ -45,13 +48,44 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 		<meta property="og:image" content={socialImage} />
 		<meta name="twitter:card" content="summary_large_image" />
 		<title>{pageTitle}</title>
+		<style is:inline>
+			/* 外部样式表尚未下载时先建立页面画布，避免完整页面导航暴露浏览器默认白底。 */
+			html { background-color: #edf1f1; }
+			html[data-weather-mode='clear'] { background-color: #f5f6f4; }
+			html[data-weather-mode='rain'] { background-color: #edf1f1; }
+			html[data-weather-mode='night'],
+			html[data-route-arrival='true'] { background-color: #071014; }
+			html[data-route-arrival='true'] body { background-color: #071014 !important; }
+		</style>
 		<script is:inline>
 			(() => {
-				const saved = localStorage.getItem('aria7-weather-mode');
-				const initial = saved || (matchMedia('(prefers-color-scheme: dark)').matches ? 'night' : 'rain');
+				const modes = new Set(['clear', 'rain', 'night']);
+				let saved = null;
+				try {
+					saved = localStorage.getItem('aria7-weather-mode');
+				} catch {
+					// 禁用本地存储时仍按系统主题完成无闪烁首屏，不让读取异常中断页面初始化。
+				}
+				const initial = modes.has(saved)
+					? saved
+					: (matchMedia('(prefers-color-scheme: dark)').matches ? 'night' : 'rain');
 				document.documentElement.dataset.weatherMode = initial;
 				document.documentElement.dataset.theme = initial === 'night' ? 'night' : 'light';
 				document.documentElement.style.colorScheme = initial === 'night' ? 'dark' : 'light';
+
+				// 文章入口离场后只允许目标页面消费标记，在首帧先建立黑场，避免内容抢先闪现。
+				try {
+					const arrivalValue = sessionStorage.getItem('aria7-route-arrival');
+					if (arrivalValue) {
+						sessionStorage.removeItem('aria7-route-arrival');
+						const arrival = JSON.parse(arrivalValue);
+						if (arrival?.pathname === location.pathname && arrival?.search === location.search) {
+							document.documentElement.dataset.routeArrival = 'true';
+						}
+					}
+				} catch {
+					// 会话存储不可用或旧标记格式失效时退化为普通页面抵达，不阻断主题初始化。
+				}
 			})();
 		</script>
 	</head>
@@ -59,6 +93,8 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 		<a class="skip-link" href="#main-content">跳到正文</a>
 		<SiteFrame />
 		<RainField />
+		<WeatherTransition />
+		<RouteTransition />
 		<SiteHeader pathname={Astro.url.pathname}>
 			<WeatherModeControl slot="weather-control" />
 		</SiteHeader>

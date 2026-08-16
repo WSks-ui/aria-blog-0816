@@ -11,7 +11,9 @@
 		inset: 0;
 		z-index: -1;
 		overflow: hidden;
+		opacity: 1;
 		pointer-events: none;
+		transition: opacity 460ms var(--ease-rain), visibility 460ms;
 	}
 
 	.rain-field__lines {
@@ -53,7 +55,12 @@
 	}
 
 	:global(html[data-weather-mode='clear']) .rain-field {
-		display: none;
+		visibility: hidden;
+		opacity: 0;
+	}
+
+	:global(html[data-weather-mode='clear']) .rain-field__paper {
+		animation-play-state: paused;
 	}
 
 	:global(html[data-weather-mode='night']) .rain-field__lines {
