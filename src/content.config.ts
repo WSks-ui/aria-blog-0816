@@ -30,7 +30,8 @@ const posts = defineCollection({
 		draft: z.boolean(),
 		github: z.url().nullable(),
 		cover: z.string().trim().min(1).nullable(),
-		readingWeather: readingWeatherSchema,
+		// 迁移的历史文章没有可核验的天气记录；null 表示未知，避免编造元数据。
+		readingWeather: readingWeatherSchema.nullable().default(null),
 	}),
 });
 
