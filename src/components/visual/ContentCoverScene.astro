@@ -1,0 +1,399 @@
+---
+import { POST_KIND_LABELS, type PostKind } from '@/data/site';
+
+interface Props {
+	kind: PostKind;
+	compact?: boolean;
+	class?: string;
+}
+
+const { kind, compact = false, class: className } = Astro.props;
+const instanceId = `cover-${kind}-${Math.random().toString(36).slice(2, 9)}`;
+const calendarCells = Array.from({ length: 24 }, (_, index) => ({
+	index,
+	x: 228 + (index % 6) * 76,
+	y: 126 + Math.floor(index / 6) * 76,
+	active: [1, 4, 7, 8, 9, 13, 15, 19, 22].includes(index),
+}));
+const dataBars = Array.from({ length: 22 }, (_, index) => ({
+	index,
+	x: 54 + index * 33,
+	height: 72 + ((index * 47) % 260),
+	width: index % 5 === 0 ? 8 : index % 3 === 0 ? 4 : 2,
+}));
+const tutorialSteps = Array.from({ length: 9 }, (_, index) => ({
+	index,
+	y: 428 - index * 34,
+	left: 92 + index * 39,
+	right: 752 - index * 22,
+}));
+const kindCode = {
+	essay: '01 / ESSAY',
+	note: '02 / NOTE',
+	project: '03 / PROJECT',
+	photo: '04 / FRAME',
+	code: '05 / CODE',
+	tutorial: '06 / GUIDE',
+} satisfies Record<PostKind, string>;
+---
+
+<div
+	class:list={['content-cover', `content-cover--${kind}`, compact && 'content-cover--compact', className]}
+	data-content-cover={kind}
+	aria-hidden="true"
+>
+	<svg viewBox="0 0 800 520" preserveAspectRatio="xMidYMid slice">
+		<defs>
+			<filter id={`${instanceId}-grain`} x="-12%" y="-12%" width="124%" height="124%">
+				<feTurbulence type="fractalNoise" baseFrequency="0.72" numOctaves="2" seed="7" />
+				<feColorMatrix type="saturate" values="0" />
+			</filter>
+			<filter id={`${instanceId}-soft`} x="-24%" y="-24%" width="148%" height="148%">
+				<feGaussianBlur stdDeviation="9" />
+			</filter>
+			<filter id={`${instanceId}-liquid`} x="-20%" y="-35%" width="140%" height="170%">
+				<feTurbulence type="fractalNoise" baseFrequency="0.008 0.035" numOctaves="2" seed="11" result="noise" />
+				<feDisplacementMap in="SourceGraphic" in2="noise" scale="12" xChannelSelector="R" yChannelSelector="B" />
+			</filter>
+			<clipPath id={`${instanceId}-photo-a`}><rect x="348" y="76" width="286" height="324" /></clipPath>
+			<clipPath id={`${instanceId}-photo-b`}><rect x="176" y="218" width="230" height="214" /></clipPath>
+		</defs>
+
+		<rect class="content-cover__base" width="800" height="520" />
+		<rect class="content-cover__grain" width="800" height="520" filter={`url(#${instanceId}-grain)`} />
+		<g class="content-cover__frame">
+			<path d="M24 82V24H84M716 24h60v58M24 438v58h60M716 496h60v-58" />
+			<path d="M24 102h752M24 418h752M164 24v472M676 24v472" />
+		</g>
+
+		{kind === 'essay' && (
+			<g class="essay-scene">
+				<g class="essay-scene__arcs">
+					<path d="M-88 458Q272-56 776 288" />
+					<path d="M86 496Q414 50 842 196" />
+					<path d="M104 166H548M104 166v122" />
+				</g>
+				<g class="essay-scene__umbrella" transform="translate(538 276)">
+					<path class="cover-fill" d="M-128 44Q0-112 128 44Z" />
+					<path d="M-128 44Q-86 0-43 44Q0 0 43 44Q86 0 128 44M0-70v114M-128 44 0-70 128 44M0 44v92c0 35 48 35 48 0" />
+				</g>
+				<g class="essay-scene__index">
+					<text x="104" y="244">LONG FORM / 001</text>
+					<path d="M104 260h118M104 278h74" />
+				</g>
+				<g class="content-cover__papers">
+					<rect x="430" y="92" width="18" height="18" style="--i: 0" />
+					<rect x="646" y="144" width="28" height="28" style="--i: 1" />
+					<rect x="578" y="418" width="12" height="12" style="--i: 2" />
+				</g>
+			</g>
+		)}
+
+		{kind === 'note' && (
+			<g class="note-scene">
+				<g class="note-scene__rays">
+					<path d="M108 442 498 104M192 496 498 104M710 496 498 104M786 382 498 104" />
+				</g>
+				<g class="note-scene__calendar">
+					{calendarCells.map((cell) => (
+						<g class:list={['note-scene__cell', cell.active && 'is-active']} style={`--i: ${cell.index}`}>
+							<rect x={cell.x} y={cell.y} width="66" height="66" />
+							<text x={cell.x + 8} y={cell.y + 17}>{String(cell.index + 1).padStart(2, '0')}</text>
+						</g>
+					))}
+				</g>
+				<g class="note-scene__markers">
+					<path d="M116 138h76M116 154h48M648 402h74M674 386v48" />
+					<circle cx="150" cy="350" r="42" />
+					<path d="M108 350h84M150 308v84" />
+				</g>
+			</g>
+		)}
+
+		{kind === 'project' && (
+			<g class="project-scene">
+				<g class="project-scene__links">
+					<path d="M102 154 358 228 690 128M102 372 358 228 704 388M358 228 556 318M220 442 556 318 742 254" />
+					<path d="M102 154v218l118 70M690 128l14 260 38-134" />
+				</g>
+				<g class="project-scene__blocks project-scene__blocks--a">
+					<path class="cover-fill" d="M174 202 292 144l116 56-118 61Z" />
+					<path d="M174 202v116l116 59V261m118-61v116l-118 61" />
+				</g>
+				<g class="project-scene__blocks project-scene__blocks--b">
+					<path class="cover-fill" d="m466 302 88-44 84 42-88 45Z" />
+					<path d="M466 302v76l84 43v-76m88-45v76l-88 45" />
+				</g>
+				<g class="project-scene__nodes">
+					<circle cx="102" cy="154" r="10" /><circle cx="102" cy="372" r="10" />
+					<circle cx="690" cy="128" r="10" /><circle cx="704" cy="388" r="10" />
+				</g>
+				<g class="project-scene__signal">
+					<path d="m326 420 42 20-42 20M380 420l42 20-42 20" />
+				</g>
+			</g>
+		)}
+
+		{kind === 'photo' && (
+			<g class="photo-scene">
+				<g clip-path={`url(#${instanceId}-photo-a)`} class="photo-scene__image photo-scene__image--a">
+					<rect x="326" y="52" width="334" height="372" class="photo-scene__image-base" />
+					<circle cx="574" cy="156" r="88" class="photo-scene__light" filter={`url(#${instanceId}-soft)`} />
+					<path d="M312 344Q468 236 676 286V438H312Z" class="photo-scene__horizon" />
+					<path d="M342 314Q482 184 642 266M376 354Q502 244 652 298" class="photo-scene__trails" />
+				</g>
+				<g clip-path={`url(#${instanceId}-photo-b)`} class="photo-scene__image photo-scene__image--b">
+					<rect x="150" y="196" width="280" height="260" class="photo-scene__image-base" />
+					<circle cx="246" cy="286" r="64" class="photo-scene__light photo-scene__light--warm" filter={`url(#${instanceId}-soft)`} />
+					<path d="M128 404Q276 264 454 350V480H128Z" class="photo-scene__horizon" />
+				</g>
+				<g class="photo-scene__windows">
+					<rect x="348" y="76" width="286" height="324" />
+					<rect x="176" y="218" width="230" height="214" />
+					<circle cx="638" cy="408" r="46" />
+					<path d="M638 344v128M574 408h128" />
+				</g>
+				<g class="photo-scene__reflection">
+					<path d="M350 438h286M388 454h210M430 470h128" />
+				</g>
+			</g>
+		)}
+
+		{kind === 'code' && (
+			<g class="code-scene">
+				<g class="code-scene__rain">
+					{dataBars.map((bar) => (
+						<rect x={bar.x} y={28} width={bar.width} height={bar.height} style={`--i: ${bar.index}`} />
+					))}
+				</g>
+				<g class="code-scene__corridor">
+					<path d="M72 478 418 176 760 478M168 478 418 176M286 478 418 176M550 478 418 176M668 478 418 176" />
+					<path d="M118 438h602M164 398h512M210 358h420M256 318h328M302 278h236M348 238h144" />
+				</g>
+				<g class="code-scene__glyph" filter={`url(#${instanceId}-liquid)`}>
+					<text class="code-scene__glyph--red" x="216" y="352">07</text>
+					<text class="code-scene__glyph--cyan" x="224" y="352">07</text>
+					<text x="220" y="352">07</text>
+				</g>
+				<g class="code-scene__brackets"><path d="M118 190 72 260l46 70M682 190l46 70-46 70" /></g>
+				<line class="code-scene__scan" x1="24" y1="0" x2="776" y2="0" />
+			</g>
+		)}
+
+		{kind === 'tutorial' && (
+			<g class="tutorial-scene">
+				<g class="tutorial-scene__corridor">
+					<path d="M54 472 602 92 776 472M146 472 602 92M242 472 602 92M338 472 602 92M520 472 602 92M680 472 602 92" />
+				</g>
+				<g class="tutorial-scene__steps">
+					{tutorialSteps.map((step) => (
+						<path d={`M${step.left} ${step.y}H${step.right}`} style={`--i: ${step.index}`} />
+					))}
+				</g>
+				<g class="tutorial-scene__nodes">
+					<g transform="translate(246 346)"><circle r="25" /><text x="-8" y="4">01</text></g>
+					<g transform="translate(382 278)"><circle r="22" /><text x="-8" y="4">02</text></g>
+					<g transform="translate(494 210)"><circle r="19" /><text x="-8" y="4">03</text></g>
+					<g transform="translate(574 142)"><circle r="16" /><text x="-8" y="4">04</text></g>
+				</g>
+				<g class="tutorial-scene__arrow"><path d="m466 410 50 22-50 22M530 410l50 22-50 22" /></g>
+			</g>
+		)}
+
+		<g class="content-cover__telemetry">
+			<text x="44" y="56">{kindCode[kind]}</text>
+			<text x="692" y="56">RA / 07</text>
+			<text x="44" y="470">{POST_KIND_LABELS[kind]} / LIVE</text>
+			<text x="682" y="470">FRAME / 01</text>
+		</g>
+	</svg>
+</div>
+
+<style>
+	.content-cover {
+		--cover-bg: var(--paper-0);
+		--cover-line: var(--line);
+		--cover-line-strong: var(--line-strong);
+		--cover-ink: var(--ink);
+		--cover-muted: var(--ink-muted);
+		--cover-accent: var(--color-rain-deep);
+		--cover-fill: color-mix(in srgb, var(--color-rain) 64%, transparent);
+		position: relative;
+		width: 100%;
+		height: 100%;
+		min-height: inherit;
+		overflow: hidden;
+		background: var(--cover-bg);
+		color: var(--cover-line);
+		isolation: isolate;
+	}
+
+	.content-cover svg {
+		display: block;
+		width: 100%;
+		height: 100%;
+	}
+
+	.content-cover__base { fill: var(--cover-bg); }
+	.content-cover__grain { fill: var(--cover-ink); opacity: 0.045; mix-blend-mode: multiply; }
+	.content-cover__frame,
+	.essay-scene__arcs,
+	.essay-scene__umbrella,
+	.essay-scene__index,
+	.note-scene__rays,
+	.note-scene__markers,
+	.project-scene__links,
+	.project-scene__blocks,
+	.project-scene__nodes,
+	.photo-scene__windows,
+	.photo-scene__reflection,
+	.code-scene__corridor,
+	.code-scene__brackets,
+	.tutorial-scene__corridor,
+	.tutorial-scene__steps,
+	.tutorial-scene__nodes {
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1;
+		vector-effect: non-scaling-stroke;
+	}
+
+	.content-cover__frame { opacity: 0.58; }
+	.content-cover__telemetry { fill: var(--cover-muted); font-family: var(--font-ui); font-size: 9px; opacity: 0.75; }
+	.cover-fill { fill: var(--cover-fill); stroke: var(--cover-accent); }
+
+	.essay-scene__arcs { stroke-dasharray: 1120; animation: cover-line-build 8.8s var(--ease-drift) infinite alternate; }
+	.essay-scene__umbrella { color: var(--cover-accent); stroke-width: 1.4; animation: cover-float 7.2s var(--ease-drift) infinite alternate; }
+	.essay-scene__index { color: var(--cover-muted); }
+	.essay-scene__index text { fill: currentColor; stroke: none; font-family: var(--font-ui); font-size: 9px; }
+
+	.content-cover__papers rect {
+		fill: var(--color-paper);
+		stroke: var(--cover-line-strong);
+		transform-box: fill-box;
+		transform-origin: center;
+		animation: cover-paper-fall 7.6s linear infinite;
+		animation-delay: calc(var(--i) * -2.1s);
+	}
+
+	.note-scene__rays { opacity: 0.28; }
+	.note-scene__cell { opacity: 0.86; }
+	.note-scene__cell rect { fill: color-mix(in srgb, var(--cover-bg) 90%, transparent); stroke: var(--cover-line-strong); }
+	.note-scene__cell.is-active rect { fill: color-mix(in srgb, var(--color-rain) 62%, transparent); }
+	.note-scene__cell text { fill: var(--cover-muted); font-family: var(--font-ui); font-size: 10px; }
+	.note-scene__markers { color: var(--cover-accent); opacity: 0.65; animation: note-marker-breathe 5.2s ease-in-out infinite alternate; }
+
+	.project-scene__links { opacity: 0.56; stroke-dasharray: 980; animation: cover-line-build 7s var(--ease-rain) infinite alternate; }
+	.project-scene__blocks { color: var(--cover-line-strong); stroke-width: 1.3; animation: project-block-shift 7.8s var(--ease-drift) infinite alternate; }
+	.project-scene__blocks--b { animation-delay: -3.4s; }
+	.project-scene__nodes { color: var(--cover-accent); fill: var(--cover-bg); stroke-width: 2; }
+	.project-scene__signal { fill: none; stroke: var(--color-warm); stroke-width: 6; animation: project-signal 2.8s ease-in-out infinite alternate; }
+
+	.photo-scene__image { animation: photo-window-drift 9.8s var(--ease-drift) infinite alternate; }
+	.photo-scene__image--b { animation-delay: -4.2s; }
+	.photo-scene__image-base { fill: color-mix(in srgb, var(--color-rain-deep) 38%, var(--night-0)); }
+	.photo-scene__light { fill: var(--color-rain-pale); opacity: 0.8; }
+	.photo-scene__light--warm { fill: var(--color-warm); opacity: 0.58; }
+	.photo-scene__horizon { fill: color-mix(in srgb, var(--night-0) 80%, transparent); }
+	.photo-scene__trails { fill: none; stroke: var(--night-text); stroke-width: 5; opacity: 0.52; }
+	.photo-scene__windows { color: var(--cover-line-strong); stroke-width: 1.3; }
+	.photo-scene__reflection { color: var(--cover-accent); opacity: 0.48; animation: photo-reflection 4.8s ease-in-out infinite alternate; }
+
+	.content-cover--code {
+		--cover-bg: #071014;
+		--cover-line: #39545d;
+		--cover-line-strong: #87a2aa;
+		--cover-ink: #edf1ef;
+		--cover-muted: #9eb1b5;
+		--cover-accent: #75c5d8;
+		--cover-fill: rgb(117 197 216 / 18%);
+	}
+	.content-cover--code .content-cover__grain { mix-blend-mode: screen; opacity: 0.08; }
+	.code-scene__rain rect { fill: var(--cover-accent); opacity: 0.42; animation: code-rain-fall 3.8s linear infinite; animation-delay: calc(var(--i) * -170ms); }
+	.code-scene__corridor { opacity: 0.3; }
+	.code-scene__glyph text { fill: var(--night-text); font-family: var(--font-display); font-size: 220px; font-weight: 500; opacity: 0.72; }
+	.code-scene__glyph--red { fill: #d87570 !important; transform: translateX(-4px); opacity: 0.24 !important; }
+	.code-scene__glyph--cyan { fill: #75c5d8 !important; transform: translateX(4px); opacity: 0.32 !important; }
+	.code-scene__brackets { color: var(--cover-accent); stroke-width: 2; }
+	.code-scene__scan { stroke: var(--night-text); stroke-width: 1; opacity: 0.5; animation: code-scan 5.4s linear infinite; }
+
+	.tutorial-scene__corridor { opacity: 0.4; }
+	.tutorial-scene__steps path { stroke: var(--cover-line-strong); stroke-width: 4; opacity: 0; animation: tutorial-step-build 5.8s var(--ease-rain) infinite; animation-delay: calc(var(--i) * 95ms); }
+	.tutorial-scene__nodes { color: var(--cover-accent); fill: var(--cover-bg); stroke-width: 1.5; }
+	.tutorial-scene__nodes text { fill: var(--cover-muted); stroke: none; font-family: var(--font-ui); font-size: 10px; }
+	.tutorial-scene__arrow { fill: none; stroke: var(--color-warm); stroke-width: 6; animation: project-signal 2.8s ease-in-out infinite alternate; }
+
+	:global(html[data-weather-mode='night']) .content-cover:not(.content-cover--code) {
+		--cover-bg: var(--night-0);
+		--cover-line: #39545d;
+		--cover-line-strong: #87a2aa;
+		--cover-ink: var(--night-text);
+		--cover-muted: var(--night-muted);
+		--cover-accent: #75c5d8;
+		--cover-fill: rgb(117 197 216 / 18%);
+	}
+
+	:global(html[data-weather-mode='night']) .content-cover__grain { mix-blend-mode: screen; opacity: 0.07; }
+
+	@keyframes cover-line-build {
+		from { stroke-dashoffset: 920; opacity: 0.22; }
+		to { stroke-dashoffset: 0; opacity: 0.76; }
+	}
+	@keyframes cover-float {
+		from { transform: translate3d(-4px, 8px, 0) scale(0.97); }
+		to { transform: translate3d(7px, -7px, 0) scale(1.02); }
+	}
+	@keyframes cover-paper-fall {
+		0% { opacity: 0; transform: translate3d(-14px, -90px, 0) rotate(0deg); }
+		18%, 78% { opacity: 0.78; }
+		100% { opacity: 0; transform: translate3d(22px, 160px, 0) rotate(80deg); }
+	}
+	@keyframes cover-pulse {
+		from { opacity: 0.28; transform: scale(0.96); }
+		to { opacity: 0.72; transform: scale(1.02); }
+	}
+	@keyframes note-marker-breathe {
+		from { opacity: 0.34; }
+		to { opacity: 0.7; }
+	}
+	@keyframes project-block-shift {
+		from { transform: translate3d(-8px, 8px, 0); }
+		to { transform: translate3d(10px, -9px, 0); }
+	}
+	@keyframes project-signal {
+		from { opacity: 0.3; transform: translateX(-8px); }
+		to { opacity: 0.9; transform: translateX(8px); }
+	}
+	@keyframes photo-window-drift {
+		from { transform: translate3d(-8px, 6px, 0) scale(1.02); }
+		to { transform: translate3d(9px, -8px, 0) scale(1.06); }
+	}
+	@keyframes photo-reflection {
+		from { opacity: 0.18; transform: scaleX(0.78); }
+		to { opacity: 0.58; transform: scaleX(1); }
+	}
+	@keyframes code-rain-fall {
+		0% { opacity: 0; transform: translateY(-150px) scaleY(0.4); }
+		22%, 72% { opacity: 0.48; }
+		100% { opacity: 0; transform: translateY(440px) scaleY(1.5); }
+	}
+	@keyframes code-scan {
+		0% { opacity: 0; transform: translateY(18px); }
+		12%, 76% { opacity: 0.54; }
+		100% { opacity: 0; transform: translateY(470px); }
+	}
+	@keyframes tutorial-step-build {
+		0%, 10% { opacity: 0; stroke-dasharray: 0 900; }
+		32%, 76% { opacity: 0.82; stroke-dasharray: 900 0; }
+		100% { opacity: 0.1; stroke-dasharray: 900 0; }
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.content-cover *,
+		.content-cover *::before,
+		.content-cover *::after {
+			animation: none !important;
+		}
+		.tutorial-scene__steps path { opacity: 1; transform: none; }
+	}
+</style>

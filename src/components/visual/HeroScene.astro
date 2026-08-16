@@ -1,0 +1,675 @@
+<div class="hero-scene" data-hero-scene aria-hidden="true">
+	<canvas class="hero-scene__weather" data-hero-weather></canvas>
+
+	<svg class="hero-scene__draft" viewBox="0 0 1200 620" preserveAspectRatio="xMidYMid slice">
+		<defs>
+			<pattern id="hero-grid" width="76" height="76" patternUnits="userSpaceOnUse">
+				<path d="M76 0H0V76" fill="none" stroke="currentColor" stroke-width="1" />
+			</pattern>
+			<filter id="hero-liquid" x="-18%" y="-45%" width="136%" height="190%">
+				<feTurbulence type="fractalNoise" baseFrequency="0.006 0.025" numOctaves="2" seed="7" result="noise">
+					<animate attributeName="baseFrequency" begin="1.2s" dur="14.8s" values="0.006 0.025;0.012 0.018;0.006 0.025" repeatCount="indefinite" />
+				</feTurbulence>
+				<feDisplacementMap in="SourceGraphic" in2="noise" scale="18" xChannelSelector="R" yChannelSelector="B" />
+				<feGaussianBlur stdDeviation="0.45" />
+			</filter>
+		</defs>
+
+		<rect class="hero-scene__grid" x="0" y="0" width="1200" height="620" fill="url(#hero-grid)" />
+		<g class="hero-scene__frame">
+			<path d="M28 92V28H94M1106 28h66v64M28 528v64h66M1106 592h66v-64" />
+			<path d="M28 126h1144M28 494h1144M292 28v564M1012 28v564" />
+		</g>
+
+		<g class="hero-scene__perspective">
+			<path d="M442 592 814 292 1172 592M566 592 814 292M690 592 814 292M938 592 814 292M1062 592 814 292" />
+			<path d="M488 554h650M531 519h565M573 485h480M616 451h394M658 417h309M701 383h224M743 349h139" />
+		</g>
+
+		<g class="hero-scene__columns">
+			<rect x="520" y="133" width="36" height="344" style="--column-index: 0" />
+			<rect x="571" y="99" width="52" height="378" style="--column-index: 1" />
+			<rect x="638" y="167" width="31" height="310" style="--column-index: 2" />
+			<rect x="684" y="72" width="69" height="405" style="--column-index: 3" />
+			<rect x="768" y="124" width="42" height="353" style="--column-index: 4" />
+			<rect x="825" y="87" width="58" height="390" style="--column-index: 5" />
+			<rect x="898" y="152" width="34" height="325" style="--column-index: 6" />
+			<rect x="947" y="111" width="63" height="366" style="--column-index: 7" />
+		</g>
+
+		<g class="hero-scene__umbrella">
+			<path class="hero-scene__canopy" d="M596 330c21-116 112-183 218-183s197 67 218 183H596Z" />
+			<path class="hero-scene__scallop" d="M596 330c34-42 70-42 108 0 35-42 72-42 110 0 38-42 75-42 110 0 38-42 74-42 108 0" />
+			<path class="hero-scene__shaft" d="M814 147v292c0 83 98 83 98 8" />
+			<path class="hero-scene__ribs" d="M814 147 596 330m218-183L704 330m110-183v183m0-183 110 183m-110-183 218 183" />
+			<circle cx="814" cy="147" r="8" />
+		</g>
+
+		<g class="hero-scene__satellites">
+			<g transform="translate(1052 214) scale(.52)">
+				<path d="M-66 24Q0-56 66 24Z" />
+				<path d="M0-36v60M-66 24 0-36 66 24M0 24v58" />
+			</g>
+			<g transform="translate(490 384) scale(.34)">
+				<path d="M-66 24Q0-56 66 24Z" />
+				<path d="M0-36v60M-66 24 0-36 66 24M0 24v58" />
+			</g>
+		</g>
+
+		<g class="hero-scene__papers">
+			<rect x="540" y="88" width="24" height="24" style="--paper-index: 0" />
+			<rect x="635" y="214" width="14" height="14" style="--paper-index: 1" />
+			<rect x="706" y="64" width="35" height="35" style="--paper-index: 2" />
+			<rect x="775" y="231" width="18" height="18" style="--paper-index: 3" />
+			<rect x="872" y="49" width="22" height="22" style="--paper-index: 4" />
+			<rect x="941" y="254" width="40" height="40" style="--paper-index: 5" />
+			<rect x="1028" y="127" width="17" height="17" style="--paper-index: 6" />
+			<rect x="1098" y="344" width="30" height="30" style="--paper-index: 7" />
+			<rect x="498" y="475" width="18" height="18" style="--paper-index: 8" />
+			<rect x="738" y="505" width="28" height="28" style="--paper-index: 9" />
+			<rect x="967" y="468" width="16" height="16" style="--paper-index: 10" />
+		</g>
+
+		<g class="hero-scene__telemetry">
+			<text x="50" y="60">VISUAL WEATHER / LIVE</text>
+			<text x="50" y="566">PRECIPITATION / LIVE · CN / UTC+8</text>
+		</g>
+
+		<g class="hero-scene__night-word" filter="url(#hero-liquid)">
+			<text x="790" y="446">ARCHIVE / 07</text>
+		</g>
+	</svg>
+
+	<div class="hero-scene__wet-glass hero-scene__wet-glass--a"></div>
+	<div class="hero-scene__wet-glass hero-scene__wet-glass--b"></div>
+	<div class="hero-scene__scanline"></div>
+	<div class="hero-scene__beat">
+		<span data-hero-beat>PHASE 01 / LOCATE</span>
+		<i aria-hidden="true"><b></b><b></b><b></b><b></b></i>
+	</div>
+</div>
+
+<script>
+	type WeatherMode = 'clear' | 'rain' | 'night';
+
+	interface RainDrop {
+		x: number;
+		y: number;
+		length: number;
+		speed: number;
+		weight: number;
+		alpha: number;
+		phase: number;
+	}
+
+	function initHeroScenes() {
+		document.querySelectorAll<HTMLElement>('[data-hero-scene]').forEach((root) => {
+			if (root.dataset.interactiveReady === 'true') return;
+			root.dataset.interactiveReady = 'true';
+			root.dataset.beat = '0';
+
+			const canvas = root.querySelector<HTMLCanvasElement>('[data-hero-weather]');
+			const beat = root.querySelector<HTMLElement>('[data-hero-beat]');
+			const draft = root.querySelector<SVGSVGElement>('.hero-scene__draft');
+			const context = canvas?.getContext('2d');
+			if (!canvas || !context) return;
+
+			const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+			let width = 1;
+			let height = 1;
+			let pixelRatio = 1;
+			let animationFrame = 0;
+			let visible = true;
+			let lastTime = performance.now();
+			let beatIndex = 0;
+			let beatElapsed = -1200;
+			let rainEnergy = 0.18;
+			let pointerX = 0.68;
+			let pointerY = 0.46;
+			let pointerTargetX = pointerX;
+			let pointerTargetY = pointerY;
+			let rainColor = '#1887aa';
+			let drops: RainDrop[] = [];
+			let randomSeed = 0x7a11ce;
+
+			const beats = [
+				{ duration: 3600, label: 'PHASE 01 / LOCATE', rain: 0.18 },
+				{ duration: 4200, label: 'PHASE 02 / RAIN', rain: 1 },
+				{ duration: 3800, label: 'PHASE 03 / FOCUS', rain: 0.66 },
+				{ duration: 3200, label: 'PHASE 04 / AFTERGLOW', rain: 0.08 },
+			] as const;
+
+			const mode = (): WeatherMode => {
+				const value = document.documentElement.dataset.weatherMode;
+				return value === 'clear' || value === 'night' ? value : 'rain';
+			};
+
+			// 固定种子让首屏每次以同一场景开场；画布缩放不会再令整片雨幕突然换位。
+			const random = () => {
+				randomSeed = (randomSeed * 1664525 + 1013904223) >>> 0;
+				return randomSeed / 4294967296;
+			};
+
+			const randomDrop = (initial = false): RainDrop => ({
+				x: random(),
+				y: initial ? random() : -0.2 - random() * 0.4,
+				length: 26 + random() * 86,
+				speed: 0.14 + random() * 0.36,
+				weight: 0.55 + random() * 1.3,
+				alpha: 0.1 + random() * 0.34,
+				phase: random() * Math.PI * 2,
+			});
+
+			const syncRainDensity = () => {
+				// 只增减归一化雨线数组，保留既有粒子位置，避免 ResizeObserver 触发视觉跳帧。
+				const areaRatio = Math.min(1.5, Math.max(0.7, (width * height) / (1200 * 620)));
+				const targetCount = Math.round(92 * areaRatio);
+				if (drops.length < targetCount) {
+					drops.push(...Array.from({ length: targetCount - drops.length }, () => randomDrop(true)));
+				} else if (drops.length > targetCount) {
+					drops.length = targetCount;
+				}
+			};
+
+			const resize = () => {
+				const bounds = root.getBoundingClientRect();
+				width = Math.max(1, bounds.width);
+				height = Math.max(1, bounds.height);
+				pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+				canvas.width = Math.round(width * pixelRatio);
+				canvas.height = Math.round(height * pixelRatio);
+				canvas.style.width = `${width}px`;
+				canvas.style.height = `${height}px`;
+				context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+				syncRainDensity();
+			};
+
+			const updateColors = () => {
+				// 主题色只在初始化和模式切换时读取，避免全尺寸 Canvas 每帧触发样式解析。
+				const styles = getComputedStyle(document.documentElement);
+				rainColor = styles.getPropertyValue('--color-rain-deep').trim() || '#1887aa';
+			};
+
+			const setBeat = (nextBeat: number, restart = false) => {
+				beatIndex = nextBeat;
+				root.dataset.beat = String(beatIndex);
+				if (restart) beatElapsed = 0;
+				if (!beat) return;
+				beat.textContent = beats[beatIndex].label;
+				if (!reduceMotion.matches) {
+					beat.animate(
+						[
+							{ opacity: 0.18, transform: 'translateY(5px)' },
+							{ opacity: 1, transform: 'translateY(0)' },
+						],
+						{ duration: 520, easing: 'cubic-bezier(.22,.75,.28,1)' },
+					);
+				}
+			};
+
+			const draw = (now: number) => {
+				const delta = Math.min(48, now - lastTime) / 1000;
+				lastTime = now;
+				beatElapsed += delta * 1000;
+				while (beatElapsed >= beats[beatIndex].duration) {
+					beatElapsed -= beats[beatIndex].duration;
+					setBeat((beatIndex + 1) % beats.length);
+				}
+				rainEnergy += (beats[beatIndex].rain - rainEnergy) * Math.min(1, delta * 1.35);
+				pointerX += (pointerTargetX - pointerX) * Math.min(1, delta * 4.5);
+				pointerY += (pointerTargetY - pointerY) * Math.min(1, delta * 4.5);
+
+				context.clearRect(0, 0, width, height);
+				const currentMode = mode();
+				context.globalCompositeOperation = currentMode === 'night' ? 'screen' : 'multiply';
+
+				if (currentMode !== 'clear') {
+					context.strokeStyle = rainColor;
+					context.lineCap = 'round';
+					drops.forEach((drop, index) => {
+						drop.y += drop.speed * delta * (0.45 + rainEnergy * 0.72) * (currentMode === 'night' ? 0.8 : 1);
+						if (drop.y > 1.24) drops[index] = randomDrop();
+						const sway = Math.sin(now * 0.0012 + drop.phase) * 8 + (pointerX - 0.5) * 10;
+						const x = drop.x * width + sway;
+						const y = drop.y * height;
+						context.globalAlpha = drop.alpha * rainEnergy * (currentMode === 'night' ? 0.72 : 0.56);
+						context.lineWidth = drop.weight;
+						context.beginPath();
+						context.moveTo(x, y);
+						context.lineTo(x - 3, y + drop.length);
+						context.stroke();
+					});
+				}
+
+				context.globalAlpha = 1;
+				context.globalCompositeOperation = 'source-over';
+				root.style.setProperty('--hero-draft-x', `${(pointerX - 0.5) * -9}px`);
+				root.style.setProperty('--hero-draft-y', `${(pointerY - 0.5) * -6}px`);
+				root.style.setProperty('--hero-umbrella-x', `${(pointerX - 0.5) * 14}px`);
+				root.style.setProperty('--hero-umbrella-y', `${(pointerY - 0.5) * 8}px`);
+
+				if (visible && !document.hidden && !reduceMotion.matches) {
+					animationFrame = requestAnimationFrame(draw);
+				}
+			};
+
+			const renderStaticFrame = () => {
+				lastTime = performance.now();
+				draw(lastTime);
+				cancelAnimationFrame(animationFrame);
+			};
+
+			const start = () => {
+				cancelAnimationFrame(animationFrame);
+				// Canvas 与 SVG 必须共用可见性状态，否则离开首屏后液态层仍会独自推进。
+				if (reduceMotion.matches || !visible || document.hidden) draft?.pauseAnimations();
+				else draft?.unpauseAnimations();
+				if (reduceMotion.matches || !visible || document.hidden) {
+					renderStaticFrame();
+					return;
+				}
+				lastTime = performance.now();
+				animationFrame = requestAnimationFrame(draw);
+			};
+
+			const syncMotionPreference = () => {
+				start();
+			};
+
+			root.addEventListener('pointermove', (event) => {
+				const bounds = root.getBoundingClientRect();
+				pointerTargetX = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
+				pointerTargetY = Math.min(1, Math.max(0, (event.clientY - bounds.top) / bounds.height));
+			});
+			root.addEventListener('pointerleave', () => {
+				pointerTargetX = 0.68;
+				pointerTargetY = 0.46;
+			});
+
+			const resizeObserver = new ResizeObserver(resize);
+			resizeObserver.observe(root);
+			const visibilityObserver = new IntersectionObserver(([entry]) => {
+				visible = entry?.isIntersecting ?? true;
+				start();
+			}, { threshold: 0.05 });
+			visibilityObserver.observe(root);
+
+			document.addEventListener('visibilitychange', start);
+			document.addEventListener('weather-mode-change', () => {
+				updateColors();
+				// 天气遮罩覆盖期间重启场景，使新模式总是从“定位”阶段温和建立。
+				setBeat(0, true);
+				rainEnergy = beats[0].rain;
+				draft?.setCurrentTime(0);
+				start();
+			});
+			reduceMotion.addEventListener('change', syncMotionPreference);
+			updateColors();
+			resize();
+			syncMotionPreference();
+		});
+	}
+
+	initHeroScenes();
+	document.addEventListener('astro:page-load', initHeroScenes);
+</script>
+
+<style>
+	.hero-scene {
+		position: absolute;
+		inset: 0;
+		overflow: hidden;
+		background: var(--paper-0);
+		isolation: isolate;
+	}
+
+	.hero-scene::before {
+		position: absolute;
+		inset: 0 44% 0 0;
+		z-index: 3;
+		background: color-mix(in srgb, var(--paper-0) 89%, transparent);
+		content: '';
+		pointer-events: none;
+	}
+
+	.hero-scene__weather,
+	.hero-scene__draft,
+	.hero-scene__scanline {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+	}
+
+	.hero-scene__weather {
+		z-index: 2;
+		pointer-events: none;
+	}
+
+	.hero-scene__draft {
+		z-index: 1;
+		color: var(--line);
+		transform: translate3d(
+			var(--hero-draft-x, 0px),
+			var(--hero-draft-y, 0px),
+			0
+		);
+		transition: color var(--duration-slow) var(--ease-rain);
+		will-change: transform;
+	}
+
+	.hero-scene__grid {
+		opacity: 0.2;
+	}
+
+	.hero-scene__frame,
+	.hero-scene__perspective,
+	.hero-scene__umbrella,
+	.hero-scene__satellites {
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1;
+		vector-effect: non-scaling-stroke;
+	}
+
+	.hero-scene__frame {
+		opacity: 0.7;
+	}
+
+	.hero-scene__perspective {
+		opacity: 0.28;
+		transform: scaleY(0.975);
+		transform-origin: 814px 292px;
+		transition: opacity 1100ms var(--ease-rain), transform 1500ms var(--ease-drift);
+	}
+
+	.hero-scene__columns {
+		fill: color-mix(in srgb, var(--color-rain) 54%, transparent);
+		opacity: 0.1;
+		transition: opacity 1100ms var(--ease-rain);
+	}
+
+	.hero-scene__columns rect {
+		transform-box: fill-box;
+		transform-origin: center top;
+		transform: scaleY(0.08);
+		transition: transform 1500ms var(--ease-rain), opacity 900ms var(--ease-rain);
+		transition-delay: calc(var(--column-index) * 70ms);
+	}
+
+	.hero-scene__umbrella {
+		color: var(--accent-strong);
+		stroke-width: 2;
+		transform-origin: 814px 330px;
+		transform: translate3d(
+			var(--hero-umbrella-x, 0px),
+			calc(var(--hero-umbrella-y, 0px) + var(--hero-beat-shift, 0px)),
+			0
+		) scale(var(--hero-beat-scale, 1));
+		transition: transform 880ms var(--ease-rain), opacity 680ms var(--ease-rain);
+		will-change: transform;
+	}
+
+	.hero-scene__canopy {
+		fill: color-mix(in srgb, var(--color-rain) 68%, transparent);
+		stroke-width: 3;
+	}
+
+	.hero-scene__scallop {
+		stroke: var(--paper-0);
+		stroke-width: 2;
+	}
+
+	.hero-scene__shaft {
+		stroke: var(--ink);
+		stroke-width: 7;
+	}
+
+	.hero-scene__ribs {
+		opacity: 0.56;
+	}
+
+	.hero-scene__satellites {
+		color: var(--accent-strong);
+		opacity: 0.24;
+		transition: opacity 900ms var(--ease-rain), transform 1400ms var(--ease-drift);
+	}
+
+	.hero-scene__papers rect {
+		fill: var(--color-paper);
+		stroke: var(--line-strong);
+		stroke-width: 1;
+		opacity: 0;
+		transform-box: fill-box;
+		transform-origin: center;
+		transform: translate3d(-5px, -16px, 0) rotate(calc(var(--paper-index) * 3deg));
+		transition: transform 1900ms var(--ease-drift), opacity 900ms var(--ease-rain);
+		transition-delay: calc(var(--paper-index) * 38ms);
+	}
+
+	.hero-scene[data-beat='0'] {
+		--hero-beat-scale: 0.97;
+		--hero-beat-shift: 6px;
+	}
+
+	.hero-scene[data-beat='0'] .hero-scene__columns { opacity: 0.1; }
+	.hero-scene[data-beat='0'] .hero-scene__columns rect { transform: scaleY(0.08); }
+	.hero-scene[data-beat='0'] .hero-scene__perspective { opacity: 0.42; transform: scaleY(0.975); }
+	.hero-scene[data-beat='0'] .hero-scene__papers rect {
+		opacity: 0;
+		transform: translate3d(-5px, -16px, 0) rotate(calc(var(--paper-index) * 3deg));
+		/* 上一幕已将纸片淡出，此处立即归位，避免逆向飞回顶部。 */
+		transition-duration: 0ms, 700ms;
+	}
+
+	.hero-scene[data-beat='1'] {
+		--hero-beat-scale: 0.992;
+		--hero-beat-shift: 1px;
+	}
+	.hero-scene[data-beat='1'] .hero-scene__columns { opacity: 0.4; }
+	.hero-scene[data-beat='1'] .hero-scene__columns rect { transform: scaleY(1); }
+	.hero-scene[data-beat='1'] .hero-scene__perspective { opacity: 0.52; transform: scaleY(1.01); }
+	.hero-scene[data-beat='1'] .hero-scene__papers rect {
+		opacity: 0.42;
+		transform: translate3d(2px, 24px, 0) rotate(calc(12deg + var(--paper-index) * 3deg));
+	}
+	.hero-scene[data-beat='1'] .hero-scene__satellites { opacity: 0.46; transform: translateY(3px); }
+
+	.hero-scene[data-beat='2'] {
+		--hero-beat-scale: 1.02;
+		--hero-beat-shift: -4px;
+	}
+	.hero-scene[data-beat='2'] .hero-scene__columns { opacity: 0.48; }
+	.hero-scene[data-beat='2'] .hero-scene__columns rect { transform: scaleY(0.9); }
+	.hero-scene[data-beat='2'] .hero-scene__perspective { opacity: 0.34; transform: scaleY(1.025); }
+	.hero-scene[data-beat='2'] .hero-scene__papers rect {
+		opacity: 0.7;
+		transform: translate3d(11px, 78px, 0) rotate(calc(34deg + var(--paper-index) * 4deg));
+	}
+	.hero-scene[data-beat='2'] .hero-scene__satellites { opacity: 0.28; transform: translateY(8px); }
+
+	.hero-scene[data-beat='3'] {
+		--hero-beat-scale: 0.985;
+		--hero-beat-shift: 3px;
+	}
+	.hero-scene[data-beat='3'] .hero-scene__columns { opacity: 0.05; }
+	.hero-scene[data-beat='3'] .hero-scene__columns rect { transform: scaleY(0.14); }
+	.hero-scene[data-beat='3'] .hero-scene__perspective { opacity: 0.14; transform: scaleY(0.99); }
+	.hero-scene[data-beat='3'] .hero-scene__papers rect {
+		opacity: 0;
+		transform: translate3d(24px, 142px, 0) rotate(calc(72deg + var(--paper-index) * 5deg));
+	}
+	.hero-scene[data-beat='3'] .hero-scene__satellites { opacity: 0.12; transform: translateY(12px); }
+
+	.hero-scene__telemetry {
+		fill: var(--ink-muted);
+		font-family: var(--font-ui);
+		font-size: 9px;
+		opacity: 0.74;
+	}
+
+	.hero-scene__night-word {
+		display: none;
+		fill: var(--night-text);
+		font-family: var(--font-display);
+		font-size: 84px;
+		font-weight: 500;
+		opacity: 0.3;
+		text-anchor: start;
+	}
+
+	.hero-scene__wet-glass {
+		position: absolute;
+		z-index: 3;
+		display: none;
+		border: 1px solid rgb(237 241 239 / 18%);
+		background: rgb(117 197 216 / 4%);
+		box-shadow: inset 0 0 28px rgb(237 241 239 / 6%), 0 0 22px rgb(117 197 216 / 8%);
+		backdrop-filter: blur(5px) contrast(1.3) saturate(1.35);
+		opacity: 0.22;
+		transform: translate3d(-4px, -6px, 0) rotate(9deg) scale(0.985);
+		transition: transform 1800ms var(--ease-drift), opacity 1200ms var(--ease-rain);
+	}
+
+	.hero-scene__wet-glass--a {
+		top: 17%;
+		right: 11%;
+		width: 21%;
+		height: 46%;
+	}
+
+	.hero-scene__wet-glass--b {
+		right: 36%;
+		bottom: 8%;
+		width: 10%;
+		height: 34%;
+		transform: translate3d(3px, 5px, 0) rotate(-6deg) scale(0.98);
+	}
+
+	.hero-scene__scanline {
+		z-index: 4;
+		display: none;
+		inset: 8% 0 auto;
+		height: 1px;
+		background: var(--night-text);
+		box-shadow: 0 0 16px rgb(117 197 216 / 60%);
+		opacity: 0;
+		transition: top 2200ms linear, opacity 800ms var(--ease-rain);
+	}
+
+	.hero-scene[data-beat='1'] .hero-scene__wet-glass--a { opacity: 0.48; transform: translate3d(2px, 4px, 0) rotate(9deg) scale(1); }
+	.hero-scene[data-beat='1'] .hero-scene__wet-glass--b { opacity: 0.34; transform: translate3d(-2px, 8px, 0) rotate(-6deg) scale(1.01); }
+	.hero-scene[data-beat='2'] .hero-scene__wet-glass--a { opacity: 0.62; transform: translate3d(7px, 10px, 0) rotate(9deg) scale(1.025); }
+	.hero-scene[data-beat='2'] .hero-scene__wet-glass--b { opacity: 0.5; transform: translate3d(-6px, 13px, 0) rotate(-6deg) scale(1.025); }
+	.hero-scene[data-beat='3'] .hero-scene__wet-glass { opacity: 0.08; }
+	.hero-scene[data-beat='1'] .hero-scene__scanline { top: 36%; opacity: 0.42; }
+	.hero-scene[data-beat='2'] .hero-scene__scanline { top: 72%; opacity: 0.32; }
+	.hero-scene[data-beat='3'] .hero-scene__scanline { top: 92%; opacity: 0; }
+
+	.hero-scene__beat {
+		position: absolute;
+		right: 30px;
+		bottom: 84px;
+		z-index: 5;
+		display: grid;
+		width: 148px;
+		gap: 8px;
+		font-family: var(--font-ui);
+		font-size: 9px;
+		color: var(--ink-muted);
+	}
+
+	.hero-scene__beat i {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 4px;
+	}
+
+	.hero-scene__beat b {
+		height: 1px;
+		background: var(--line-strong);
+		opacity: 0.24;
+		transition: opacity 500ms var(--ease-rain), transform 500ms var(--ease-rain);
+		transform-origin: left;
+	}
+
+	.hero-scene[data-beat='0'] .hero-scene__beat b:nth-child(1),
+	.hero-scene[data-beat='1'] .hero-scene__beat b:nth-child(2),
+	.hero-scene[data-beat='2'] .hero-scene__beat b:nth-child(3),
+	.hero-scene[data-beat='3'] .hero-scene__beat b:nth-child(4) {
+		opacity: 1;
+		transform: scaleY(3);
+	}
+
+	:global(html[data-weather-mode='clear']) .hero-scene__columns,
+	:global(html[data-weather-mode='clear']) .hero-scene__perspective {
+		opacity: 0.08;
+	}
+
+	:global(html[data-weather-mode='clear']) .hero-scene__canopy {
+		fill: color-mix(in srgb, var(--paper-0) 72%, transparent);
+	}
+
+	:global(html[data-weather-mode='night']) .hero-scene {
+		background: var(--night-0);
+	}
+
+	:global(html[data-weather-mode='night']) .hero-scene::before {
+		background: color-mix(in srgb, var(--night-0) 86%, transparent);
+	}
+
+	:global(html[data-weather-mode='night']) .hero-scene__grid {
+		opacity: 0.33;
+	}
+
+	:global(html[data-weather-mode='night']) .hero-scene__columns {
+		fill: color-mix(in srgb, var(--color-rain) 17%, transparent);
+	}
+
+	:global(html[data-weather-mode='night']) .hero-scene__canopy {
+		fill: color-mix(in srgb, var(--night-1) 80%, transparent);
+	}
+
+	:global(html[data-weather-mode='night']) .hero-scene__scallop {
+		stroke: var(--night-text);
+	}
+
+	:global(html[data-weather-mode='night']) .hero-scene__shaft {
+		stroke: var(--night-text);
+	}
+
+	:global(html[data-weather-mode='night']) .hero-scene__night-word,
+	:global(html[data-weather-mode='night']) .hero-scene__wet-glass,
+	:global(html[data-weather-mode='night']) .hero-scene__scanline {
+		display: block;
+	}
+
+	:global(html[data-weather-mode='night']) .hero-scene__papers rect {
+		fill: var(--night-text);
+	}
+
+	@media (max-width: 1000px) {
+		.hero-scene::before { inset-inline-end: 30%; }
+		.hero-scene__draft { width: 118%; max-width: none; translate: -9% 0; }
+	}
+
+	@media (max-width: 760px) {
+		.hero-scene::before { inset: 0; background: color-mix(in srgb, var(--paper-0) 72%, transparent); }
+		:global(html[data-weather-mode='night']) .hero-scene::before { background: color-mix(in srgb, var(--night-0) 66%, transparent); }
+		.hero-scene__draft { width: 155%; translate: -36% 0; opacity: 0.75; }
+		.hero-scene__telemetry, .hero-scene__beat { display: none; }
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.hero-scene__draft,
+		.hero-scene__umbrella {
+			transform: none;
+		}
+
+		.hero-scene__columns rect { opacity: 0.42; transform: scaleY(1); transition: none; }
+		.hero-scene__papers rect,
+		.hero-scene__perspective,
+		.hero-scene__wet-glass,
+		.hero-scene__scanline { transition: none; }
+	}
+</style>

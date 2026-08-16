@@ -4,6 +4,9 @@ import ArticleRow from '@/components/content/ArticleRow.astro';
 import KindLabel from '@/components/content/KindLabel.astro';
 import PostMeta from '@/components/content/PostMeta.astro';
 import BaseLayout from '@/layouts/BaseLayout.astro';
+import ContentCoverScene from '@/components/visual/ContentCoverScene.astro';
+import HeroScene from '@/components/visual/HeroScene.astro';
+import { IMAGE_COLLECTION } from '@/data/image-collection';
 import { POST_KIND_LABELS, POST_KINDS } from '@/data/site';
 import { collectTagCounts, getPostPath, getPosts } from '@/lib/content';
 
@@ -13,183 +16,599 @@ const recent = posts.filter((post) => post.id !== featured?.id).slice(0, 5);
 const tagCounts = collectTagCounts(posts).slice(0, 8);
 const kindCounts = POST_KINDS.map((kind) => ({
 	kind,
-	count: posts.filter((post) => post.data.kind === kind).length,
+	count: posts.filter((post) => post.data.kind === kind).length + (kind === 'photo' ? IMAGE_COLLECTION.length : 0),
 }));
+const kindTrackHeights = [58, 82, 68, 94, 74, 86];
+const kindTrackCodes = ['ESSAY', 'NOTE', 'PROJECT', 'FRAME', 'CODE', 'GUIDE'];
+const featuredCover = featured?.data.cover && !featured.data.cover.endsWith('/hero-bg.webp')
+	? featured.data.cover
+	: null;
+const featuredCoverFit = featured?.data.kind === 'photo' ? 'cover' : 'contain';
+const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
+	year: 'numeric',
+	month: '2-digit',
+	day: '2-digit',
+}).format(date);
 ---
 
-<BaseLayout>
-	<div class="home-shell">
-		<section class="home-hero" aria-labelledby="home-title">
-			<img class="home-hero__media home-hero__media--day" src="/assets/covers/default-day.webp" alt="抽象雨伞、纸片与制图网格组成的雨天档案场景" width="1600" height="900" />
-			<img class="home-hero__media home-hero__media--night" src="/assets/covers/default-night.webp" alt="" width="1600" height="900" aria-hidden="true" />
-			<div class="home-hero__overlay" aria-hidden="true"></div>
-			<div class="home-hero__status">
-				<span>SCENE / HOME</span>
-				<span data-weather-theme-label>THEME / RAIN</span>
-				<span>LOC / CN</span>
+<BaseLayout className="home-page">
+	<div class="home-page-scenes">
+		<section class="home-scene home-scene--hero" aria-labelledby="home-title">
+			<div class="scene-inner">
+				<div class="home-hero">
+					<HeroScene />
+					<div class="home-hero__status">
+						<span>SCENE / HOME</span>
+						<span data-weather-theme-label>THEME / RAIN</span>
+						<span>LOC / CN</span>
+					</div>
+					<div class="home-hero__copy">
+						<p>PERSONAL ARCHIVE / 2026</p>
+						<h1 id="home-title">Aria-7</h1>
+						<strong>雨线之外，保存仍在形成的知识与观察。</strong>
+						<span>长文、学习笔记、项目、影像、代码与教程。</span>
+						<a class="home-hero__enter" href={featured ? getPostPath(featured) : '/posts/'} data-article-transition-link={featured ? '' : undefined}>
+							<span>进入最新场景</span>
+							<ArrowRight size={20} stroke-width={1.5} aria-hidden="true" />
+						</a>
+					</div>
+				</div>
 			</div>
-			<div class="home-hero__copy">
-				<p>PERSONAL ARCHIVE / 2026</p>
-				<h1 id="home-title">Aria-7</h1>
-				<strong>雨线之外，保存仍在形成的知识与观察。</strong>
-				<span>长文、学习笔记、项目、影像、代码与教程。</span>
-			</div>
-			<a class="home-hero__enter" href={featured ? getPostPath(featured) : '/posts/'}>
-				<span>进入最新场景</span>
-				<ArrowRight size={20} stroke-width={1.5} aria-hidden="true" />
-			</a>
 		</section>
 
 		{featured && (
-			<section class="featured-band" aria-labelledby="featured-title">
-				<div class="section-index">
-					<span>01</span>
-					<p>FEATURED RECORD</p>
+			<section class="home-scene home-scene--featured" aria-labelledby="featured-title" data-home-reveal>
+				<div class="scene-inner">
+					<div class="featured-band">
+						<div class="section-index">
+							<span>01</span>
+							<p>FEATURED RECORD</p>
+						</div>
+						<div class="featured-band__copy">
+							<KindLabel kind={featured.data.kind} />
+							<h2 id="featured-title"><a href={getPostPath(featured)} data-article-transition-link>{featured.data.title}</a></h2>
+							<p>{featured.data.summary}</p>
+							<PostMeta date={featured.data.publishedAt} weather={featured.data.readingWeather} compact />
+						</div>
+						<a class="featured-band__visual" href={getPostPath(featured)} aria-label={`阅读《${featured.data.title}》`} data-article-transition-link>
+							<ContentCoverScene kind={featured.data.kind} class="featured-band__cover-scene" />
+							{featuredCover && (
+								<span class:list={['featured-band__media', `featured-band__media--${featuredCoverFit}`]}>
+									<img src={featuredCover} alt="" width="760" height="430" />
+								</span>
+							)}
+							<span class="featured-band__open">OPEN / RECORD</span>
+						</a>
+					</div>
 				</div>
-				<div class="featured-band__copy">
-					<KindLabel kind={featured.data.kind} />
-					<h2 id="featured-title"><a href={getPostPath(featured)}>{featured.data.title}</a></h2>
-					<p>{featured.data.summary}</p>
-					<PostMeta date={featured.data.publishedAt} weather={featured.data.readingWeather} compact />
-				</div>
-				<a class="featured-band__visual" href={getPostPath(featured)} aria-label={`阅读《${featured.data.title}》`}>
-					<img src={featured.data.cover ?? '/assets/covers/default-night.webp'} alt="" width="760" height="430" />
-					<span>OPEN / RECORD</span>
-				</a>
 			</section>
 		)}
 
-		<section class="home-section" aria-labelledby="recent-title">
-			<header class="section-heading">
-				<div>
-					<p>02 / LATEST ENTRIES</p>
-					<h2 id="recent-title">最近记录</h2>
+		<section class="home-scene home-scene--recent" aria-labelledby="recent-title" data-home-reveal>
+			<div class="scene-inner recent-layout">
+				<aside class="recent-stage">
+					<div class="recent-stage__sticky">
+						<p class="section-kicker">02 / LATEST ENTRIES</p>
+						<h2 id="recent-title">最近记录</h2>
+						{recent.length > 0 && (
+							<div
+								class="recent-stage__visual"
+								data-recent-scroll-viewport
+								role="region"
+								aria-label="最近记录预览滚动"
+								tabindex="0"
+							>
+								<div class="recent-stage__track">
+									{[false, true].map((isDuplicate) => (
+										<div
+											class="recent-stage__group"
+											data-recent-scroll-group={isDuplicate ? 'duplicate' : 'primary'}
+											aria-hidden={isDuplicate ? 'true' : undefined}
+										>
+											{recent.map((post, index) => (
+												<a
+													class="recent-preview"
+													href={getPostPath(post)}
+													data-recent-preview
+													data-recent-preview-index={index}
+													data-article-transition-link
+													tabindex={isDuplicate ? -1 : undefined}
+												>
+													<ContentCoverScene kind={post.data.kind} compact class="recent-preview__cover" />
+													<span class="recent-preview__shade" aria-hidden="true"></span>
+													<span class="recent-preview__copy">
+														<span class="recent-preview__meta">
+															<b>{String(index + 1).padStart(2, '0')}</b>
+															<small>{POST_KIND_LABELS[post.data.kind]} / {formatDate(post.data.publishedAt)}</small>
+														</span>
+														<strong>{post.data.title}</strong>
+														<small>{post.data.summary}</small>
+													</span>
+													<ArrowRight class="recent-preview__arrow" size={16} stroke-width={1.4} aria-hidden="true" />
+												</a>
+											))}
+										</div>
+									))}
+								</div>
+							</div>
+						)}
+						<a class="recent-stage__all" href="/posts/">查看全部 <ArrowRight size={17} stroke-width={1.5} aria-hidden="true" /></a>
+					</div>
+				</aside>
+
+				<div class="recent-stream">
+					<div class="recent-stream__axis" aria-hidden="true"><span>LIVE / {String(recent.length).padStart(2, '0')}</span><i></i></div>
+					<div class="article-list">
+						{recent.map((post, index) => (
+							<div
+								class="recent-entry"
+								data-home-row
+								data-recent-index={String(index + 1).padStart(2, '0')}
+							>
+								<ArticleRow post={post} index={index + 1} />
+							</div>
+						))}
+					</div>
 				</div>
-				<a href="/posts/">查看全部 <ArrowRight size={17} stroke-width={1.5} aria-hidden="true" /></a>
-			</header>
-			<div class="article-list">
-				{recent.map((post, index) => <ArticleRow post={post} index={index + 1} />)}
 			</div>
 		</section>
 
-		<section class="index-grid" aria-labelledby="index-title">
-			<header class="section-heading index-grid__heading">
-				<div>
-					<p>03 / INDEX SYSTEM</p>
-					<h2 id="index-title">寻找一条路径</h2>
+		<section class="home-scene home-scene--index" aria-labelledby="index-title" data-home-reveal>
+			<div class="scene-inner">
+				<header class="section-heading index-heading">
+					<div>
+						<p>03 / INDEX SYSTEM</p>
+						<h2 id="index-title">寻找一条路径</h2>
+					</div>
+					<span>{String(posts.length).padStart(2, '0')} RECORDS / {String(tagCounts.length).padStart(2, '0')} SIGNALS</span>
+				</header>
+				<div class="kind-index" data-index-field>
+					{kindCounts.map(({ kind, count }, index) => (
+						<a
+							href={`/types/${kind}/`}
+							data-index-track
+							data-track-index={index}
+							style={`--track-height: ${kindTrackHeights[index]}%; --track-delay: ${index * 80}ms;`}
+						>
+							<span class="kind-index__number">{String(index + 1).padStart(2, '0')}</span>
+							<span class="kind-index__label">
+								<strong>{POST_KIND_LABELS[kind]}</strong>
+								<em>{kindTrackCodes[index]}</em>
+							</span>
+							<small>{String(count).padStart(2, '0')} ENTRIES</small>
+							<ArrowRight class="kind-index__arrow" size={18} stroke-width={1.4} aria-hidden="true" />
+						</a>
+					))}
+					<div class="kind-index__coordinate" aria-hidden="true" data-index-coordinate>X 000 / Y 000</div>
 				</div>
-			</header>
-			<div class="kind-index">
-				{kindCounts.map(({ kind, count }, index) => (
-					<a href={`/types/${kind}/`}>
-						<span>{String(index + 1).padStart(2, '0')}</span>
-						<strong>{POST_KIND_LABELS[kind]}</strong>
-						<small>{String(count).padStart(2, '0')} ENTRIES</small>
-					</a>
-				))}
-			</div>
-			<div class="tag-index">
-				<p>TAGS / FREQUENCY</p>
-				{tagCounts.map((tag) => (
-					<a href={`/tags/${encodeURIComponent(tag.label)}/`}>
-						<span>#{tag.label}</span>
-						<small>{tag.count}</small>
-					</a>
-				))}
+				<div class="tag-index">
+					<p>TAGS / FREQUENCY</p>
+					<div>
+						{tagCounts.map((tag) => (
+							<a href={`/tags/${encodeURIComponent(tag.label)}/`}>
+								<span>#{tag.label}</span>
+								<small>{tag.count}</small>
+							</a>
+						))}
+					</div>
+				</div>
 			</div>
 		</section>
 
-		<section class="explore-band" aria-label="探索工具">
-			<a href="/archive/">
-				<CalendarRange size={24} stroke-width={1.4} aria-hidden="true" />
-				<span>按时间寻找</span>
-				<strong>雨日历</strong>
-			</a>
-			<a href="/connections/">
-				<Network size={24} stroke-width={1.4} aria-hidden="true" />
-				<span>按关联寻找</span>
-				<strong>伞骨关系图</strong>
-			</a>
-			<button type="button" data-search-trigger>
-				<Search size={24} stroke-width={1.4} aria-hidden="true" />
-				<span>按词语寻找</span>
-				<strong>搜索档案</strong>
-			</button>
+		<section class="home-scene home-scene--coda" aria-labelledby="explore-title" data-home-reveal>
+			<div class="scene-inner coda-layout">
+				<header>
+					<p>04 / TRACE TOOLS</p>
+					<h2 id="explore-title">继续寻找</h2>
+					<span>ARCHIVE / CONNECTION / SEARCH</span>
+				</header>
+				<div class="explore-band">
+					<a href="/archive/">
+						<CalendarRange size={24} stroke-width={1.4} aria-hidden="true" />
+						<span><small>按时间寻找</small><strong>雨日历</strong></span>
+						<ArrowRight size={19} stroke-width={1.4} aria-hidden="true" />
+					</a>
+					<a href="/connections/">
+						<Network size={24} stroke-width={1.4} aria-hidden="true" />
+						<span><small>按关联寻找</small><strong>伞骨关系图</strong></span>
+						<ArrowRight size={19} stroke-width={1.4} aria-hidden="true" />
+					</a>
+					<button type="button" data-search-trigger>
+						<Search size={24} stroke-width={1.4} aria-hidden="true" />
+						<span><small>按词语寻找</small><strong>搜索档案</strong></span>
+						<ArrowRight size={19} stroke-width={1.4} aria-hidden="true" />
+					</button>
+				</div>
+			</div>
 		</section>
 	</div>
 </BaseLayout>
 
+<script>
+	function initHomeScenes() {
+		const page = document.querySelector<HTMLElement>('.home-page-scenes');
+		if (!page || page.dataset.motionReady === 'true') return;
+		page.dataset.motionReady = 'true';
+		document.documentElement.classList.add('home-motion-ready');
+
+		const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		const revealTargets = page.querySelectorAll<HTMLElement>('[data-home-reveal]');
+		if (reduceMotion || !('IntersectionObserver' in window)) {
+			revealTargets.forEach((target) => target.classList.add('is-in-view'));
+		} else {
+			const revealObserver = new IntersectionObserver((entries) => {
+				entries.forEach((entry) => {
+					if (!entry.isIntersecting) return;
+					entry.target.classList.add('is-in-view');
+					revealObserver.unobserve(entry.target);
+				});
+			}, { rootMargin: '0px 0px -14% 0px', threshold: 0.08 });
+			revealTargets.forEach((target) => revealObserver.observe(target));
+		}
+
+		const rows = [...page.querySelectorAll<HTMLElement>('[data-home-row]')];
+		const recentViewport = page.querySelector<HTMLElement>('[data-recent-scroll-viewport]');
+		const recentGroups = [...page.querySelectorAll<HTMLElement>('[data-recent-scroll-group]')];
+		const recentPreviews = [...page.querySelectorAll<HTMLElement>('[data-recent-preview]')];
+		let loopDistance = 0;
+		let activeRecentIndex = -1;
+		let pointerPaused = false;
+		let focusPaused = false;
+		let manualPauseUntil = 0;
+		let previousFrameTime = 0;
+		let streamPosition = 0;
+
+		const setActiveRecent = (index: number) => {
+			if (index === activeRecentIndex || index < 0) return;
+			activeRecentIndex = index;
+			rows.forEach((row, rowIndex) => row.classList.toggle('is-current', rowIndex === index));
+			recentPreviews.forEach((preview) => {
+				preview.classList.toggle('is-current', Number(preview.dataset.recentPreviewIndex) === index);
+			});
+		};
+
+		const measureRecentStream = () => {
+			const [primaryGroup, duplicateGroup] = recentGroups;
+			if (!primaryGroup || !duplicateGroup) return;
+			loopDistance = duplicateGroup.offsetTop - primaryGroup.offsetTop;
+		};
+
+		const normalizeRecentScroll = () => {
+			if (!recentViewport || loopDistance <= 0) return recentViewport?.scrollTop ?? 0;
+			while (recentViewport.scrollTop >= loopDistance) recentViewport.scrollTop -= loopDistance;
+			return recentViewport.scrollTop;
+		};
+
+		const syncRecentHighlight = () => {
+			if (!recentViewport || recentPreviews.length === 0) return;
+			// 以窗口上方约四分之一处作为阅读焦点，让初始状态明确对应时间序列中的第一条记录。
+			const viewportFocus = recentViewport.getBoundingClientRect().top + recentViewport.clientHeight * 0.26;
+			const nearestPreview = recentPreviews.reduce<{ preview: HTMLElement; distance: number } | null>((nearest, preview) => {
+				const bounds = preview.getBoundingClientRect();
+				const distance = Math.abs(bounds.top + bounds.height / 2 - viewportFocus);
+				return !nearest || distance < nearest.distance ? { preview, distance } : nearest;
+			}, null);
+			setActiveRecent(Number(nearestPreview?.preview.dataset.recentPreviewIndex ?? 0));
+		};
+
+		if (recentViewport) {
+			measureRecentStream();
+			streamPosition = normalizeRecentScroll();
+			syncRecentHighlight();
+			recentViewport.addEventListener('pointerdown', () => {
+				pointerPaused = true;
+			});
+			window.addEventListener('pointerup', () => {
+				pointerPaused = false;
+			});
+			recentViewport.addEventListener('pointercancel', () => {
+				pointerPaused = false;
+			});
+			recentViewport.addEventListener('wheel', () => {
+				// 滚轮输入优先交给访客；停止操作片刻后，从用户选定的位置继续自动推进。
+				manualPauseUntil = performance.now() + 1400;
+			}, { passive: true });
+			recentViewport.addEventListener('focusin', () => {
+				focusPaused = true;
+			});
+			recentViewport.addEventListener('focusout', () => {
+				requestAnimationFrame(() => {
+					focusPaused = recentViewport.contains(document.activeElement);
+				});
+			});
+			recentViewport.addEventListener('scroll', () => {
+				const normalizedPosition = normalizeRecentScroll();
+				// 自动写入会产生细小的像素量化差；只有明显偏差才视为访客的滚轮或滚动条输入。
+				if (Math.abs(normalizedPosition - streamPosition) > 2) streamPosition = normalizedPosition;
+				syncRecentHighlight();
+			}, { passive: true });
+			recentPreviews.forEach((preview) => {
+				const selectPreview = () => setActiveRecent(Number(preview.dataset.recentPreviewIndex ?? 0));
+				preview.addEventListener('pointerenter', selectPreview);
+				preview.addEventListener('focus', selectPreview);
+			});
+
+			// 预览流只在可见时推进；每帧按真实时间增量移动，刷新率变化不会改变滚动速度。
+			const advanceRecentStream = (frameTime: number) => {
+				if (!page.isConnected) return;
+				const elapsed = previousFrameTime === 0 ? 0 : Math.min(frameTime - previousFrameTime, 48);
+				previousFrameTime = frameTime;
+				const viewportBounds = recentViewport.getBoundingClientRect();
+				const streamIsVisible = viewportBounds.bottom > 0 && viewportBounds.top < window.innerHeight;
+				if (!reduceMotion && streamIsVisible && !pointerPaused && !focusPaused && frameTime >= manualPauseUntil) {
+					streamPosition += elapsed * 0.026;
+					while (loopDistance > 0 && streamPosition >= loopDistance) streamPosition -= loopDistance;
+					recentViewport.scrollTop = streamPosition;
+					syncRecentHighlight();
+				}
+				requestAnimationFrame(advanceRecentStream);
+			};
+			requestAnimationFrame(advanceRecentStream);
+
+			const resizeObserver = new ResizeObserver(() => {
+				measureRecentStream();
+				streamPosition = normalizeRecentScroll();
+				syncRecentHighlight();
+			});
+			resizeObserver.observe(recentViewport);
+			recentGroups.forEach((group) => resizeObserver.observe(group));
+		}
+
+		const indexField = page.querySelector<HTMLElement>('[data-index-field]');
+		const indexTracks = [...page.querySelectorAll<HTMLElement>('[data-index-track]')];
+		const indexCoordinate = page.querySelector<HTMLElement>('[data-index-coordinate]');
+		const setActiveTrack = (track: HTMLElement | null) => {
+			indexTracks.forEach((candidate) => candidate.classList.toggle('is-active', candidate === track));
+			indexField?.classList.toggle('has-active', Boolean(track));
+			if (indexField) indexField.dataset.activeIndex = track?.dataset.trackIndex ?? '';
+		};
+
+		if (indexField && !reduceMotion) {
+			// 坐标线只跟随索引区内部的指针，离开后立即收束；链接焦点沿用同一套强调状态。
+			indexField.addEventListener('pointermove', (event) => {
+				const bounds = indexField.getBoundingClientRect();
+				const x = Math.max(0, Math.min(bounds.width, event.clientX - bounds.left));
+				const y = Math.max(0, Math.min(bounds.height, event.clientY - bounds.top));
+				indexField.style.setProperty('--index-pointer-x', `${x}px`);
+				indexField.style.setProperty('--index-pointer-y', `${y}px`);
+				indexField.classList.add('is-tracking');
+				if (indexCoordinate) indexCoordinate.textContent = `X ${String(Math.round(x)).padStart(3, '0')} / Y ${String(Math.round(y)).padStart(3, '0')}`;
+			});
+			indexField.addEventListener('pointerleave', () => {
+				indexField.classList.remove('is-tracking');
+				if (!indexField.contains(document.activeElement)) setActiveTrack(null);
+			});
+			indexTracks.forEach((track) => {
+				track.addEventListener('pointerenter', () => setActiveTrack(track));
+				track.addEventListener('focus', () => setActiveTrack(track));
+				track.addEventListener('blur', () => setActiveTrack(null));
+			});
+		}
+	}
+
+	initHomeScenes();
+	document.addEventListener('astro:page-load', initHomeScenes);
+</script>
+
 <style>
-	.home-shell { max-width: var(--content-max); margin-inline: auto; padding-inline: var(--page-gutter); }
+	.home-page-scenes { margin-inline: var(--frame-inset); overflow: clip; }
+	.scene-inner { width: min(100%, calc(var(--content-wide) + var(--page-gutter) + var(--page-gutter))); margin-inline: auto; padding-inline: var(--page-gutter); }
+	.home-scene { position: relative; }
+	.home-scene--hero { z-index: 1; }
 	.home-hero { position: relative; min-height: clamp(500px, calc(100vh - 290px), 620px); margin-top: 28px; overflow: hidden; background: var(--accent-soft); color: var(--ink); }
-	.home-hero__media, .home-hero__overlay { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-	.home-hero__media--night { display: none; }
-	.home-hero__overlay { background: rgb(243 244 242 / 16%); }
-	:global(html[data-weather-mode='night']) .home-hero__media--day { display: none; }
-	:global(html[data-weather-mode='night']) .home-hero__media--night { display: block; }
-	:global(html[data-weather-mode='night']) .home-hero__overlay { background: rgb(9 17 20 / 8%); }
-	.home-hero__status { position: absolute; top: 22px; right: 24px; display: flex; gap: 20px; font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
-	.home-hero__copy { position: absolute; top: 50%; left: clamp(34px, 7vw, 112px); width: min(660px, 55%); transform: translateY(-50%); }
-	.home-hero__copy p, .home-hero__copy span { font-family: var(--font-ui); font-size: 11px; color: var(--ink-muted); }
-	.home-hero h1 { margin: 18px 0 10px; font-family: var(--font-display); font-size: 152px; font-weight: 500; line-height: 0.96; overflow-wrap: anywhere; }
-	.home-hero__copy strong { display: block; max-width: 620px; margin-bottom: 14px; font-family: var(--font-display); font-size: 34px; font-weight: 500; line-height: 1.5; overflow-wrap: anywhere; }
-	.home-hero__enter { position: absolute; right: 24px; bottom: 24px; display: inline-flex; min-height: 44px; align-items: center; gap: 18px; padding: 0 14px 0 18px; border: 1px solid var(--ink); background: color-mix(in srgb, var(--paper-0) 86%, transparent); font-family: var(--font-ui); font-size: 11px; color: var(--ink); text-decoration: none; }
-	.featured-band { display: grid; grid-template-columns: 120px minmax(360px, 0.9fr) minmax(420px, 1.1fr); min-height: 440px; margin-top: 36px; border-block: 1px solid var(--line); }
-	.section-index { display: flex; flex-direction: column; justify-content: space-between; padding: 28px 22px 28px 0; border-right: 1px solid var(--line); font-family: var(--font-ui); color: var(--ink-muted); }
-	.section-index span { font-size: 34px; color: var(--accent-strong); }
+	.home-hero__status { position: absolute; top: 22px; right: 24px; z-index: 6; display: flex; gap: 20px; font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); opacity: 0; animation: home-meta-enter 540ms var(--ease-rain) 180ms forwards; }
+	.home-hero__copy { position: absolute; top: 50%; left: clamp(34px, 7vw, 112px); z-index: 6; width: min(610px, 51%); transform: translateY(-50%); }
+	.home-hero__copy > p,
+	.home-hero__copy > span { font-family: var(--font-ui); font-size: 11px; color: var(--ink-muted); opacity: 0; animation: home-copy-enter 620ms var(--ease-rain) 280ms forwards; }
+	.home-hero h1 { margin: 18px 0 10px; font-family: var(--font-display); font-size: 132px; font-weight: 500; line-height: 0.96; overflow-wrap: anywhere; opacity: 0; animation: home-title-enter 760ms var(--ease-rain) 340ms forwards; }
+	.home-hero__copy > strong { display: block; max-width: 580px; margin-bottom: 14px; font-family: var(--font-display); font-size: 31px; font-weight: 500; line-height: 1.52; overflow-wrap: anywhere; opacity: 0; animation: home-copy-enter 680ms var(--ease-rain) 520ms forwards; }
+	.home-hero__copy > span { display: block; animation-delay: 660ms; }
+	.home-hero__enter { display: inline-flex; min-height: 44px; align-items: center; gap: 18px; margin-top: 30px; padding: 0 14px 0 18px; border: 1px solid var(--ink); background: color-mix(in srgb, var(--paper-0) 86%, transparent); font-family: var(--font-ui); font-size: 11px; color: var(--ink); text-decoration: none; backdrop-filter: blur(10px); opacity: 0; animation: home-action-enter 560ms var(--ease-rain) 780ms forwards; }
+	.home-hero__enter:hover svg { transform: translateX(4px); }
+	.home-hero__enter svg { transition: transform var(--duration-base) var(--ease-rain); }
+
+	.home-scene--featured { z-index: 2; margin-top: -46px; padding-block: 82px 68px; background: #10242a; color: #edf1ef; }
+	.featured-band { --ink: #edf1ef; --ink-muted: #a8b8bb; --line: #47616a; --line-strong: #87a2aa; --accent-strong: #96d9e7; --paper-0: #101d22; --color-surface: #101d22; --color-ink: #edf1ef; --color-ink-muted: #a8b8bb; --color-line: #47616a; --color-line-strong: #87a2aa; --color-rain: #75c5d8; --color-rain-deep: #96d9e7; display: grid; grid-template-columns: minmax(74px, 1fr) repeat(11, minmax(0, 1fr)); min-height: 500px; border-block: 1px solid var(--line); }
+	.section-index { grid-column: 1 / 2; display: flex; flex-direction: column; justify-content: space-between; padding: 28px 18px 28px 0; border-right: 1px solid var(--line); font-family: var(--font-ui); color: var(--ink-muted); }
+	.section-index span { font-size: 34px; color: var(--color-warm); }
 	.section-index p { margin: 0; font-size: 9px; writing-mode: vertical-rl; }
-	.featured-band__copy { display: flex; flex-direction: column; justify-content: center; padding: 48px; }
-	.featured-band h2 { margin: 18px 0; font-family: var(--font-display); font-size: 58px; font-weight: 500; line-height: 1.25; overflow-wrap: anywhere; }
+	.featured-band__copy { grid-column: 2 / 7; display: flex; flex-direction: column; justify-content: center; padding: 48px clamp(30px, 4vw, 62px); }
+	.featured-band h2 { margin: 18px 0; font-family: var(--font-display); font-size: 50px; font-weight: 500; line-height: 1.26; overflow-wrap: anywhere; }
 	.featured-band h2 a { color: var(--ink); text-decoration: none; }
 	.featured-band__copy > p { margin: 0 0 28px; font-size: 14px; line-height: 1.85; color: var(--ink-muted); }
-	.featured-band__visual { position: relative; display: block; min-height: 440px; overflow: hidden; }
-	.featured-band__visual img { width: 100%; height: 100%; object-fit: cover; transition: transform 700ms ease-out; }
-	.featured-band__visual:hover img { transform: scale(1.018); }
-	.featured-band__visual span { position: absolute; right: 18px; bottom: 16px; font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
-	.home-section, .index-grid { margin-top: 112px; }
-	.section-heading { display: flex; align-items: end; justify-content: space-between; gap: 32px; margin-bottom: 34px; }
-	.section-heading p { margin: 0 0 10px; font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
-	.section-heading h2 { margin: 0; font-family: var(--font-display); font-size: 36px; font-weight: 500; }
-	.section-heading > a { display: inline-flex; min-height: 44px; align-items: center; gap: 8px; font-family: var(--font-ui); font-size: 11px; color: var(--accent-strong); text-decoration: none; }
-	.index-grid { display: grid; grid-template-columns: 1.55fr 0.85fr; gap: 64px; }
-	.index-grid__heading { grid-column: 1 / -1; margin-bottom: -24px; }
-	.kind-index { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
-	.kind-index a { display: grid; min-height: 142px; align-content: space-between; padding: 18px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--ink); text-decoration: none; }
-	.kind-index a:hover { background: var(--accent-soft); }
-	.kind-index span, .kind-index small, .tag-index p, .tag-index small { font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
-	.kind-index strong { font-family: var(--font-display); font-size: 19px; font-weight: 500; }
-	.tag-index { padding-top: 16px; border-top: 1px solid var(--line); }
-	.tag-index p { margin: 0 0 22px; }
-	.tag-index a { display: flex; min-height: 44px; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); font-family: var(--font-ui); font-size: 12px; color: var(--ink); text-decoration: none; }
-	.explore-band { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 112px; border-block: 1px solid var(--line); }
-	.explore-band > * { display: grid; grid-template-columns: 34px 1fr; grid-template-rows: auto auto; gap: 4px 12px; min-height: 128px; align-content: center; padding: 24px 32px; border: 0; border-right: 1px solid var(--line); background: transparent; color: var(--ink); text-align: left; text-decoration: none; cursor: pointer; }
-	.explore-band > *:last-child { border-right: 0; }
-	.explore-band svg { grid-row: 1 / 3; color: var(--accent-strong); }
-	.explore-band span { font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
-	.explore-band strong { font-family: var(--font-display); font-size: 18px; font-weight: 500; }
+	.featured-band__visual { position: relative; grid-column: 7 / -1; display: block; min-height: 500px; overflow: hidden; border-left: 1px solid var(--line); }
+	.featured-band__visual :global(.featured-band__cover-scene) { width: 100%; height: 100%; transition: transform 900ms var(--ease-drift), filter 900ms var(--ease-drift); }
+	.featured-band__visual:hover :global(.featured-band__cover-scene) { transform: scale(1.018); filter: contrast(1.06); }
+	.featured-band__media { position: absolute; z-index: 2; top: 22%; left: 18%; display: grid; width: 62%; height: 52%; place-items: center; overflow: hidden; border: 1px solid rgb(237 241 239 / 46%); background: rgb(237 241 239 / 88%); box-shadow: 0 22px 54px rgb(0 0 0 / 22%); transition: transform 760ms var(--ease-drift); }
+	.featured-band__visual:hover .featured-band__media { transform: translate3d(8px, -6px, 0); }
+	.featured-band__media img { width: 100%; height: 100%; }
+	.featured-band__media--contain img { object-fit: contain; padding: 10%; }
+	.featured-band__media--cover img { object-fit: cover; }
+	.featured-band__open { position: absolute; right: 18px; bottom: 16px; z-index: 3; font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
+
+	.home-scene--recent { padding-block: 168px 72px; }
+	.recent-layout { display: grid; grid-template-columns: minmax(280px, 0.72fr) minmax(0, 1.72fr); gap: clamp(54px, 7vw, 108px); align-items: start; }
+	.recent-stage__sticky { position: sticky; top: calc(var(--header-height) + 30px); }
+	.section-kicker,
+	.section-heading p,
+	.coda-layout header p { margin: 0 0 10px; font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
+	.recent-stage h2,
+	.section-heading h2,
+	.coda-layout h2 { margin: 0; font-family: var(--font-display); font-size: 38px; font-weight: 500; }
+	.recent-stage__visual { position: relative; height: clamp(540px, 62vh, 640px); margin-top: 34px; overflow-x: hidden; overflow-y: auto; border-block: 1px solid var(--line); outline: none; overscroll-behavior: contain; scrollbar-color: color-mix(in srgb, var(--accent-strong) 46%, transparent) transparent; scrollbar-width: thin; }
+	.recent-stage__visual:focus-visible { outline: 1px solid var(--accent-strong); outline-offset: 3px; }
+	.recent-stage__track { display: flex; flex-direction: column; gap: 14px; padding-block: 14px; }
+	.recent-stage__group { display: grid; gap: 14px; }
+	.recent-preview { position: relative; isolation: isolate; display: block; height: 208px; flex: none; overflow: hidden; border: 1px solid var(--line); color: var(--ink); text-decoration: none; transition: border-color 420ms var(--ease-rain), transform 560ms var(--ease-drift), box-shadow 560ms var(--ease-drift); }
+	.recent-preview :global(.recent-preview__cover) { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.72; filter: saturate(0.7) contrast(0.94); transition: opacity 560ms var(--ease-rain), filter 560ms var(--ease-rain), transform 900ms var(--ease-drift); }
+	.recent-preview__shade { position: absolute; z-index: 1; inset: 0; background: linear-gradient(180deg, color-mix(in srgb, var(--paper-0) 8%, transparent), color-mix(in srgb, var(--paper-0) 94%, transparent) 78%); }
+	.recent-preview__copy { position: absolute; z-index: 2; right: 18px; bottom: 16px; left: 18px; display: grid; gap: 7px; }
+	.recent-preview__meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-family: var(--font-ui); color: var(--ink-muted); }
+	.recent-preview__meta b { font-size: 10px; font-weight: 500; color: var(--accent-strong); }
+	.recent-preview__meta small { font-size: 8px; white-space: nowrap; }
+	.recent-preview__copy > strong { max-width: 22ch; font-family: var(--font-display); font-size: 17px; font-weight: 500; line-height: 1.38; }
+	.recent-preview__copy > small { overflow: hidden; font-size: 10px; line-height: 1.55; color: var(--ink-muted); text-overflow: ellipsis; white-space: nowrap; }
+	.recent-preview__arrow { position: absolute; z-index: 3; top: 14px; right: 14px; color: var(--ink-muted); opacity: 0; transform: translate(-6px, 6px); transition: opacity 360ms var(--ease-rain), transform 520ms var(--ease-drift); }
+	.recent-preview:hover,
+	.recent-preview:focus-visible,
+	.recent-preview.is-current { border-color: color-mix(in srgb, var(--accent-strong) 72%, var(--line)); box-shadow: inset 3px 0 0 var(--accent-strong); }
+	.recent-preview:hover,
+	.recent-preview:focus-visible { transform: translateX(5px); }
+	.recent-preview:hover :global(.recent-preview__cover),
+	.recent-preview:focus-visible :global(.recent-preview__cover) { opacity: 0.9; filter: saturate(0.92) contrast(1.02); transform: scale(1.025); }
+	.recent-preview:hover .recent-preview__arrow,
+	.recent-preview:focus-visible .recent-preview__arrow { opacity: 1; transform: translate(0, 0); }
+	.recent-stage__all { display: inline-flex; min-height: 44px; align-items: center; gap: 8px; margin-top: 20px; font-family: var(--font-ui); font-size: 11px; color: var(--accent-strong); text-decoration: none; }
+	.recent-stream__axis { display: flex; align-items: center; gap: 14px; min-height: 28px; margin-bottom: 18px; font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
+	.recent-stream__axis i { height: 1px; flex: 1; background: var(--line); }
+	.recent-entry { position: relative; transition: opacity 500ms var(--ease-rain), transform 500ms var(--ease-rain); }
+	.recent-entry::before { position: absolute; top: 0; left: 0; z-index: 2; width: 42px; height: 1px; background: var(--accent-strong); content: ''; transform: scaleX(0); transform-origin: left; transition: transform 520ms var(--ease-rain); }
+	.recent-entry.is-current::before { transform: scaleX(1); }
+	.recent-entry.is-current { transform: translateX(8px); }
+
+	.home-scene--index { margin-top: 112px; padding-block: 96px 82px; background: color-mix(in srgb, var(--accent-soft) 44%, var(--paper-0)); }
+	.section-heading { display: flex; align-items: end; justify-content: space-between; gap: 32px; margin-bottom: 42px; }
+	.index-heading > span { font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
+	.kind-index { --index-pointer-x: 50%; --index-pointer-y: 50%; position: relative; isolation: isolate; display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr; align-items: end; height: 410px; border-bottom: 1px solid var(--line-strong); transition: grid-template-columns 720ms var(--ease-drift); }
+	.kind-index::before,
+	.kind-index::after { position: absolute; z-index: 3; background: color-mix(in srgb, var(--accent-strong) 48%, transparent); content: ''; opacity: 0; pointer-events: none; transition: opacity 280ms var(--ease-rain); }
+	.kind-index::before { top: 0; bottom: 0; left: var(--index-pointer-x); width: 1px; }
+	.kind-index::after { top: var(--index-pointer-y); right: 0; left: 0; height: 1px; }
+	.kind-index.is-tracking::before,
+	.kind-index.is-tracking::after { opacity: 0.52; }
+	/* 六种状态保持完全一致的轨道列表结构，浏览器才能连续插值宽度而不是瞬间跳列。 */
+	.kind-index[data-active-index='0'] { grid-template-columns: 1.55fr 0.89fr 0.89fr 0.89fr 0.89fr 0.89fr; }
+	.kind-index[data-active-index='1'] { grid-template-columns: 0.89fr 1.55fr 0.89fr 0.89fr 0.89fr 0.89fr; }
+	.kind-index[data-active-index='2'] { grid-template-columns: 0.89fr 0.89fr 1.55fr 0.89fr 0.89fr 0.89fr; }
+	.kind-index[data-active-index='3'] { grid-template-columns: 0.89fr 0.89fr 0.89fr 1.55fr 0.89fr 0.89fr; }
+	.kind-index[data-active-index='4'] { grid-template-columns: 0.89fr 0.89fr 0.89fr 0.89fr 1.55fr 0.89fr; }
+	.kind-index[data-active-index='5'] { grid-template-columns: 0.89fr 0.89fr 0.89fr 0.89fr 0.89fr 1.55fr; }
+	.kind-index a { position: relative; z-index: 1; display: grid; height: var(--track-height); min-height: 188px; align-content: space-between; padding: 18px; border-top: 1px solid var(--line); border-left: 1px solid var(--line); color: var(--ink); text-decoration: none; transform-origin: bottom; transition: height 640ms var(--ease-drift), color var(--duration-base) var(--ease-rain), background-color 520ms var(--ease-rain), border-color 520ms var(--ease-rain), opacity 520ms var(--ease-rain), transform 640ms var(--ease-drift); }
+	.kind-index a:last-child { border-right: 1px solid var(--line); }
+	.kind-index a::before { position: absolute; top: 0; left: -1px; width: 4px; height: 22%; background: var(--accent-strong); content: ''; transition: height 640ms var(--ease-drift), width 520ms var(--ease-rain); }
+	.kind-index a:nth-child(4)::before { background: var(--color-warm); }
+	.kind-index.has-active a:not(.is-active) { opacity: 0.42; transform: translateY(12px) scaleY(0.96); }
+	.kind-index a.is-active { z-index: 2; height: min(100%, calc(var(--track-height) + 54px)); border-color: var(--line-strong); background: color-mix(in srgb, var(--paper-0) 82%, transparent); color: var(--accent-strong); transform: translateY(-18px); }
+	.kind-index a.is-active::before { width: 6px; height: 100%; }
+	.kind-index__number,
+	.kind-index small,
+	.tag-index p,
+	.tag-index small { font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
+	.kind-index__label { display: grid; gap: 5px; }
+	.kind-index strong { font-family: var(--font-display); font-size: 19px; font-weight: 500; transition: font-size 520ms var(--ease-rain), transform 520ms var(--ease-rain); }
+	.kind-index em { font-family: var(--font-ui); font-size: 9px; font-style: normal; color: var(--ink-muted); opacity: 0; transform: translateY(7px); transition: opacity 420ms var(--ease-rain), transform 420ms var(--ease-rain); }
+	.kind-index a.is-active strong { font-size: 26px; transform: translateY(-6px); }
+	.kind-index a.is-active em { opacity: 1; transform: translateY(0); }
+	.kind-index__arrow { position: absolute; right: 18px; bottom: 18px; opacity: 0; transform: translateX(-8px); transition: opacity 420ms var(--ease-rain), transform 420ms var(--ease-rain); }
+	.kind-index a.is-active .kind-index__arrow { opacity: 1; transform: translateX(0); }
+	.kind-index__coordinate { position: absolute; z-index: 4; top: 9px; right: 12px; font-family: var(--font-ui); font-size: 8px; color: var(--accent-strong); opacity: 0; pointer-events: none; transition: opacity 280ms var(--ease-rain); }
+	.kind-index.is-tracking .kind-index__coordinate { opacity: 0.74; }
+	.tag-index { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 24px; align-items: start; margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--line); }
+	.tag-index p { margin: 0; }
+	.tag-index > div { display: flex; flex-wrap: wrap; gap: 10px 22px; }
+	.tag-index a { display: inline-flex; min-height: 30px; align-items: center; gap: 8px; font-family: var(--font-ui); font-size: 11px; color: var(--ink); text-decoration: none; }
+	.tag-index a:hover span { color: var(--accent-strong); }
+
+	.home-scene--coda { --ink: #edf1ef; --ink-muted: #a8b8bb; --line: #47616a; --accent-strong: #96d9e7; --color-ink: #edf1ef; --color-ink-muted: #a8b8bb; --color-line: #47616a; --color-rain-deep: #96d9e7; margin-top: 120px; padding-block: 96px; background: #0b181c; color: #edf1ef; }
+	.coda-layout { display: grid; grid-template-columns: minmax(250px, 0.72fr) minmax(0, 1.6fr); gap: clamp(64px, 9vw, 140px); align-items: start; }
+	.coda-layout header p,
+	.coda-layout header > span { color: #a8b8bb; }
+	.coda-layout header > span { display: block; margin-top: 28px; font-family: var(--font-ui); font-size: 9px; }
+	.explore-band { border-top: 1px solid #47616a; }
+	.explore-band > * { display: grid; grid-template-columns: 34px minmax(0, 1fr) 24px; gap: 18px; width: 100%; min-height: 92px; align-items: center; padding: 18px 4px; border: 0; border-bottom: 1px solid #47616a; background: transparent; color: #edf1ef; text-align: left; text-decoration: none; cursor: pointer; }
+	.explore-band > * > span { display: grid; gap: 4px; }
+	.explore-band small { font-family: var(--font-ui); font-size: 9px; color: #a8b8bb; }
+	.explore-band strong { font-family: var(--font-display); font-size: 20px; font-weight: 500; }
+	.explore-band > * > svg:first-child { color: #96d9e7; }
+	.explore-band > * > svg:last-child { justify-self: end; transition: transform var(--duration-base) var(--ease-rain); }
+	.explore-band > *:hover > svg:last-child { transform: translateX(5px); }
+
+	:global(html.home-motion-ready) .home-scene[data-home-reveal]:not(.is-in-view) { opacity: 0; transform: translateY(24px); }
+	:global(html.home-motion-ready) .home-scene[data-home-reveal] { transition: opacity 900ms var(--ease-rain), transform 1100ms var(--ease-drift), clip-path 1100ms var(--ease-drift); }
+	:global(html.home-motion-ready) .home-scene--index:not(.is-in-view) .kind-index a { opacity: 0; transform: translateY(38px) scaleY(0.86); }
+	:global(html.home-motion-ready) .home-scene--coda:not(.is-in-view) { clip-path: inset(12% 0 0); }
+
+	:global(html[data-weather-mode='night']) .home-scene--featured { background: #dce8e7; color: #27373b; }
+	:global(html[data-weather-mode='night']) .featured-band { --ink: #27373b; --ink-muted: #607378; --line: #9bb6bd; --line-strong: #55757e; --accent-strong: #1887aa; --paper-0: #f7f8f6; --color-surface: #f7f8f6; --color-ink: #27373b; --color-ink-muted: #607378; --color-line: #9bb6bd; --color-line-strong: #55757e; --color-rain: #59b8cf; --color-rain-deep: #1887aa; }
+	:global(html[data-weather-mode='night']) .featured-band__media { border-color: rgb(39 55 59 / 42%); box-shadow: 0 22px 54px rgb(9 17 20 / 18%); }
+	:global(html[data-weather-mode='night']) .home-scene--coda { background: #050b0d; }
+	:global(body.home-page .site-footer) {
+		width: min(
+			calc(100% - var(--frame-inset) - var(--frame-inset)),
+			calc(var(--content-wide) + var(--page-gutter) + var(--page-gutter))
+		);
+		max-width: none;
+		min-height: 220px;
+		margin: 0 auto;
+		padding: var(--space-32) var(--page-gutter);
+	}
+
+	@keyframes home-meta-enter {
+		from { opacity: 0; transform: translateY(-8px); }
+		to { opacity: 1; transform: translateY(0); }
+	}
+	@keyframes home-title-enter {
+		from { opacity: 0; transform: translateX(42px); clip-path: inset(0 100% 0 0); }
+		to { opacity: 1; transform: translateX(0); clip-path: inset(0); }
+	}
+	@keyframes home-copy-enter {
+		from { opacity: 0; transform: translateY(16px); }
+		to { opacity: 1; transform: translateY(0); }
+	}
+	@keyframes home-action-enter {
+		from { opacity: 0; transform: translateY(12px); }
+		to { opacity: 1; transform: translateY(0); }
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.home-hero__status,
+		.home-hero__copy > p,
+		.home-hero__copy > strong,
+		.home-hero__copy > span,
+		.home-hero h1,
+		.home-hero__enter { opacity: 1; animation: none; }
+		.home-scene[data-home-reveal],
+		.kind-index a,
+		.recent-entry { opacity: 1 !important; transform: none !important; clip-path: none !important; transition: none !important; }
+		.recent-preview,
+		.recent-preview :global(.recent-preview__cover) { animation: none !important; transition: none !important; }
+	}
+
 	@media (max-width: 1000px) {
 		/* 首页展示字阶只在版式切换点变化，避免阅读过程中连续缩放。 */
 		.home-hero h1 { font-size: 104px; }
-		.home-hero__copy strong { font-size: 28px; }
-		.featured-band { grid-template-columns: 90px 1fr; }
-		.featured-band h2 { font-size: 46px; }
-		.featured-band__visual { grid-column: 1 / -1; }
-		.index-grid { grid-template-columns: 1fr; }
+		.home-hero__copy > strong { font-size: 28px; }
+		.featured-band { grid-template-columns: 82px repeat(7, minmax(0, 1fr)); }
+		.featured-band__copy { grid-column: 2 / 9; }
+		.featured-band__visual { grid-column: 1 / -1; min-height: 460px; border-top: 1px solid var(--line); border-left: 0; }
+		.recent-layout { grid-template-columns: minmax(240px, 0.62fr) minmax(0, 1.38fr); gap: 48px; }
+		.kind-index { grid-template-columns: repeat(3, 1fr); height: auto; align-items: stretch; border: 0; }
+		.kind-index[data-active-index] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+		.kind-index a { height: 220px; }
+		.kind-index a.is-active { height: 240px; transform: translateY(-10px); }
 	}
+
 	@media (max-width: 760px) {
-		.home-shell { padding-inline: 20px; }
-		.home-hero { min-height: 420px; }
-		.home-hero__overlay { background: rgb(243 244 242 / 46%); }
+		.home-page-scenes { margin-inline: var(--frame-inset); }
+		.scene-inner { padding-inline: 20px; }
+		.home-hero { min-height: 500px; }
 		.home-hero__copy { left: 26px; width: calc(100% - 52px); }
 		.home-hero h1 { font-size: 72px; }
-		.home-hero__copy strong { font-size: 24px; }
+		.home-hero__copy > strong { font-size: 24px; }
 		.home-hero__status { left: 24px; right: auto; flex-wrap: wrap; }
+		.home-scene--featured { margin-top: -24px; padding-top: 60px; }
 		.featured-band { grid-template-columns: 1fr; }
-		.section-index { flex-direction: row; padding: 18px 0; border-right: 0; border-bottom: 1px solid var(--line); }
+		.section-index { grid-column: auto; flex-direction: row; padding: 18px 0; border-right: 0; border-bottom: 1px solid var(--line); }
 		.section-index p { writing-mode: horizontal-tb; }
+		.featured-band__copy,
+		.featured-band__visual { grid-column: auto; }
 		.featured-band__copy { padding: 36px 24px; }
 		.featured-band h2 { font-size: 36px; }
-		.kind-index, .explore-band { grid-template-columns: 1fr; }
-		.explore-band > * { border-right: 0; border-bottom: 1px solid var(--line); }
+		.recent-layout,
+		.coda-layout { grid-template-columns: 1fr; }
+		.recent-stage__sticky { position: static; }
+		.recent-stage__visual { display: none; }
+		.kind-index { grid-template-columns: repeat(2, 1fr); }
+		.kind-index[data-active-index] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+		.tag-index { grid-template-columns: 1fr; }
 	}
 </style>
