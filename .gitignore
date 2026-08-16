@@ -12,6 +12,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# 项目统一使用 npm；避免误提交其他包管理器生成的临时锁文件与工作区配置
+pnpm-lock.yaml
+pnpm-workspace.yaml
+
 
 # environment variables
 .env

@@ -2,7 +2,7 @@
 
 Aria-7 是一个以静态内容为核心的中文个人博客，记录长文、学习札记、项目、影像、代码与教程。视觉系统从雨天纸面、制图线和天气信息界面中提炼，但不直接使用参考视频截图或角色素材。
 
-项目基于 Astro 7、TypeScript、Content Collections 和原生 CSS。文章在构建时生成静态页面，默认不向浏览器发送框架运行时代码；搜索、主题、归档日历和 Giscus 评论按需使用少量客户端脚本。
+项目基于 Astro 7、TypeScript、Content Collections 和原生 CSS。文章仍在构建时生成静态页面；首页 `HeroScene` 使用原生 Canvas 2D、SVG 与 CSS 构成动态场景，三态切换由全站 `WeatherTransition` 遮罩完成。项目不发送前端框架运行时，搜索、主题、归档日历和 Giscus 评论使用局部客户端脚本。
 
 完整的视觉依据与落地边界见 [docs/visual-spec.md](./docs/visual-spec.md)。
 
@@ -13,6 +13,8 @@ Aria-7 是一个以静态内容为核心的中文个人博客，记录长文、�
 - 文章、分类、标签、时间归档和共享标签关系图。
 - 静态 JSON 搜索索引、RSS 和 Sitemap。
 - 晴朗、雨天、夜间三种显示模式及减少动态适配。
+- 四拍 Hero 舞台、雨帘/曝光/暗场主题转场，以及带纸条入场的搜索窗口。
+- 可从正文收藏选句、在本机整理与导出的“记忆库”。
 - 可选 Giscus 评论；未配置时显示静态占位，不加载第三方脚本。
 - 静态输出，可部署到 Cloudflare Pages 或 Cloudflare Workers Static Assets。
 

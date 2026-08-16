@@ -9,6 +9,10 @@ export default defineConfig({
 	site: 'https://aria-7.pages.dev',
 	output: 'static',
 	trailingSlash: 'always',
+	// 开发工具栏会覆盖页面底部场景，视觉联调与普通本地预览都保持关闭。
+	devToolbar: {
+		enabled: false,
+	},
 	integrations: [mdx(), sitemap()],
 	markdown: {
 		processor: unified({ gfm: true }),
