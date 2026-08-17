@@ -31,8 +31,13 @@ const { eyebrow, title, description, count, variant = 'default' } = Astro.props;
 		grid-template-columns: 140px minmax(0, 1fr) 120px;
 		gap: 32px;
 		align-items: end;
-		min-height: 300px;
-		padding-block: 88px 48px;
+		/*
+		 * 栏目页需要先建立档案感，再把读者带入列表；旧的 300px 起始区在
+		 * 项目、札记和归档中把首条内容推得太低。此处收紧通用页头，保留标题
+		 * 与标记的呼吸空间，同时让所有非专用变体的栏目保持同一进入节奏。
+		 */
+		min-height: 236px;
+		padding-block: 54px 34px;
 		border-bottom: 1px solid var(--line);
 	}
 
