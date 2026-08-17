@@ -7,11 +7,13 @@
   top: 0;
   left: 0;
   z-index: 100;
-  width: 20px;
-  height: 20px;
+  width: 30px;
+  height: 32px;
   pointer-events: none;
   opacity: 0;
-  transform: translate3d(calc(var(--archive-cursor-x, -80px) - 50%), calc(var(--archive-cursor-y, -80px) - 50%), 0);
+  --cursor-ink: color-mix(in srgb, var(--ink) 92%, #001c24);
+  --cursor-paper: color-mix(in srgb, var(--paper-0) 84%, white 16%);
+  transform: translate3d(var(--archive-cursor-x, -80px), var(--archive-cursor-y, -80px), 0);
   /* 移动不能加 transition，否则每一帧都会追赶上一帧而产生明显拖尾。 */
   transition: opacity 100ms linear;
   will-change: transform, opacity;
@@ -20,69 +22,87 @@
 .archive-cursor__ring,
 .archive-cursor__dot {
   position: absolute;
-  top: 50%;
-  left: 50%;
   display: block;
   pointer-events: none;
 }
 
 .archive-cursor__ring {
-  width: 16px;
-  height: 16px;
-  background:
-    linear-gradient(var(--accent-strong), var(--accent-strong)) left top / 7px 1px no-repeat,
-    linear-gradient(var(--accent-strong), var(--accent-strong)) left top / 1px 7px no-repeat,
-    linear-gradient(var(--accent-strong), var(--accent-strong)) right top / 7px 1px no-repeat,
-    linear-gradient(var(--accent-strong), var(--accent-strong)) right top / 1px 7px no-repeat,
-    linear-gradient(var(--accent-strong), var(--accent-strong)) left bottom / 7px 1px no-repeat,
-    linear-gradient(var(--accent-strong), var(--accent-strong)) left bottom / 1px 7px no-repeat,
-    linear-gradient(var(--accent-strong), var(--accent-strong)) right bottom / 7px 1px no-repeat,
-    linear-gradient(var(--accent-strong), var(--accent-strong)) right bottom / 1px 7px no-repeat;
-  filter: drop-shadow(0 1px 0 color-mix(in srgb, var(--paper-0) 72%, transparent));
-  opacity: 0.8;
-  transform: translate(-50%, -50%);
-  transition: width 160ms var(--ease-rain), height 160ms var(--ease-rain), opacity 120ms linear, background-size 160ms var(--ease-rain), transform 120ms var(--ease-rain);
+  top: 1px;
+  left: 1px;
+  width: 21px;
+  height: 27px;
+  background: var(--cursor-paper);
+  clip-path: polygon(0 0, 0 82%, 26% 62%, 43% 100%, 57% 94%, 40% 57%, 77% 57%);
+  filter:
+    drop-shadow(1px 0 0 var(--cursor-ink))
+    drop-shadow(-1px 0 0 var(--cursor-ink))
+    drop-shadow(0 1px 0 var(--cursor-ink))
+    drop-shadow(0 -1px 0 var(--cursor-ink))
+    drop-shadow(2px 3px 0 color-mix(in srgb, var(--cursor-ink) 18%, transparent));
+  transform: rotate(-4deg);
+  transition: width 150ms var(--ease-rain), height 150ms var(--ease-rain), opacity 100ms linear, clip-path 150ms var(--ease-rain), transform 120ms var(--ease-rain);
 }
 
 .archive-cursor__dot {
-  width: 2px;
-  height: 2px;
-  border-radius: 50%;
+  top: 20px;
+  left: 15px;
+  width: 4px;
+  height: 4px;
+  border: 1px solid var(--cursor-ink);
   background: var(--accent-strong);
-  box-shadow: 0 0 5px color-mix(in srgb, var(--accent-strong) 48%, transparent);
-  transform: translate(-50%, -50%);
+  box-shadow: 1px 1px 0 color-mix(in srgb, var(--cursor-ink) 22%, transparent);
+  transform: rotate(-4deg);
   transition: opacity 100ms linear, transform 140ms var(--ease-rain);
 }
 
 .archive-cursor[data-visible='true'] { opacity: 1; }
 
 .archive-cursor[data-mode='action'] .archive-cursor__ring {
-  width: 24px;
-  height: 10px;
+  top: 1px;
+  left: 1px;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--cursor-ink);
+  border-radius: 50%;
   background:
-    linear-gradient(var(--accent-strong), var(--accent-strong)) left center / 24px 1px no-repeat,
-    linear-gradient(var(--accent-strong), var(--accent-strong)) left center / 1px 7px no-repeat,
-    linear-gradient(var(--accent-strong), var(--accent-strong)) right center / 1px 7px no-repeat;
+    linear-gradient(var(--cursor-ink), var(--cursor-ink)) center / 8px 1px no-repeat,
+    linear-gradient(var(--cursor-ink), var(--cursor-ink)) center / 1px 8px no-repeat,
+    var(--cursor-paper);
+  clip-path: none;
+  filter: drop-shadow(2px 3px 0 color-mix(in srgb, var(--cursor-ink) 18%, transparent));
   opacity: 1;
-  transform: translate(-50%, -50%);
+  transform: rotate(0deg);
 }
 
 .archive-cursor[data-mode='action'] .archive-cursor__dot {
-  transform: translate(-50%, -50%) scale(1.35);
+  opacity: 0;
+  transform: scale(0.4);
+}
+
+.archive-cursor[data-mode='text'] {
+  transform: translate3d(calc(var(--archive-cursor-x, -80px) - 7px), calc(var(--archive-cursor-y, -80px) - 11px), 0);
 }
 
 .archive-cursor[data-mode='text'] .archive-cursor__ring {
-  width: 2px;
-  height: 21px;
+  top: 0;
+  left: 0;
+  width: 16px;
+  height: 23px;
   background:
-    linear-gradient(var(--accent-strong), var(--accent-strong)) center / 1px 21px no-repeat,
-    linear-gradient(var(--accent-strong), var(--accent-strong)) center top / 9px 1px no-repeat,
-    linear-gradient(var(--accent-strong), var(--accent-strong)) center bottom / 9px 1px no-repeat;
-  opacity: 0.96;
+    linear-gradient(var(--cursor-ink), var(--cursor-ink)) center / 1px 23px no-repeat,
+    linear-gradient(var(--cursor-paper), var(--cursor-paper)) center / 11px 3px no-repeat,
+    linear-gradient(var(--cursor-ink), var(--cursor-ink)) center top / 11px 1px no-repeat,
+    linear-gradient(var(--cursor-ink), var(--cursor-ink)) center bottom / 11px 1px no-repeat;
+  clip-path: none;
+  filter: drop-shadow(1px 1px 0 color-mix(in srgb, var(--cursor-paper) 78%, transparent));
+  opacity: 1;
+  transform: none;
 }
 
 .archive-cursor[data-mode='text'] .archive-cursor__dot { opacity: 0; }
-.archive-cursor[data-pressed='true'] .archive-cursor__ring { transform: translate(-50%, -50%) scale(0.8); }
+.archive-cursor[data-pressed='true'] .archive-cursor__ring { transform: rotate(-4deg) scale(0.84); }
+.archive-cursor[data-mode='action'][data-pressed='true'] .archive-cursor__ring { transform: scale(0.84); }
+.archive-cursor[data-mode='text'][data-pressed='true'] .archive-cursor__ring { transform: scaleY(0.8); }
 
 @media (hover: hover) and (pointer: fine) {
   html[data-archive-cursor='enabled'],
