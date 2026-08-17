@@ -11,20 +11,6 @@
 
     const cursor = document.querySelector<HTMLElement>('[data-archive-cursor]');
     const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
-    let frame = 0;
-    let pointerX = -80;
-    let pointerY = -80;
-
-    const paintCursor = () => {
-      cursor?.style.setProperty('--archive-cursor-x', String(pointerX) + 'px');
-      cursor?.style.setProperty('--archive-cursor-y', String(pointerY) + 'px');
-      frame = 0;
-    };
-
-    const queueCursorPaint = () => {
-      if (frame) return;
-      frame = requestAnimationFrame(paintCursor);
-    };
 
     const setCursorAvailability = () => {
       const enabled = finePointer.matches && Boolean(cursor);
@@ -55,11 +41,14 @@
 
     document.addEventListener('pointermove', (event) => {
       if (!finePointer.matches || !cursor) return;
-      pointerX = event.clientX;
-      pointerY = event.clientY;
+      /*
+       * 指针位置不再进入 requestAnimationFrame 队列。自定义光标本身只改变
+       * 合成层 transform，直接写入能避免“光标追赶鼠标”的一帧拖尾感。
+       */
+      cursor.style.setProperty('--archive-cursor-x', String(event.clientX) + 'px');
+      cursor.style.setProperty('--archive-cursor-y', String(event.clientY) + 'px');
       cursor.dataset.visible = 'true';
       setCursorMode(event.target);
-      queueCursorPaint();
     }, { passive: true });
 
     document.addEventListener('pointerdown', (event) => {

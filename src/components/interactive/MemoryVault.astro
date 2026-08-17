@@ -183,8 +183,10 @@ const variantClass = `memory-vault--${variant}`;
       let pendingDeleteId: string | null = null;
       let deleteResetTimer = 0;
 	  let hidePanelTimer = 0;
-	  let longPressTimer = 0;
-	  let longPressSelection: CachedSelection | null = null;
+	  // 选区菜单必须在拖选结束后再判断。拖选过程中浏览器会反复重建 Range，
+	  // 如果在 pointerdown 阶段读取，通常只能拿到折叠选区或上一轮选区。
+	  let selectionMenuTimer = 0;
+	  let pointerSelectionActive = false;
       let selectionFrame = 0;
 	  const transientTimers = new Set<number>();
 	  const pendingObjectUrls = new Set<string>();
@@ -316,6 +318,37 @@ const variantClass = `memory-vault--${variant}`;
 		selectionStatus.hidden = true;
 		selectionStatus.textContent = '';
 		hideContextMenu();
+	  };
+
+	  const clearSelectionMenuTimer = () => {
+		clearScheduled(selectionMenuTimer);
+		selectionMenuTimer = 0;
+	  };
+
+	  const scheduleSelectionContextMenu = (candidate: CachedSelection | null) => {
+		clearSelectionMenuTimer();
+		if (!candidate) {
+			hideContextMenu();
+			return;
+		}
+
+		/*
+		 * 给浏览器一个短暂的稳定窗口：pointerup 后 Range 可能还会再更新一次，
+		 * 立即定位菜单会出现位置跳动，甚至读取到已经折叠的旧 Range。这里不阻止
+		 * 默认选字行为，只在稳定后重新确认同一段文字并显示自定义菜单。
+		 */
+		selectionMenuTimer = schedule(() => {
+			selectionMenuTimer = 0;
+			if (signal.aborted || pointerSelectionActive) return;
+			const latest = getValidSelection();
+			if (!latest || latest.text !== candidate.text) {
+				if (!latest) clearSelectionFeedback();
+				return;
+			}
+			cachedSelection = latest;
+			updateSelectionFeedback(latest);
+			showContextMenu(latest);
+		}, 140);
 	  };
 
 	  const updateSelectionFeedback = (selection: CachedSelection | null) => {
@@ -465,7 +498,12 @@ const variantClass = `memory-vault--${variant}`;
 		cancelAnimationFrame(selectionFrame);
 		selectionFrame = requestAnimationFrame(() => {
 			selectionFrame = 0;
-			if (!signal.aborted) updateSelectionFeedback(getValidSelection());
+			if (signal.aborted) return;
+			const selection = getValidSelection();
+			updateSelectionFeedback(selection);
+			// 键盘选区没有 pointerup，使用 selectionchange 作为同样的触发路径。
+			if (!pointerSelectionActive && selection) scheduleSelectionContextMenu(selection);
+			if (!selection) clearSelectionMenuTimer();
 		});
 	  }, { signal });
 
@@ -523,12 +561,6 @@ const variantClass = `memory-vault--${variant}`;
       };
 
 	  saveButton.addEventListener('click', saveCurrentSelection, { signal });
-	  const clearLongPress = () => {
-		clearScheduled(longPressTimer);
-		longPressTimer = 0;
-		longPressSelection = null;
-	  };
-
 	  contextSaveButton.addEventListener('pointerdown', (event) => {
 		event.preventDefault();
 		const selection = getValidSelection();
@@ -542,31 +574,35 @@ const variantClass = `memory-vault--${variant}`;
 
 	  if (scope) {
 		/*
-		 * 左键按住一段时间且确实已经选中文本时才显示自定义菜单。这里不在
-		 * pointerdown 阶段阻止默认行为，保证拖动选字和键盘可访问性不被破坏。
+		 * 只记录左键拖选是否正在进行，不在 pointerdown 阶段阻止默认行为。
+		 * 选区真正可用的时机是 pointerup；这样不会和浏览器原生文字选择竞争。
 		 */
 		scope.addEventListener('pointerdown', (event) => {
 			if (event.button !== 0 || !event.isPrimary) return;
-			clearLongPress();
-			/*
-			 * 已经选中的文字在下一次按下时可能被浏览器折叠。因此先缓存按下瞬间
-			 * 的有效选区，长按到时再优先使用它，保证“先选中，再长按”稳定可用。
-			 */
-			longPressSelection = getValidSelection() ?? cachedSelection;
-			longPressTimer = schedule(() => {
-				longPressTimer = 0;
-				const selection = getValidSelection() ?? longPressSelection ?? cachedSelection;
-				if (!selection) return;
-				cachedSelection = selection;
-				updateSelectionFeedback(selection);
-				showContextMenu(selection);
-			}, 560);
+			pointerSelectionActive = true;
+			clearSelectionMenuTimer();
 		}, { signal });
-		scope.addEventListener('pointerup', clearLongPress, { signal });
-		scope.addEventListener('pointercancel', () => {
-			clearLongPress();
+
+		const finishPointerSelection = (event: PointerEvent) => {
+			if (!pointerSelectionActive || event.button !== 0 || !event.isPrimary) return;
+			pointerSelectionActive = false;
+			const selection = getValidSelection();
+			if (!selection) {
+				clearSelectionMenuTimer();
+				return;
+			}
+			cachedSelection = selection;
+			updateSelectionFeedback(selection);
+			scheduleSelectionContextMenu(selection);
+		};
+
+		// 使用 document 捕获阶段，兼容拖动出正文节点后在外部松开鼠标的情况。
+		document.addEventListener('pointerup', finishPointerSelection, { signal, capture: true });
+		document.addEventListener('pointercancel', () => {
+			pointerSelectionActive = false;
+			clearSelectionMenuTimer();
 			hideContextMenu();
-		}, { signal });
+		}, { signal, capture: true });
 	  }
 
 	  document.addEventListener('pointerdown', (event) => {
@@ -674,11 +710,10 @@ const variantClass = `memory-vault--${variant}`;
 		selectionFrame = 0;
 		clearScheduled(deleteResetTimer);
 		clearScheduled(hidePanelTimer);
-		clearScheduled(longPressTimer);
 		deleteResetTimer = 0;
 		hidePanelTimer = 0;
-		longPressTimer = 0;
-		longPressSelection = null;
+		clearSelectionMenuTimer();
+		pointerSelectionActive = false;
 		transientTimers.forEach((timer) => window.clearTimeout(timer));
 		transientTimers.clear();
 
