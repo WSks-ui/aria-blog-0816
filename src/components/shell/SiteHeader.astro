@@ -38,14 +38,17 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 	</nav>
 
 	<div class="site-tools">
-		<a class="icon-button" href="/connections/" aria-label="文章关系图" data-tooltip="文章关系图">
+		<a class="icon-button site-tool-button" href="/connections/" aria-label="文章关系图">
 			<Network size={19} stroke-width={1.6} />
+			<span class="site-tool-button__label" aria-hidden="true">关系图</span>
 		</a>
-		<button class="icon-button" type="button" aria-label="搜索" data-tooltip="搜索" data-search-trigger>
+		<button class="icon-button site-tool-button" type="button" aria-label="搜索" data-search-trigger>
 			<Search size={19} stroke-width={1.6} />
+			<span class="site-tool-button__label" aria-hidden="true">搜索</span>
 		</button>
-		<a class="icon-button" href="/rss.xml" aria-label="RSS 订阅" data-tooltip="RSS 订阅">
+		<a class="icon-button site-tool-button" href="/rss.xml" aria-label="RSS 订阅">
 			<Rss size={19} stroke-width={1.6} />
+			<span class="site-tool-button__label" aria-hidden="true">RSS</span>
 		</a>
 		{githubUrl && (
 			<a class="icon-button" href={githubUrl} aria-label="GitHub" data-tooltip="GitHub" rel="noreferrer">
@@ -239,6 +242,85 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 		color: var(--accent-strong);
 	}
 
+	/*
+	 * 页眉工具入口保持固定尺寸，标签只在按钮内部显现，避免悬停时撑大
+	 * .site-tools 进而重新分配页眉网格宽度。标签使用单独节点而不是全局
+	 * data-tooltip，便于与天气控件保持一致的渐入、位移和底线反馈。
+	 */
+	.site-tool-button {
+		position: relative;
+		isolation: isolate;
+		overflow: hidden;
+		grid-template-rows: 20px 11px;
+		align-content: center;
+		row-gap: 1px;
+		transition: color 180ms var(--ease-rain), transform 320ms var(--ease-drift), background-color 260ms var(--ease-rain);
+	}
+
+	.site-tool-button::after {
+		position: absolute;
+		right: 8px;
+		bottom: 4px;
+		left: 8px;
+		height: 1px;
+		background: currentColor;
+		content: '';
+		opacity: 0;
+		pointer-events: none;
+		transform: scaleX(0.2);
+		transform-origin: center;
+		transition: opacity 180ms var(--ease-rain), transform 320ms var(--ease-drift);
+	}
+
+	.site-tool-button svg {
+		grid-row: 1;
+		transition: transform 320ms var(--ease-drift);
+	}
+
+	.site-tool-button__label {
+		grid-row: 2;
+		max-width: 0;
+		overflow: hidden;
+		font-family: var(--font-ui);
+		font-size: 9px;
+		line-height: 1;
+		opacity: 0;
+		transform: translateY(5px);
+		transition: max-width 320ms var(--ease-drift), opacity 160ms var(--ease-rain), transform 320ms var(--ease-drift);
+		white-space: nowrap;
+	}
+
+	@media (hover: hover) and (min-width: 1241px) {
+		.site-tool-button:hover,
+		.site-tool-button:focus-visible {
+			background: color-mix(in srgb, var(--accent-soft) 72%, transparent);
+			transform: translateY(-1px);
+		}
+
+		.site-tool-button:hover::after,
+		.site-tool-button:focus-visible::after {
+			opacity: 0.82;
+			transform: scaleX(1);
+		}
+
+		.site-tool-button:hover svg,
+		.site-tool-button:focus-visible svg {
+			transform: translateY(-1px);
+		}
+
+		.site-tool-button:hover .site-tool-button__label,
+		.site-tool-button:focus-visible .site-tool-button__label {
+			max-width: 38px;
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	.site-tool-button:focus-visible {
+		outline: 1px solid var(--accent-strong);
+		outline-offset: -3px;
+	}
+
 	@media (max-width: 1100px) {
 		.site-header {
 			grid-template-columns: 1fr auto;
@@ -263,9 +345,19 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 		.site-tools > :global(a:last-of-type) {
 			display: none;
 		}
+
+		.site-tool-button__label {
+			display: none;
+		}
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.site-nav__indicator { transition: none; }
+		.site-nav__indicator,
+		.site-tool-button,
+		.site-tool-button::after,
+		.site-tool-button svg,
+		.site-tool-button__label {
+			transition: none;
+		}
 	}
 </style>
