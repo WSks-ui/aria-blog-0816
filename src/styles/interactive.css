@@ -126,6 +126,11 @@
   border: 1px solid var(--line-strong);
 }
 
+.search-dialog__input-wrap:focus-within {
+  border-color: var(--color-focus);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-focus) 38%, transparent);
+}
+
 .search-dialog__input {
   width: 100%;
   height: 58px;
@@ -135,6 +140,11 @@
   color: var(--ink);
   font-family: var(--font-display);
   font-size: 19px;
+}
+
+.search-dialog__input:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
 }
 
 .search-dialog__filters {
@@ -395,6 +405,19 @@
   box-shadow: 0 10px 30px rgb(9 17 20 / 12%);
   backdrop-filter: blur(12px);
   transition: border-color var(--duration-fast), box-shadow var(--duration-base), transform var(--duration-base) var(--ease-rain);
+}
+
+/* 没有选中文字时只保留“打开记忆库”入口，避免空工具栏长期压住页面内容。 */
+.memory-vault:not([data-selection-ready='true']) .memory-vault__save {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  /* 桌面端把未使用的浮动入口压低存在感，键盘聚焦或鼠标靠近时恢复清晰度。 */
+  .memory-vault:not([data-open='true']):not(:hover):not(:focus-within) .memory-vault__toolbar {
+    opacity: 0.72;
+    transform: translateY(3px);
+  }
 }
 
 .memory-vault[data-selection-ready='true'] .memory-vault__toolbar {
