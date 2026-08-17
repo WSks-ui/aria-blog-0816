@@ -54,8 +54,8 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 			html[data-weather-mode='clear'] { background-color: #f5f6f4; }
 			html[data-weather-mode='rain'] { background-color: #edf1f1; }
 			html[data-weather-mode='night'],
-			html[data-route-arrival='true'] { background-color: #071014; }
-			html[data-route-arrival='true'] body { background-color: #071014 !important; }
+			html[data-route-arrival='scene'] { background-color: #071014; }
+			html[data-route-arrival='scene'] body { background-color: #071014 !important; }
 		</style>
 		<script is:inline>
 			(() => {
@@ -73,14 +73,15 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 				document.documentElement.dataset.theme = initial === 'night' ? 'night' : 'light';
 				document.documentElement.style.colorScheme = initial === 'night' ? 'dark' : 'light';
 
-				// 文章入口离场后只允许目标页面消费标记，在首帧先建立黑场，避免内容抢先闪现。
+				// 只有场景转场需要先建立黑场；主导航的淡入淡出沿用当前天气画布，避免
+				// 清爽的栏目切换被误切成深色闪屏。缺失 mode 的旧标记按 scene 兼容处理。
 				try {
 					const arrivalValue = sessionStorage.getItem('aria7-route-arrival');
 					if (arrivalValue) {
 						sessionStorage.removeItem('aria7-route-arrival');
 						const arrival = JSON.parse(arrivalValue);
 						if (arrival?.pathname === location.pathname && arrival?.search === location.search) {
-							document.documentElement.dataset.routeArrival = 'true';
+							document.documentElement.dataset.routeArrival = arrival.mode === 'fade' ? 'fade' : 'scene';
 						}
 					}
 				} catch {
