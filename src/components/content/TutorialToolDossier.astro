@@ -1,0 +1,476 @@
+---
+import { ArrowLeft, ArrowRight, ExternalLink } from '@lucide/astro';
+import ContentCoverScene from '@/components/visual/ContentCoverScene.astro';
+import {
+	TUTORIAL_TOOL_STAGES,
+	type TutorialTool,
+} from '@/data/tutorial-tools';
+import type { TutorialToolDossier as TutorialToolDossierData } from '@/data/tutorial-dossiers';
+
+interface ToolNeighbor {
+	tool: TutorialTool;
+	index: number;
+}
+
+interface Props {
+	tool: TutorialTool;
+	dossier: TutorialToolDossierData;
+	previous?: ToolNeighbor;
+	next?: ToolNeighbor;
+}
+
+const { tool, dossier, previous, next } = Astro.props;
+const stage = TUTORIAL_TOOL_STAGES.find((item) => item.id === tool.stage);
+const stageIndex = stage?.index ?? '00';
+const stageLabel = stage?.label ?? '工具路线';
+const accent = stage?.accent ?? 'var(--accent-strong)';
+
+const sectionItems = [
+	{ id: 'why-now', index: '01', label: '为什么现在学习' },
+	{ id: 'minimum-practice', index: '02', label: '最小实践' },
+	{ id: 'learning-route', index: '03', label: '学习路线' },
+	{ id: 'resources', index: '04', label: '资料入口' },
+];
+---
+
+<article class="tool-dossier" style={`--tool-dossier-accent: ${accent};`} data-tool-dossier>
+	<header class="tool-dossier__hero">
+		<div class="tool-dossier__cover">
+			<ContentCoverScene kind="tutorial" class="tool-dossier__cover-scene" />
+			<div class="tool-dossier__cover-label" aria-hidden="true">
+				<span>TOOLKIT / {tool.code}</span>
+				<span>STAGE / {stageIndex}</span>
+			</div>
+		</div>
+
+		<div class="tool-dossier__heading">
+			<a class="tool-dossier__back" href="/types/tutorial/" data-route-transition-link>
+				<ArrowLeft size={16} stroke-width={1.5} aria-hidden="true" />
+				工具导航
+			</a>
+			<div class="tool-dossier__eyebrow">
+				<span>{stageIndex} / {stage?.code ?? 'TOOLCHAIN'}</span>
+				<span>{tool.status}</span>
+			</div>
+			<h1>{tool.name}</h1>
+			<p class="tool-dossier__summary">{tool.summary}</p>
+			<div class="tool-dossier__meta">
+				<span>{stageLabel}</span>
+				<span>ARIA-7 / FIELD GUIDE</span>
+			</div>
+		</div>
+	</header>
+
+	<div class="tool-dossier__intro">
+		<div class="tool-dossier__intro-label">
+			<span>READING NOTE</span>
+			<strong>00</strong>
+		</div>
+		<div class="tool-dossier__intro-copy">
+			{dossier.overview.map((paragraph) => <p>{paragraph}</p>)}
+		</div>
+	</div>
+
+	<div class="tool-dossier__layout">
+		<aside class="tool-dossier__guide" aria-label="工具讲义目录">
+			<div class="tool-dossier__guide-inner">
+				<p class="tool-dossier__guide-label">DOSSIER / {tool.code}</p>
+				<nav aria-label={`${tool.name}讲义目录`}>
+					<ol class="tool-dossier__toc">
+						{sectionItems.map((item) => (
+							<li>
+								<a href={`#${item.id}`}>
+									<span>{item.index}</span>
+									<strong>{item.label}</strong>
+								</a>
+							</li>
+						))}
+					</ol>
+				</nav>
+				<div class="tool-dossier__guide-stage">
+					<span>LEARNING STAGE</span>
+					<strong>{stageIndex} / {stageLabel}</strong>
+				</div>
+			</div>
+		</aside>
+
+		<div class="tool-dossier__content">
+			<section class="dossier-section" id="why-now">
+				<header class="dossier-section__header">
+					<div>
+						<span class="dossier-section__index">01</span>
+						<p>CONTEXT / TIMING</p>
+					</div>
+					<h2>为什么现在学习</h2>
+				</header>
+				<div class="dossier-section__body">
+					<p class="dossier-section__lead">学习 {tool.name} 的理由，不是把工具收进收藏夹，而是为当前的工作建立一条更短、更可复查的路径。</p>
+					<ul class="dossier-points">
+						{dossier.why.map((point, index) => (
+							<li>
+								<span>{String(index + 1).padStart(2, '0')}</span>
+								<p>{point}</p>
+							</li>
+						))}
+					</ul>
+				</div>
+			</section>
+
+			<section class="dossier-section dossier-section--practice" id="minimum-practice">
+				<header class="dossier-section__header">
+					<div>
+						<span class="dossier-section__index">02</span>
+						<p>FIELD TEST / FIRST LOOP</p>
+					</div>
+					<h2>最小实践</h2>
+				</header>
+				<div class="dossier-section__body">
+					<h3>{dossier.practice.title}</h3>
+					<p class="dossier-section__lead">{dossier.practice.description}</p>
+					<ol class="dossier-steps">
+						{dossier.practice.steps.map((step, index) => (
+							<li>
+								<span>{String(index + 1).padStart(2, '0')}</span>
+								<p>{step}</p>
+							</li>
+						))}
+					</ol>
+					{dossier.practice.command && (
+						<figure class="dossier-command">
+							<figcaption>{dossier.practice.commandLabel ?? 'COMMAND / MINIMUM'}</figcaption>
+							<pre><code>{dossier.practice.command}</code></pre>
+						</figure>
+					)}
+				</div>
+			</section>
+
+			<section class="dossier-section" id="learning-route">
+				<header class="dossier-section__header">
+					<div>
+						<span class="dossier-section__index">03</span>
+						<p>SEQUENCE / NEXT SIGNAL</p>
+					</div>
+					<h2>学习路线</h2>
+				</header>
+				<div class="dossier-section__body">
+					<ol class="dossier-route">
+						{dossier.route.map((step, index) => (
+							<li>
+								<span>{String(index + 1).padStart(2, '0')}</span>
+								<div>
+									<strong>{index === 0 ? '建立边界' : index === dossier.route.length - 1 ? '进入真实任务' : '增加复杂度'}</strong>
+									<p>{step}</p>
+								</div>
+							</li>
+						))}
+					</ol>
+				</div>
+			</section>
+
+			<section class="dossier-section dossier-section--resources" id="resources">
+				<header class="dossier-section__header">
+					<div>
+						<span class="dossier-section__index">04</span>
+						<p>REFERENCE / OPEN SOURCES</p>
+					</div>
+					<h2>资料入口</h2>
+				</header>
+				<div class="dossier-section__body">
+					<p class="dossier-section__lead">下面的入口用于继续核对版本、语法和完整上下文。讲义本身保持站内独立，外部页面不会替代这里的学习顺序。</p>
+					<div class="dossier-resources">
+						<a href={tool.href} target="_blank" rel="noreferrer">
+							<span>
+								<small>OFFICIAL / PRIMARY</small>
+								<strong>官方文档或项目主页</strong>
+							</span>
+							<ExternalLink size={17} stroke-width={1.5} aria-hidden="true" />
+						</a>
+						<a href={tool.csdiyHref} target="_blank" rel="noreferrer">
+							<span>
+								<small>CURATED / CSDIY</small>
+								<strong>CSDIY 对应工具页</strong>
+							</span>
+							<ExternalLink size={17} stroke-width={1.5} aria-hidden="true" />
+						</a>
+					</div>
+				</div>
+			</section>
+		</div>
+	</div>
+
+	<nav class="tool-dossier__neighbors" aria-label="工具讲义导航">
+		{previous ? (
+			<a href={`/toolkit/${previous.tool.id}/`} data-route-transition-link>
+				<ArrowLeft size={16} stroke-width={1.5} aria-hidden="true" />
+				<span><small>PREVIOUS / {String(previous.index + 1).padStart(2, '0')}</small><strong>{previous.tool.name}</strong></span>
+			</a>
+		) : <span class="tool-dossier__neighbor-placeholder" aria-hidden="true"></span>}
+		<a class="tool-dossier__neighbors-index" href="/types/tutorial/" data-route-transition-link>
+			<span>TOOLKIT</span>
+			<strong>{stageIndex} / {tool.code}</strong>
+		</a>
+		{next ? (
+			<a class="tool-dossier__neighbor-next" href={`/toolkit/${next.tool.id}/`} data-route-transition-link>
+				<span><small>NEXT / {String(next.index + 1).padStart(2, '0')}</small><strong>{next.tool.name}</strong></span>
+				<ArrowRight size={16} stroke-width={1.5} aria-hidden="true" />
+			</a>
+		) : <span class="tool-dossier__neighbor-placeholder" aria-hidden="true"></span>}
+	</nav>
+</article>
+
+<style>
+	.tool-dossier {
+		--tool-dossier-accent: var(--accent-strong);
+		max-width: calc(var(--content-wide) + var(--page-gutter) + var(--page-gutter));
+		margin-inline: auto;
+		padding-inline: var(--page-gutter);
+	}
+
+	.tool-dossier__hero {
+		display: grid;
+		grid-template-columns: minmax(430px, 1.1fr) minmax(420px, 0.9fr);
+		padding-top: 42px;
+	}
+
+	.tool-dossier__cover {
+		position: relative;
+		min-height: 500px;
+		overflow: hidden;
+		background: var(--accent-soft);
+	}
+
+	.tool-dossier__cover-scene {
+		position: absolute;
+		inset: 0;
+	}
+
+	.tool-dossier__cover-label {
+		position: absolute;
+		z-index: 2;
+		inset: 18px 20px auto;
+		display: flex;
+		justify-content: space-between;
+		gap: 16px;
+		font-family: var(--font-ui);
+		font-size: 9px;
+		color: var(--ink-muted);
+	}
+
+	.tool-dossier__heading {
+		display: flex;
+		min-width: 0;
+		flex-direction: column;
+		justify-content: center;
+		padding: 48px 54px;
+		border-block: 1px solid var(--line);
+		border-right: 1px solid var(--line);
+	}
+
+	.tool-dossier__back {
+		display: inline-flex;
+		width: fit-content;
+		min-height: 42px;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: auto;
+		font-family: var(--font-ui);
+		font-size: 11px;
+		color: var(--ink-muted);
+		text-decoration: none;
+		transition: color var(--duration-base) var(--ease-rain), transform var(--duration-base) var(--ease-rain);
+	}
+
+	.tool-dossier__back:hover { color: var(--tool-dossier-accent); transform: translateX(-3px); }
+
+	.tool-dossier__eyebrow,
+	.tool-dossier__meta {
+		display: flex;
+		justify-content: space-between;
+		gap: 16px;
+		font-family: var(--font-ui);
+		font-size: 9px;
+		letter-spacing: 0.08em;
+		color: var(--ink-muted);
+	}
+
+	.tool-dossier__eyebrow span:first-child { color: var(--tool-dossier-accent); }
+
+	.tool-dossier h1 {
+		margin: 18px 0 18px;
+		font-family: var(--font-display);
+		font-size: clamp(56px, 6vw, 88px);
+		font-weight: 500;
+		line-height: 1.1;
+		overflow-wrap: anywhere;
+	}
+
+	.tool-dossier__summary {
+		max-width: 440px;
+		margin: 0 0 28px;
+		font-size: 15px;
+		line-height: 1.85;
+		color: var(--ink-muted);
+	}
+
+	.tool-dossier__meta { padding-top: 16px; border-top: 1px solid var(--line); }
+
+	.tool-dossier__intro {
+		display: grid;
+		grid-template-columns: 220px minmax(0, 760px);
+		gap: 64px;
+		padding-block: 58px 72px;
+		border-bottom: 1px solid var(--line);
+	}
+
+	.tool-dossier__intro-label {
+		display: flex;
+		justify-content: space-between;
+		align-items: start;
+		padding-right: 20px;
+		border-right: 1px solid var(--line);
+		font-family: var(--font-ui);
+		font-size: 9px;
+		color: var(--ink-muted);
+	}
+
+	.tool-dossier__intro-label strong { font-size: 28px; font-weight: 400; color: var(--tool-dossier-accent); }
+	.tool-dossier__intro-copy { max-width: 760px; }
+	.tool-dossier__intro-copy p { margin: 0; font-size: 18px; line-height: 1.95; color: var(--ink); }
+	.tool-dossier__intro-copy p + p { margin-top: 18px; color: var(--ink-muted); }
+
+	.tool-dossier__layout {
+		display: grid;
+		grid-template-columns: 220px minmax(0, 760px);
+		gap: 64px;
+		padding-block: 78px 96px;
+	}
+
+	.tool-dossier__guide-inner { position: sticky; top: 112px; }
+	.tool-dossier__guide-label,
+	.tool-dossier__guide-stage span,
+	.dossier-section__header p,
+	.dossier-section__index,
+	.dossier-command figcaption,
+	.dossier-resources small,
+	.tool-dossier__neighbors small {
+		font-family: var(--font-ui);
+		font-size: 9px;
+		letter-spacing: 0.08em;
+	}
+
+	.tool-dossier__guide-label { margin: 0; padding-bottom: 14px; border-bottom: 1px solid var(--line); color: var(--ink-muted); }
+	.tool-dossier__toc { margin: 0; padding: 0; list-style: none; }
+	.tool-dossier__toc li { border-bottom: 1px solid color-mix(in srgb, var(--line) 74%, transparent); }
+	.tool-dossier__toc a {
+		display: grid;
+		grid-template-columns: 32px minmax(0, 1fr);
+		gap: 10px;
+		align-items: center;
+		min-height: 52px;
+		padding-inline: 0;
+		color: var(--ink-muted);
+		text-decoration: none;
+		transition: color var(--duration-base) var(--ease-rain), padding-inline var(--duration-base) var(--ease-drift), background-color var(--duration-base) var(--ease-rain);
+	}
+	.tool-dossier__toc a:hover { padding-inline: 10px; background: color-mix(in srgb, var(--tool-dossier-accent) 10%, transparent); color: var(--ink); }
+	.tool-dossier__toc a span { font-family: var(--font-ui); font-size: 9px; color: var(--tool-dossier-accent); }
+	.tool-dossier__toc a strong { font-size: 12px; font-weight: 500; }
+	.tool-dossier__guide-stage { display: grid; gap: 8px; margin-top: 44px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--ink-muted); }
+	.tool-dossier__guide-stage strong { font-family: var(--font-display); font-size: 18px; font-weight: 500; color: var(--tool-dossier-accent); }
+
+	.tool-dossier__content { min-width: 0; }
+	.dossier-section { padding-bottom: 72px; border-bottom: 1px solid var(--line); scroll-margin-top: 120px; }
+	.dossier-section + .dossier-section { padding-top: 72px; }
+	.dossier-section__header { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 24px; align-items: start; }
+	.dossier-section__header > div { display: grid; gap: 10px; }
+	.dossier-section__header p { margin: 0; color: var(--ink-muted); }
+	.dossier-section__index { color: var(--tool-dossier-accent); }
+	.dossier-section h2 { margin: 0; font-family: var(--font-display); font-size: 42px; font-weight: 500; line-height: 1.18; }
+	.dossier-section__body { margin-left: 164px; padding-top: 30px; }
+	.dossier-section__lead { max-width: 620px; margin: 0; font-size: 16px; line-height: 1.9; color: var(--ink-muted); }
+	.dossier-points,
+	.dossier-steps,
+	.dossier-route { display: grid; gap: 0; margin: 32px 0 0; padding: 0; list-style: none; }
+	.dossier-points li,
+	.dossier-steps li,
+	.dossier-route li { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 16px; padding: 18px 0; border-top: 1px solid color-mix(in srgb, var(--line) 78%, transparent); }
+	.dossier-points li:last-child,
+	.dossier-steps li:last-child,
+	.dossier-route li:last-child { border-bottom: 1px solid color-mix(in srgb, var(--line) 78%, transparent); }
+	.dossier-points li > span,
+	.dossier-steps li > span,
+	.dossier-route li > span { padding-top: 3px; font-family: var(--font-ui); font-size: 9px; color: var(--tool-dossier-accent); }
+	.dossier-points p,
+	.dossier-steps p,
+	.dossier-route p { margin: 0; font-size: 15px; line-height: 1.75; }
+
+	.dossier-section--practice { background: linear-gradient(90deg, color-mix(in srgb, var(--tool-dossier-accent) 6%, transparent), transparent 68%); }
+	.dossier-section h3 { margin: 0 0 14px; font-family: var(--font-display); font-size: 28px; font-weight: 500; line-height: 1.25; }
+	.dossier-command { margin: 34px 0 0; border: 1px solid var(--line); background: color-mix(in srgb, var(--paper-0) 85%, var(--tool-dossier-accent) 15%); }
+	.dossier-command figcaption { padding: 12px 16px; border-bottom: 1px solid var(--line); color: var(--tool-dossier-accent); }
+	.dossier-command pre { margin: 0; padding: 18px 16px; overflow-x: auto; font-family: var(--font-mono); font-size: 13px; line-height: 1.7; color: var(--ink); white-space: pre-wrap; }
+	.dossier-route li > div { min-width: 0; }
+	.dossier-route strong { display: block; margin-bottom: 6px; font-family: var(--font-display); font-size: 21px; font-weight: 500; }
+	.dossier-section--resources { border-bottom: 0; }
+	.dossier-resources { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 34px; }
+	.dossier-resources a { display: flex; min-height: 104px; justify-content: space-between; align-items: end; gap: 16px; padding: 16px; border: 1px solid var(--line); color: var(--ink); text-decoration: none; transition: border-color var(--duration-base) var(--ease-rain), transform var(--duration-base) var(--ease-drift), background-color var(--duration-base) var(--ease-rain); }
+	.dossier-resources a:hover { border-color: var(--tool-dossier-accent); background: color-mix(in srgb, var(--tool-dossier-accent) 8%, transparent); transform: translateY(-3px); }
+	.dossier-resources a > span { display: grid; gap: 10px; min-width: 0; }
+	.dossier-resources small { color: var(--tool-dossier-accent); }
+	.dossier-resources strong { font-size: 13px; font-weight: 500; }
+	.dossier-resources svg { flex: 0 0 auto; color: var(--tool-dossier-accent); }
+
+	.tool-dossier__neighbors { display: grid; grid-template-columns: minmax(0, 1fr) 160px minmax(0, 1fr); gap: 10px; align-items: stretch; margin-bottom: 112px; border-block: 1px solid var(--line); }
+	.tool-dossier__neighbors > a { display: flex; min-height: 92px; align-items: center; gap: 12px; padding: 14px 16px; color: var(--ink); text-decoration: none; transition: background-color var(--duration-base) var(--ease-rain), color var(--duration-base) var(--ease-rain); }
+	.tool-dossier__neighbors > a:hover { background: color-mix(in srgb, var(--tool-dossier-accent) 8%, transparent); color: var(--tool-dossier-accent); }
+	.tool-dossier__neighbors > a > span { display: grid; gap: 8px; min-width: 0; }
+	.tool-dossier__neighbors small { color: var(--ink-muted); }
+	.tool-dossier__neighbors strong { font-family: var(--font-display); font-size: 18px; font-weight: 500; overflow-wrap: anywhere; }
+	.tool-dossier__neighbor-next { justify-content: flex-end; text-align: right; }
+	.tool-dossier__neighbors-index { display: grid; align-content: center; justify-items: center; gap: 8px; border-inline: 1px solid var(--line); font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted) !important; }
+	.tool-dossier__neighbors-index strong { font-family: var(--font-ui); font-size: 10px; color: var(--tool-dossier-accent); }
+	.tool-dossier__neighbor-placeholder { min-width: 0; }
+
+	@media (max-width: 1100px) {
+		.tool-dossier__hero { grid-template-columns: 1fr; }
+		.tool-dossier__cover { min-height: 380px; }
+		.tool-dossier__heading { border-inline: 1px solid var(--line); }
+	}
+
+	@media (max-width: 900px) {
+		.tool-dossier__intro,
+		.tool-dossier__layout { grid-template-columns: 1fr; gap: 34px; }
+		.tool-dossier__intro-label { padding: 0 0 14px; border-right: 0; border-bottom: 1px solid var(--line); }
+		.tool-dossier__guide-inner { position: static; }
+		.tool-dossier__toc { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+		.tool-dossier__toc li { border-right: 1px solid var(--line); }
+		.tool-dossier__toc li:last-child { border-right: 0; }
+		.tool-dossier__toc a { grid-template-columns: 1fr; gap: 7px; min-height: 76px; padding: 12px; }
+		.tool-dossier__guide-stage { display: none; }
+	}
+
+	@media (max-width: 760px) {
+		.tool-dossier { padding-inline: 20px; }
+		.tool-dossier__heading { padding: 36px 24px; }
+		.tool-dossier h1 { font-size: 48px; }
+		.tool-dossier__cover { min-height: 290px; }
+		.tool-dossier__intro { padding-block: 42px 56px; }
+		.tool-dossier__intro-copy p { font-size: 16px; }
+		.tool-dossier__layout { padding-block: 56px 72px; }
+		.dossier-section__header { grid-template-columns: 1fr; gap: 12px; }
+		.dossier-section__header > div { display: flex; justify-content: space-between; }
+		.dossier-section h2 { font-size: 34px; }
+		.dossier-section__body { margin-left: 0; }
+		.dossier-resources { grid-template-columns: 1fr; }
+		.tool-dossier__neighbors { grid-template-columns: 1fr 1fr; }
+		.tool-dossier__neighbors-index { grid-column: 1 / -1; grid-row: 1; min-height: 56px; border-inline: 0; border-bottom: 1px solid var(--line); }
+		.tool-dossier__neighbor-placeholder { display: none; }
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.tool-dossier__back,
+		.tool-dossier__toc a,
+		.dossier-resources a,
+		.tool-dossier__neighbors > a { transition: none; }
+	}
+</style>

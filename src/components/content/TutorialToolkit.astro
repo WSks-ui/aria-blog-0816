@@ -1,7 +1,8 @@
 ---
-import { ArrowUpRight } from '@lucide/astro';
+import { ArrowRight } from '@lucide/astro';
 import {
 	TUTORIAL_TOOL_STAGES,
+	getTutorialToolPath,
 	type TutorialTool,
 } from '@/data/tutorial-tools';
 
@@ -28,10 +29,7 @@ const stageById = new Map(TUTORIAL_TOOL_STAGES.map((stage) => [stage.id, stage])
 		</div>
 		<div class="tutorial-toolkit__reference">
 			<span>SELECT A STAGE / HOVER A RECORD</span>
-			<a href="https://csdiy.wiki/%E5%BF%85%E5%AD%A6%E5%B7%A5%E5%85%B7/" target="_blank" rel="noreferrer">
-				<span>REFERENCE / CSDIY</span>
-				<ArrowUpRight size={16} stroke-width={1.5} aria-hidden="true" />
-			</a>
+			<strong>ON-SITE DOSSIERS / {String(tools.length).padStart(2, '0')}</strong>
 		</div>
 	</header>
 
@@ -81,23 +79,23 @@ const stageById = new Map(TUTORIAL_TOOL_STAGES.map((stage) => [stage.id, stage])
 							data-tool-summary={tool.summary}
 							style={`--tool-accent: ${stage?.accent ?? 'var(--accent-strong)'}; --tool-delay: ${index * 38}ms;`}
 						>
-							<header>
-								<span class="tutorial-tool__index">{String(index + 1).padStart(2, '0')}</span>
-								<span class="tutorial-tool__code">{tool.code}</span>
-								<span class="tutorial-tool__status">{tool.status}</span>
-							</header>
-							<div class="tutorial-tool__body">
-								<p>{stage?.label}</p>
-								<h3>{tool.name}</h3>
-								<span>{tool.summary}</span>
-							</div>
-							<footer>
-								<a href={tool.href} target="_blank" rel="noreferrer">
-									<span>{tool.actionLabel}</span>
-									<ArrowUpRight size={16} stroke-width={1.5} aria-hidden="true" />
-								</a>
-								<a class="tutorial-tool__source" href={tool.csdiyHref} target="_blank" rel="noreferrer">CSDIY</a>
-							</footer>
+							<!-- 工具目录只进入站内讲义；官网与参考站链接在讲义末尾集中呈现，避免学习路径被外链打断。 -->
+							<a class="tutorial-tool__open" href={getTutorialToolPath(tool)} data-route-transition-link>
+								<header>
+									<span class="tutorial-tool__index">{String(index + 1).padStart(2, '0')}</span>
+									<span class="tutorial-tool__code">{tool.code}</span>
+									<span class="tutorial-tool__status">{tool.status}</span>
+								</header>
+								<div class="tutorial-tool__body">
+									<p>{stage?.label}</p>
+									<h3>{tool.name}</h3>
+									<span>{tool.summary}</span>
+								</div>
+								<footer>
+									<span>阅读工具讲义</span>
+									<ArrowRight size={16} stroke-width={1.5} aria-hidden="true" />
+								</footer>
+							</a>
 						</article>
 					);
 				})}
@@ -209,8 +207,7 @@ const stageById = new Map(TUTORIAL_TOOL_STAGES.map((stage) => [stage.id, stage])
 	.tutorial-tool__index,
 	.tutorial-tool__code,
 	.tutorial-tool__status,
-	.tutorial-tool__body > p,
-	.tutorial-tool__source {
+	.tutorial-tool__body > p {
 		margin: 0;
 		font-family: var(--font-ui);
 		font-size: 9px;
@@ -234,23 +231,16 @@ const stageById = new Map(TUTORIAL_TOOL_STAGES.map((stage) => [stage.id, stage])
 		color: var(--ink-muted);
 	}
 
-	.tutorial-toolkit__reference > a,
-	.tutorial-tool footer > a {
+	.tutorial-toolkit__reference > strong,
+	.tutorial-tool__open > footer {
 		display: inline-flex;
 		gap: 8px;
 		align-items: center;
-		color: var(--ink);
 		font-family: var(--font-ui);
 		font-size: 11px;
-		text-decoration: none;
 	}
 
-	.tutorial-toolkit__reference > a:hover,
-	.tutorial-tool footer > a:hover { color: var(--accent-strong); }
-	.tutorial-toolkit__reference > a svg,
-	.tutorial-tool footer > a svg { transition: transform var(--duration-base) var(--ease-rain); }
-	.tutorial-toolkit__reference > a:hover svg,
-	.tutorial-tool footer > a:hover svg { transform: translate(3px, -3px); }
+	.tutorial-toolkit__reference > strong { color: var(--accent-strong); font-weight: 500; }
 
 	.tutorial-toolkit__body {
 		display: grid;
@@ -321,8 +311,6 @@ const stageById = new Map(TUTORIAL_TOOL_STAGES.map((stage) => [stage.id, stage])
 	}
 
 	.tutorial-tool {
-		display: grid;
-		grid-template-rows: auto minmax(132px, 1fr) auto;
 		min-height: 244px;
 		overflow: hidden;
 		border: 1px solid var(--line);
@@ -349,14 +337,22 @@ const stageById = new Map(TUTORIAL_TOOL_STAGES.map((stage) => [stage.id, stage])
 		transform: translateY(-4px);
 	}
 
-	.tutorial-tool > header,
-	.tutorial-tool > footer {
+	.tutorial-tool__open {
+		display: grid;
+		grid-template-rows: auto minmax(132px, 1fr) auto;
+		min-height: 242px;
+		color: inherit;
+		text-decoration: none;
+	}
+
+	.tutorial-tool__open > header,
+	.tutorial-tool__open > footer {
 		display: flex;
 		gap: 8px;
 		align-items: center;
 		padding: 13px 14px;
 	}
-	.tutorial-tool > header { border-bottom: 1px solid color-mix(in srgb, var(--line) 76%, transparent); }
+	.tutorial-tool__open > header { border-bottom: 1px solid color-mix(in srgb, var(--line) 76%, transparent); }
 	.tutorial-tool__index { color: var(--tool-accent); }
 	.tutorial-tool__code { color: var(--ink-muted); }
 	.tutorial-tool__status { margin-left: auto; color: var(--ink-muted); }
@@ -371,9 +367,14 @@ const stageById = new Map(TUTORIAL_TOOL_STAGES.map((stage) => [stage.id, stage])
 		line-height: 1.2;
 	}
 	.tutorial-tool__body > span { display: block; font-size: 12px; line-height: 1.7; color: var(--ink-muted); }
-	.tutorial-tool > footer { justify-content: space-between; border-top: 1px solid color-mix(in srgb, var(--line) 76%, transparent); }
-	.tutorial-tool__source { color: var(--ink-muted); text-decoration: none; }
-	.tutorial-tool__source:hover { color: var(--tool-accent) !important; }
+	.tutorial-tool__open > footer { justify-content: space-between; border-top: 1px solid color-mix(in srgb, var(--line) 76%, transparent); color: var(--ink-muted); transition: color var(--duration-base) var(--ease-rain); }
+	.tutorial-tool__open > footer svg { transition: transform var(--duration-base) var(--ease-rain); }
+	.tutorial-tool:hover .tutorial-tool__open > footer,
+	.tutorial-tool:focus-within .tutorial-tool__open > footer,
+	.tutorial-tool.is-active .tutorial-tool__open > footer { color: var(--tool-accent); }
+	.tutorial-tool:hover .tutorial-tool__open > footer svg,
+	.tutorial-tool:focus-within .tutorial-tool__open > footer svg,
+	.tutorial-tool.is-active .tutorial-tool__open > footer svg { transform: translateX(4px); }
 
 	@media (max-width: 1050px) {
 		.tutorial-toolkit__body { grid-template-columns: 1fr; }
@@ -393,7 +394,7 @@ const stageById = new Map(TUTORIAL_TOOL_STAGES.map((stage) => [stage.id, stage])
 	@media (prefers-reduced-motion: reduce) {
 		.tutorial-tool,
 		.tutorial-toolkit__stages button,
-		.tutorial-toolkit__reference > a svg,
-		.tutorial-tool footer > a svg { transition: none; }
+		.tutorial-tool__open > footer,
+		.tutorial-tool__open > footer svg { transition: none; }
 	}
 </style>

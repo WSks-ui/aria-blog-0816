@@ -1,0 +1,43 @@
+---
+import TutorialToolDossier from '@/components/content/TutorialToolDossier.astro';
+import { TUTORIAL_TOOLS, type TutorialTool } from '@/data/tutorial-tools';
+import { getTutorialToolDossier } from '@/data/tutorial-dossiers';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+
+export function getStaticPaths() {
+	return TUTORIAL_TOOLS.flatMap((tool, index) => {
+		const dossier = getTutorialToolDossier(tool);
+		if (!dossier) return [];
+
+		const previousTool = TUTORIAL_TOOLS[index - 1];
+		const nextTool = TUTORIAL_TOOLS[index + 1];
+		return [{
+			params: { id: tool.id },
+			props: {
+				tool,
+				dossier,
+				previous: previousTool ? { tool: previousTool, index: index - 1 } : undefined,
+				next: nextTool ? { tool: nextTool, index: index + 1 } : undefined,
+			},
+		}];
+	});
+}
+
+interface Props {
+	tool: TutorialTool;
+	dossier: NonNullable<ReturnType<typeof getTutorialToolDossier>>;
+	previous?: { tool: TutorialTool; index: number };
+	next?: { tool: TutorialTool; index: number };
+}
+
+const { tool, dossier, previous, next } = Astro.props;
+// 详情页只接受由 getStaticPaths 构建出的 id；这个保护让未来改为动态渲染时仍能给出可读的 404，
+// 同时不会把缺失讲义的数据继续传给模板，避免页面出现半套目录或无目标链接。
+if (!tool || !dossier) {
+	return Astro.redirect('/types/tutorial/');
+}
+---
+
+<BaseLayout title={`${tool.name} 工具讲义`} description={tool.summary} className="tutorial-tool-page">
+	<TutorialToolDossier tool={tool} dossier={dossier} previous={previous} next={next} />
+</BaseLayout>
