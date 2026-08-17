@@ -182,3 +182,13 @@ export const TUTORIAL_TOOLS: readonly TutorialTool[] = [
 		csdiyHref: 'https://csdiy.wiki/%E5%BF%85%E5%AD%A6%E5%B7%A5%E5%85%B7/%E7%BF%BB%E5%A2%99/',
 	},
 ];
+
+/** 工具卡与详情页共享稳定的站内地址，避免在组件里散落路由字符串。 */
+export function getTutorialToolPath(tool: Pick<TutorialTool, 'id'> | string): string {
+	const id = typeof tool === 'string' ? tool : tool.id;
+	return `/toolkit/${id}/`;
+}
+
+export function getTutorialToolById(id: string): TutorialTool | undefined {
+	return TUTORIAL_TOOLS.find((tool) => tool.id === id);
+}
