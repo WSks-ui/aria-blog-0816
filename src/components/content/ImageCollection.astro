@@ -10,6 +10,9 @@ const { items } = Astro.props;
 const firstItem = items[0];
 // 底片墙按固定批次渐进展开；以后收藏数量增加时只需调整这一处。
 const CONTACT_SHEET_BATCH_SIZE = 10;
+const galleryId = `gallery-${Math.random().toString(36).slice(2, 10)}`;
+// JSON 进入内联 script 前先转义小于号，避免标题或说明里的 `</script>` 提前截断脚本节点。
+const serializedItems = JSON.stringify(items).replace(/</g, '\\u003c');
 ---
 
 {firstItem && (
@@ -20,14 +23,22 @@ const CONTACT_SHEET_BATCH_SIZE = 10;
 		style={`--gallery-accent: ${firstItem.accent};`}
 		aria-label="图片收藏"
 	>
-		<script is:inline type="application/json" data-image-collection-data set:html={JSON.stringify(items)}></script>
+		<script is:inline type="application/json" data-image-collection-data set:html={serializedItems}></script>
 		<div class="image-collection__telemetry" aria-hidden="true">
 			<span>VISUAL ARCHIVE / LOCAL</span>
 			<span>{String(items.length).padStart(3, '0')} FRAMES</span>
 			<span>AR-7 / CONTACT SHEET</span>
 		</div>
 
-		<div class="gallery-stage" data-gallery-stage>
+		<div
+			id={`${galleryId}-stage`}
+			class="gallery-stage"
+			data-gallery-stage
+			role="tabpanel"
+			tabindex="0"
+			aria-live="polite"
+			aria-labelledby={`${galleryId}-tab-0`}
+		>
 			<div class="gallery-stage__image-wrap">
 				<img
 					data-gallery-image
@@ -73,8 +84,11 @@ const CONTACT_SHEET_BATCH_SIZE = 10;
 				<button
 					type="button"
 					role="tab"
+					id={`${galleryId}-tab-${index}`}
+					aria-controls={`${galleryId}-stage`}
 					aria-label={`查看《${item.title}》`}
 					aria-selected={index === 0 ? 'true' : 'false'}
+					tabindex={index === 0 ? 0 : -1}
 					data-gallery-select={index}
 					style={`--item-accent: ${item.accent};`}
 				>
@@ -179,7 +193,12 @@ const CONTACT_SHEET_BATCH_SIZE = 10;
 				if (dimensionsNode) dimensionsNode.textContent = `${item.width} × ${item.height}`;
 				if (creditNode) creditNode.textContent = item.credit;
 				root.style.setProperty('--gallery-accent', item.accent);
-				selectors.forEach((selector, selectorIndex) => selector.setAttribute('aria-selected', String(selectorIndex === index)));
+				selectors.forEach((selector, selectorIndex) => {
+					const selected = selectorIndex === index;
+					selector.setAttribute('aria-selected', String(selected));
+					selector.tabIndex = selected ? 0 : -1;
+				});
+				stage.setAttribute('aria-labelledby', selectors[index]?.id ?? '');
 			};
 
 			const selectItem = async (requestedIndex: number, scrollToStage = false) => {
@@ -245,7 +264,13 @@ const CONTACT_SHEET_BATCH_SIZE = 10;
 			root.addEventListener('keydown', (event) => {
 				if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
 				event.preventDefault();
-				selectItem(activeIndex + (event.key === 'ArrowRight' ? 1 : -1));
+				const direction = event.key === 'ArrowRight' ? 1 : -1;
+				const nextIndex = (activeIndex + direction + items.length) % items.length;
+				selectItem(nextIndex);
+				// 焦点在缩略图标签上时同步移动，保证键盘用户能连续浏览且不会落在 tabindex=-1 的旧标签上。
+				if (event.target instanceof HTMLButtonElement && event.target.matches('[data-gallery-select]')) {
+					selectors[nextIndex]?.focus();
+				}
 			});
 			stage.addEventListener('pointermove', (event) => {
 				const bounds = stage.getBoundingClientRect();
