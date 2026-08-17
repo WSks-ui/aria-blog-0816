@@ -75,7 +75,8 @@
 
 			const target = event.target;
 			if (!(target instanceof Element)) return;
-			const link = target.closest('a[data-article-transition-link]');
+			// 文章入口与主导航共用同一套整页转场；其余链接不主动接管，避免影响搜索、关系图、哈希定位和外部跳转。
+			const link = target.closest('a[data-article-transition-link], a[data-route-transition-link]');
 			if (!link || link.hasAttribute('download')) return;
 			const rawTarget = link.getAttribute('target');
 			const rawHref = link.getAttribute('href');

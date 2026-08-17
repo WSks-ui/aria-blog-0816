@@ -47,8 +47,8 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 						<h1 id="home-title">Aria-7</h1>
 						<strong>雨线之外，保存仍在形成的知识与观察。</strong>
 						<span>长文、学习笔记、项目、影像、代码与教程。</span>
-						<a class="home-hero__enter" href={featured ? getPostPath(featured) : '/posts/'} data-article-transition-link={featured ? '' : undefined}>
-							<span>进入最新场景</span>
+						<a class="home-hero__enter" href="/about/" data-route-transition-link>
+							<span>关于我</span>
 							<ArrowRight size={20} stroke-width={1.5} aria-hidden="true" />
 						</a>
 					</div>
@@ -104,6 +104,7 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 											class="recent-stage__group"
 											data-recent-scroll-group={isDuplicate ? 'duplicate' : 'primary'}
 											aria-hidden={isDuplicate ? 'true' : undefined}
+											inert={isDuplicate ? true : undefined}
 										>
 											{recent.map((post, index) => (
 												<a
@@ -113,17 +114,16 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 													data-recent-preview-index={index}
 													data-article-transition-link
 													tabindex={isDuplicate ? -1 : undefined}
-												>
-													<ContentCoverScene kind={post.data.kind} compact class="recent-preview__cover" />
-													<span class="recent-preview__shade" aria-hidden="true"></span>
-													<span class="recent-preview__copy">
-														<span class="recent-preview__meta">
-															<b>{String(index + 1).padStart(2, '0')}</b>
-															<small>{POST_KIND_LABELS[post.data.kind]} / {formatDate(post.data.publishedAt)}</small>
+													>
+														<ContentCoverScene kind={post.data.kind} compact class="recent-preview__cover" />
+														<span class="recent-preview__shade" aria-hidden="true"></span>
+														<span class="recent-preview__copy">
+															<span class="recent-preview__meta">
+																<b>{String(index + 1).padStart(2, '0')}</b>
+																<small>FRAME / {formatDate(post.data.publishedAt)}</small>
+															</span>
+															<span class="recent-preview__signal">VISUAL TRACE / {String(index + 1).padStart(2, '0')}</span>
 														</span>
-														<strong>{post.data.title}</strong>
-														<small>{post.data.summary}</small>
-													</span>
 													<ArrowRight class="recent-preview__arrow" size={16} stroke-width={1.4} aria-hidden="true" />
 												</a>
 											))}
@@ -168,7 +168,7 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 							href={`/types/${kind}/`}
 							data-index-track
 							data-track-index={index}
-							style={`--track-height: ${kindTrackHeights[index]}%; --track-delay: ${index * 80}ms;`}
+							style={`--track-height: ${kindTrackHeights[index]}%; --track-mobile-height: ${Math.round(180 + kindTrackHeights[index] * 0.65)}px; --track-delay: ${index * 80}ms;`}
 						>
 							<span class="kind-index__number">{String(index + 1).padStart(2, '0')}</span>
 							<span class="kind-index__label">
@@ -291,7 +291,10 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 			setActiveRecent(Number(nearestPreview?.preview.dataset.recentPreviewIndex ?? 0));
 		};
 
-		if (recentViewport) {
+		// 移动端已经隐藏预览窗口，继续维持无限 RAF 只会白白占用电量；
+		// 记录列表本身仍然保留，因此窄屏不需要这条桌面滚动舞台。
+		const compactViewport = window.matchMedia('(max-width: 760px)').matches;
+		if (recentViewport && !compactViewport) {
 			measureRecentStream();
 			streamPosition = normalizeRecentScroll();
 			syncRecentHighlight();
@@ -407,8 +410,9 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 	.home-hero__enter:hover svg { transform: translateX(4px); }
 	.home-hero__enter svg { transition: transform var(--duration-base) var(--ease-rain); }
 
-	.home-scene--featured { z-index: 2; margin-top: -46px; padding-block: 82px 68px; background: #10242a; color: #edf1ef; }
-	.featured-band { --ink: #edf1ef; --ink-muted: #a8b8bb; --line: #47616a; --line-strong: #87a2aa; --accent-strong: #96d9e7; --paper-0: #101d22; --color-surface: #101d22; --color-ink: #edf1ef; --color-ink-muted: #a8b8bb; --color-line: #47616a; --color-line-strong: #87a2aa; --color-rain: #75c5d8; --color-rain-deep: #96d9e7; display: grid; grid-template-columns: minmax(74px, 1fr) repeat(11, minmax(0, 1fr)); min-height: 500px; border-block: 1px solid var(--line); }
+	/* 精选内容的深色舞台与其它场景共用同一个 scene-inner 内边界，避免整块底色向外溢出。 */
+	.home-scene--featured { z-index: 2; margin-top: -46px; padding-block: 82px 68px; background: transparent; color: #edf1ef; }
+	.featured-band { --ink: #edf1ef; --ink-muted: #a8b8bb; --line: #47616a; --line-strong: #87a2aa; --accent-strong: #96d9e7; --paper-0: #101d22; --color-surface: #101d22; --color-ink: #edf1ef; --color-ink-muted: #a8b8bb; --color-line: #47616a; --color-line-strong: #87a2aa; --color-rain: #75c5d8; --color-rain-deep: #96d9e7; display: grid; grid-template-columns: minmax(74px, 1fr) repeat(11, minmax(0, 1fr)); min-height: 500px; border-block: 1px solid var(--line); background: #10242a; }
 	.section-index { grid-column: 1 / 2; display: flex; flex-direction: column; justify-content: space-between; padding: 28px 18px 28px 0; border-right: 1px solid var(--line); font-family: var(--font-ui); color: var(--ink-muted); }
 	.section-index span { font-size: 34px; color: var(--color-warm); }
 	.section-index p { margin: 0; font-size: 9px; writing-mode: vertical-rl; }
@@ -446,8 +450,9 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 	.recent-preview__meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-family: var(--font-ui); color: var(--ink-muted); }
 	.recent-preview__meta b { font-size: 10px; font-weight: 500; color: var(--accent-strong); }
 	.recent-preview__meta small { font-size: 8px; white-space: nowrap; }
-	.recent-preview__copy > strong { max-width: 22ch; font-family: var(--font-display); font-size: 17px; font-weight: 500; line-height: 1.38; }
-	.recent-preview__copy > small { overflow: hidden; font-size: 10px; line-height: 1.55; color: var(--ink-muted); text-overflow: ellipsis; white-space: nowrap; }
+	/* 左栏承担时间序列和画面索引，文章标题与摘要只在右栏出现，减少信息重复。 */
+	.recent-preview__signal { display: inline-flex; align-items: center; gap: 9px; font-family: var(--font-ui); font-size: 9px; letter-spacing: 0.06em; color: var(--accent-strong); }
+	.recent-preview__signal::before { width: 24px; height: 1px; background: currentColor; content: ''; }
 	.recent-preview__arrow { position: absolute; z-index: 3; top: 14px; right: 14px; color: var(--ink-muted); opacity: 0; transform: translate(-6px, 6px); transition: opacity 360ms var(--ease-rain), transform 520ms var(--ease-drift); }
 	.recent-preview:hover,
 	.recent-preview:focus-visible,
@@ -526,11 +531,13 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 	:global(html.home-motion-ready) .home-scene[data-home-reveal]:not(.is-in-view) { opacity: 0; transform: translateY(24px); }
 	:global(html.home-motion-ready) .home-scene[data-home-reveal] { transition: opacity 900ms var(--ease-rain), transform 1100ms var(--ease-drift), clip-path 1100ms var(--ease-drift); }
 	:global(html.home-motion-ready) .home-scene--index:not(.is-in-view) .kind-index a { opacity: 0; transform: translateY(38px) scaleY(0.86); }
+	:global(html.home-motion-ready) .home-scene--index:not(.is-in-view) .kind-index a { transition-delay: var(--track-delay); }
+	:global(html.home-motion-ready) .home-scene--index.is-in-view .kind-index a { transition-delay: 0ms; }
 	:global(html.home-motion-ready) .home-scene--coda:not(.is-in-view) { clip-path: inset(12% 0 0); }
 
-	:global(html[data-weather-mode='night']) .home-scene--featured { background: #dce8e7; color: #27373b; }
-	:global(html[data-weather-mode='night']) .featured-band { --ink: #27373b; --ink-muted: #607378; --line: #9bb6bd; --line-strong: #55757e; --accent-strong: #1887aa; --paper-0: #f7f8f6; --color-surface: #f7f8f6; --color-ink: #27373b; --color-ink-muted: #607378; --color-line: #9bb6bd; --color-line-strong: #55757e; --color-rain: #59b8cf; --color-rain-deep: #1887aa; }
-	:global(html[data-weather-mode='night']) .featured-band__media { border-color: rgb(39 55 59 / 42%); box-shadow: 0 22px 54px rgb(9 17 20 / 18%); }
+	/* 夜间精选区沿用深海底色，避免主题切换时突然出现一整块浅色孤岛。 */
+	:global(html[data-weather-mode='night']) .featured-band { background: #0b181c; }
+	:global(html[data-weather-mode='night']) .featured-band__media { border-color: rgb(237 241 239 / 28%); box-shadow: 0 22px 54px rgb(0 0 0 / 30%); }
 	:global(html[data-weather-mode='night']) .home-scene--coda { background: #050b0d; }
 	:global(body.home-page .site-footer) {
 		width: min(
@@ -550,6 +557,10 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 	@keyframes home-title-enter {
 		from { opacity: 0; transform: translateX(42px); clip-path: inset(0 100% 0 0); }
 		to { opacity: 1; transform: translateX(0); clip-path: inset(0); }
+	}
+	@keyframes home-title-enter-mobile {
+		from { opacity: 0; transform: translateY(14px); }
+		to { opacity: 1; transform: translateY(0); }
 	}
 	@keyframes home-copy-enter {
 		from { opacity: 0; transform: translateY(16px); }
@@ -583,8 +594,8 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 		.recent-layout { grid-template-columns: minmax(240px, 0.62fr) minmax(0, 1.38fr); gap: 48px; }
 		.kind-index { grid-template-columns: repeat(3, 1fr); height: auto; align-items: stretch; border: 0; }
 		.kind-index[data-active-index] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-		.kind-index a { height: 220px; }
-		.kind-index a.is-active { height: 240px; transform: translateY(-10px); }
+		.kind-index a { height: var(--track-mobile-height); }
+		.kind-index a.is-active { height: calc(var(--track-mobile-height) + 20px); transform: translateY(-10px); }
 	}
 
 	@media (max-width: 760px) {
@@ -592,8 +603,13 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 		.scene-inner { padding-inline: 20px; }
 		.home-hero { min-height: 500px; }
 		.home-hero__copy { left: 26px; width: calc(100% - 52px); }
-		.home-hero h1 { font-size: 72px; }
-		.home-hero__copy > strong { font-size: 24px; }
+		/* 首屏文案在窄屏上更早显现，避免用户先看到一整块空舞台。 */
+		.home-hero__status { animation-delay: 0ms; animation-duration: 320ms; }
+		.home-hero h1 { font-size: 64px; animation-name: home-title-enter-mobile; animation-delay: 0ms; animation-duration: 420ms; }
+		.home-hero__copy > p { animation-delay: 0ms; animation-duration: 320ms; }
+		.home-hero__copy > strong { font-size: 24px; animation-delay: 80ms; animation-duration: 380ms; }
+		.home-hero__copy > span { animation-delay: 150ms; animation-duration: 340ms; }
+		.home-hero__enter { margin-top: 22px; animation-delay: 220ms; animation-duration: 340ms; }
 		.home-hero__status { left: 24px; right: auto; flex-wrap: wrap; }
 		.home-scene--featured { margin-top: -24px; padding-top: 60px; }
 		.featured-band { grid-template-columns: 1fr; }
