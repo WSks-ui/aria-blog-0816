@@ -121,7 +121,7 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 		position: relative;
 		z-index: 50;
 		display: grid;
-		grid-template-columns: minmax(230px, 0.9fr) minmax(520px, 1.8fr) auto;
+		grid-template-columns: minmax(230px, 1fr) auto;
 		align-items: center;
 		min-height: 84px;
 		margin-inline: auto;
@@ -162,11 +162,19 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 	}
 
 	.site-nav {
-		position: relative;
+		/*
+		 * 导航以页头的几何中心为基准，而不是以品牌与工具区之间的剩余列为基准。
+		 * 两侧内容宽度不对称时，这能保持栏目序列始终位于页面中线。
+		 */
+		position: absolute;
+		top: 50%;
+		left: 50%;
 		isolation: isolate;
 		display: flex;
 		justify-content: center;
 		gap: clamp(16px, 2vw, 34px);
+		transform: translate(-50%, -50%);
+		white-space: nowrap;
 	}
 
 	.site-nav__indicator {
@@ -330,11 +338,15 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 		}
 
 		.site-nav {
+			position: relative;
+			top: auto;
+			left: auto;
 			grid-column: 1 / -1;
 			grid-row: 2;
 			justify-content: flex-start;
 			overflow-x: auto;
 			border-top: 1px solid var(--line);
+			transform: none;
 		}
 	}
 
