@@ -3,10 +3,14 @@ import { defineConfig } from 'astro/config';
 import mdx from '@astrojs/mdx';
 import sitemap from '@astrojs/sitemap';
 import { unified } from '@astrojs/markdown-remark';
+import { loadEnv } from 'vite';
+
+// 生产域名只保留一个公开入口，避免 canonical、RSS 与 Sitemap 各自漂移。
+const env = loadEnv(process.env.NODE_ENV || 'development', process.cwd(), '');
+const siteUrl = env.PUBLIC_SITE_URL || 'https://aria-7.pages.dev';
 
 export default defineConfig({
-	// 上线前只需替换为最终自定义域名，RSS、canonical 与站点地图会同步更新。
-	site: 'https://aria-7.pages.dev',
+	site: siteUrl,
 	output: 'static',
 	trailingSlash: 'always',
 	// 开发工具栏会覆盖页面底部场景，视觉联调与普通本地预览都保持关闭。

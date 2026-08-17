@@ -17,8 +17,8 @@ export const SITE = {
 	description: '记录设计、代码、影像与日常观察的个人博客。',
 	locale: 'zh-CN',
 	timeZone: 'Asia/Shanghai',
-	// 上线前应替换为真实域名；配置 astro.config 的 site 后，RSS 会优先使用构建上下文中的正式地址。
-	url: 'https://aria-7.pages.dev',
+	// 与 astro.config 共用同一个公开环境变量；未配置时保留当前 Pages 预览地址作为开发回退。
+	url: import.meta.env.PUBLIC_SITE_URL || 'https://aria-7.pages.dev',
 	author: {
 		name: 'Aria-7',
 		profile: '/about/',

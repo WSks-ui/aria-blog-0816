@@ -6,6 +6,8 @@ interface Props {
 }
 
 const { pathname } = Astro.props;
+// 没有真实地址时隐藏入口，避免把访客带到 GitHub 首页这种“看似可用”的占位链接。
+const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim() || '';
 
 const navItems = [
 	{ href: '/types/essay/', label: '长文' },
@@ -29,7 +31,7 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 	<nav class="site-nav" aria-label="主导航" data-site-nav>
 		<span class="site-nav__indicator" aria-hidden="true" data-site-nav-indicator></span>
 		{navItems.map((item) => (
-			<a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined} data-site-nav-link>
+			<a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined} data-site-nav-link data-route-transition-link>
 				{item.label}
 			</a>
 		))}
@@ -45,9 +47,11 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 		<a class="icon-button" href="/rss.xml" aria-label="RSS 订阅" data-tooltip="RSS 订阅">
 			<Rss size={19} stroke-width={1.6} />
 		</a>
-		<a class="icon-button" href="https://github.com/" aria-label="GitHub" data-tooltip="GitHub">
-			<GitBranch size={19} stroke-width={1.6} />
-		</a>
+		{githubUrl && (
+			<a class="icon-button" href={githubUrl} aria-label="GitHub" data-tooltip="GitHub" rel="noreferrer">
+				<GitBranch size={19} stroke-width={1.6} />
+			</a>
+		)}
 		<slot name="weather-control" />
 	</div>
 </header>

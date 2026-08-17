@@ -2,19 +2,23 @@
 import { GitBranch, Mail, Rss } from '@lucide/astro';
 import PageHeader from '@/components/content/PageHeader.astro';
 import BaseLayout from '@/layouts/BaseLayout.astro';
+
+// 个人入口由公开环境变量注入；缺少配置时只保留站内 RSS，不暴露伪造的联系方式。
+const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim() || '';
+const contactEmail = import.meta.env.PUBLIC_CONTACT_EMAIL?.trim() || '';
 ---
 
 <BaseLayout title="关于" description="关于 Aria-7 与这个个人档案站。">
 	<div class="page-shell">
-		<PageHeader eyebrow="PROFILE / ARIA-7" title="关于 Aria-7" description="这里将补充一段更完整的个人介绍。现在先保存正在学习、制作和观察的事物。" />
+		<PageHeader eyebrow="PROFILE / ARIA-7" title="关于 Aria-7" description="这里保存正在学习、制作和观察的事物，也记录它们如何慢慢形成可复用的经验。" />
 		<section class="about-grid">
 			<div class="about-portrait" aria-hidden="true">
 				<img src="/assets/patterns/umbrella-field.svg" alt="" width="700" height="900" />
-				<span>PORTRAIT / PLACEHOLDER</span>
+				<span>VISUAL ARCHIVE / RAIN STUDY</span>
 			</div>
 			<div class="about-copy prose">
 				<h2>现在</h2>
-				<p>个人简介、所在城市和当前关注方向将在这里补充。站点目前用于记录长文、短学习笔记、GitHub 项目、摄影与插画、代码笔记，以及可重复实践的教程。</p>
+				<p>Aria-7 是一个持续整理中的个人档案站，记录长文、学习笔记、项目、影像、代码与可重复实践的教程。内容会随着新的实验和阅读继续增长。</p>
 				<h2>关注的主题</h2>
 				<ul>
 					<li>前端开发与界面设计</li>
@@ -24,8 +28,8 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
 				</ul>
 				<h2>联系</h2>
 				<div class="about-links">
-					<a href="https://github.com/" rel="noreferrer"><GitBranch size={18} stroke-width={1.5} aria-hidden="true" /> GitHub</a>
-					<a href="mailto:hello@example.com"><Mail size={18} stroke-width={1.5} aria-hidden="true" /> 邮箱占位</a>
+					{githubUrl && <a href={githubUrl} rel="noreferrer"><GitBranch size={18} stroke-width={1.5} aria-hidden="true" /> GitHub</a>}
+					{contactEmail && <a href={`mailto:${contactEmail}`}><Mail size={18} stroke-width={1.5} aria-hidden="true" /> 邮箱</a>}
 					<a href="/rss.xml"><Rss size={18} stroke-width={1.5} aria-hidden="true" /> RSS</a>
 				</div>
 			</div>
