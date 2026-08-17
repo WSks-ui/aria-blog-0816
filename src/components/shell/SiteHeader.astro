@@ -10,7 +10,7 @@ const { pathname } = Astro.props;
 const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim() || '';
 
 const navItems = [
-	{ href: '/types/essay/', label: '长文' },
+	{ href: '/types/essay/', label: '随笔' },
 	{ href: '/types/note/', label: '笔记' },
 	{ href: '/types/project/', label: '项目' },
 	{ href: '/types/photo/', label: '底片' },
@@ -66,7 +66,7 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 			nav.dataset.navigationReady = 'true';
 			const indicator = nav.querySelector<HTMLElement>('[data-site-nav-indicator]');
 			const links = [...nav.querySelectorAll<HTMLElement>('[data-site-nav-link]')];
-			// 首页没有匹配的栏目路由时，以“长文”作为视觉起点；进入具体栏目后仍优先使用真实当前项。
+			// 首页没有匹配的栏目路由时，以“随笔”作为视觉起点；进入具体栏目后仍优先使用真实当前项。
 			const activeLink = nav.querySelector<HTMLElement>('[data-site-nav-link][aria-current="page"]')
 				?? links[0]
 				?? null;

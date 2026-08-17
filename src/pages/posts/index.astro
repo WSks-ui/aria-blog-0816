@@ -7,7 +7,7 @@ import { getPosts } from '@/lib/content';
 const posts = await getPosts();
 ---
 
-<BaseLayout title="全部文章" description="Aria-7 的全部长文、笔记、项目、影像、代码与指南。">
+<BaseLayout title="全部文章" description="Aria-7 的全部随笔、笔记、项目、底片、代码与指南。">
 	<div class="page-shell">
 		<PageHeader eyebrow="ARCHIVE / ALL ENTRIES" title="全部文章" description="从最近一次记录向前浏览。每篇文章只归入一个主类型，并可通过多个标签交叉连接。" count={posts.length} />
 		<section class="page-list" aria-label="文章列表">
