@@ -4,39 +4,58 @@ import { BookOpen, BookmarkPlus, Download, Trash2, X } from '@lucide/astro';
 interface Props {
   class?: string;
   maxLength?: number;
+  /**
+   * 由父布局决定组件所处的阅读场景。组件本身不依赖任何定位方式，
+   * 该值只会生成稳定的变体 class/data 属性，方便文章页或其他工具栏覆写样式。
+   */
+  variant?: 'article' | 'floating' | 'inline';
+  /**
+   * 暴露给父布局的语义位置钩子，例如 article-end、article-tools 或 aside。
+   * 不参与脚本逻辑，避免把布局责任耦合进组件。
+   */
+  placement?: string;
   scopeSelector?: string;
   storageKey?: string;
   title?: string;
+  triggerLabel?: string;
 }
 
 const {
   class: className,
   maxLength = 500,
+  variant = 'article',
+  placement = 'article-tools',
   scopeSelector = '#main-content',
   storageKey = 'aria7-memory-vault',
   title = '记忆库',
+  triggerLabel = '摘录',
 } = Astro.props;
 
 const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
+const panelTitleId = `${panelId}-title`;
+const variantClass = `memory-vault--${variant}`;
 ---
 
 <section
-  class:list={['memory-vault', className]}
+  class:list={['memory-vault', variantClass, className]}
   data-memory-vault
+  data-memory-variant={variant}
+  data-memory-placement={placement}
+  data-memory-context="reading-excerpt"
   data-storage-key={storageKey}
   data-scope-selector={scopeSelector}
   data-max-length={maxLength}
   aria-label={title}
 >
-  <div class="memory-vault__toolbar">
+  <div class="memory-vault__toolbar" data-memory-toolbar>
     <button
       class="memory-vault__save"
       type="button"
       data-memory-save
-      aria-label="收藏当前选中的句子"
+      aria-label="摘录当前选中的句子"
     >
       <BookmarkPlus size={20} stroke-width={1.5} aria-hidden="true" />
-      <span>收藏选句</span>
+      <span>摘录选句</span>
     </button>
     <button
       class="memory-vault__toggle"
@@ -44,17 +63,25 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
       data-memory-toggle
       aria-controls={panelId}
       aria-expanded="false"
+      aria-label={`打开${title}`}
     >
       <BookOpen size={20} stroke-width={1.5} aria-hidden="true" />
-      <span>{title}</span>
+      <span>{triggerLabel}</span>
       <output class="memory-vault__count" data-memory-count aria-label="收藏数量">0</output>
     </button>
   </div>
 	<output class="memory-vault__selection" data-memory-selection aria-live="polite" hidden></output>
 
-  <div class="memory-vault__panel" id={panelId} data-memory-panel hidden>
+  <div
+    class="memory-vault__panel"
+    id={panelId}
+    data-memory-panel
+    role="region"
+    aria-labelledby={panelTitleId}
+    hidden
+  >
     <header class="memory-vault__panel-header">
-      <h2 class="memory-vault__title">{title}</h2>
+      <h2 class="memory-vault__title" id={panelTitleId}>{title}</h2>
 	  <div class="memory-vault__panel-tools">
 		<button class="memory-vault__export" type="button" data-memory-export disabled>
 		  <Download size={20} stroke-width={1.5} aria-hidden="true" />
@@ -95,10 +122,35 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
     pageKey: string;
   }
 
+  // Astro 的页面切换不会销毁已加载脚本本身，因此必须按实例保存清理函数。
+  // 否则旧文章的 selectionchange、storage 等闭包会继续引用已经离场的正文节点。
+  const memoryVaultCleanups = new WeakMap<HTMLElement, () => void>();
+  const activeMemoryVaults = new Set<HTMLElement>();
+  let lifecycleListenersReady = false;
+
+  const cleanupMemoryVault = (root: HTMLElement) => {
+    const cleanup = memoryVaultCleanups.get(root);
+    if (!cleanup) return;
+    cleanup();
+    memoryVaultCleanups.delete(root);
+    activeMemoryVaults.delete(root);
+  };
+
+  const cleanupAllMemoryVaults = () => {
+    // 复制 Set 后再清理，避免清理函数内部修改 Set 造成迭代不稳定。
+    [...activeMemoryVaults].forEach(cleanupMemoryVault);
+  };
+
+  const bindLifecycleListeners = () => {
+    if (lifecycleListenersReady) return;
+    lifecycleListenersReady = true;
+    document.addEventListener('astro:before-swap', cleanupAllMemoryVaults);
+  };
+
   function initMemoryVaults() {
+    bindLifecycleListeners();
     document.querySelectorAll<HTMLElement>('[data-memory-vault]').forEach((root) => {
       if (root.dataset.interactiveReady === 'true') return;
-      root.dataset.interactiveReady = 'true';
 
       const saveButton = root.querySelector<HTMLButtonElement>('[data-memory-save]');
       const toggleButton = root.querySelector<HTMLButtonElement>('[data-memory-toggle]');
@@ -113,6 +165,8 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
       const deleteTemplate = root.querySelector<HTMLTemplateElement>('[data-memory-delete-template]');
       if (!saveButton || !toggleButton || !closeButton || !panel || !status || !empty || !list || !exportButton || !exportLabel || !selectionStatus || !deleteTemplate) return;
 
+      root.dataset.interactiveReady = 'true';
+
       const storageKey = root.dataset.storageKey || 'aria7-memory-vault';
       const maxLength = Math.max(20, Number(root.dataset.maxLength) || 500);
       let records: MemoryRecord[] = [];
@@ -122,7 +176,30 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
       let deleteResetTimer = 0;
 	  let hidePanelTimer = 0;
       let selectionFrame = 0;
+	  const transientTimers = new Set<number>();
+	  const pendingObjectUrls = new Set<string>();
+	  const captureAnimations = new Set<Animation>();
+	  const capturePapers = new Set<HTMLElement>();
+	  const controller = new AbortController();
+	  const { signal } = controller;
 	  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+	  let disposed = false;
+
+	  // 所有短时任务都通过这里登记，路由交换时可以一次性取消，避免旧页面回调新 DOM。
+	  const schedule = (callback: () => void, delay: number) => {
+		const timer = window.setTimeout(() => {
+			transientTimers.delete(timer);
+			callback();
+		}, delay);
+		transientTimers.add(timer);
+		return timer;
+	  };
+
+	  const clearScheduled = (timer: number) => {
+		if (!timer) return;
+		window.clearTimeout(timer);
+		transientTimers.delete(timer);
+	  };
 
       try {
         scope = document.querySelector<HTMLElement>(root.dataset.scopeSelector || 'article');
@@ -218,7 +295,7 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
 	  };
 
 	  const animatePaperCapture = (selection: CachedSelection) => {
-		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || signal.aborted) return;
 		const target = toggleButton.getBoundingClientRect();
 		const width = Math.min(320, Math.max(138, selection.rect.width));
 		const paper = document.createElement('span');
@@ -228,16 +305,24 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
 		paper.style.top = `${selection.rect.top}px`;
 		paper.style.width = `${width}px`;
 		document.body.append(paper);
+		capturePapers.add(paper);
 
 		const targetX = target.left + target.width / 2 - selection.rect.left - width / 2;
 		const targetY = target.top + target.height / 2 - selection.rect.top - 22;
-		paper.animate([
+		const animation = paper.animate([
 			{ opacity: 0, transform: 'translate3d(0, 10px, 0) scale(0.98) rotate(-1deg)' },
 			{ opacity: 1, offset: 0.18, transform: 'translate3d(0, 0, 0) scale(1) rotate(-1deg)' },
 			{ opacity: 0.9, offset: 0.7, transform: `translate3d(${targetX * 0.72}px, ${targetY * 0.72}px, 0) scale(0.62) rotate(4deg)` },
 			{ opacity: 0, transform: `translate3d(${targetX}px, ${targetY}px, 0) scale(0.12) rotate(8deg)` },
-		], { duration: 760, easing: 'cubic-bezier(0.22, 0.75, 0.28, 1)' })
-			.finished.finally(() => paper.remove());
+		], { duration: 760, easing: 'cubic-bezier(0.22, 0.75, 0.28, 1)' });
+		captureAnimations.add(animation);
+		const removeCapture = () => {
+			captureAnimations.delete(animation);
+			capturePapers.delete(paper);
+			paper.remove();
+		};
+		// cancel() 会让 finished Promise reject，因此同时处理成功和取消两条路径。
+		animation.finished.then(removeCapture, removeCapture);
 	  };
 
       const safeSourceUrl = (value: string) => {
@@ -250,7 +335,8 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
       };
 
 	  const clearDeleteConfirmation = () => {
-		window.clearTimeout(deleteResetTimer);
+		clearScheduled(deleteResetTimer);
+		deleteResetTimer = 0;
 		pendingDeleteId = null;
 		list.querySelectorAll<HTMLButtonElement>('[data-memory-delete]').forEach((control) => {
 			delete control.dataset.confirming;
@@ -303,7 +389,8 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
       };
 
       const setPanelOpen = (open: boolean) => {
-		window.clearTimeout(hidePanelTimer);
+		clearScheduled(hidePanelTimer);
+		hidePanelTimer = 0;
         toggleButton.setAttribute('aria-expanded', String(open));
         root.dataset.open = String(open);
 		if (open) {
@@ -316,21 +403,24 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
 			panel.hidden = true;
 			return;
 		}
-		hidePanelTimer = window.setTimeout(() => {
+		hidePanelTimer = schedule(() => {
 			if (root.dataset.open !== 'true') panel.hidden = true;
 		}, 230);
       };
 
       document.addEventListener('selectionchange', () => {
 		cancelAnimationFrame(selectionFrame);
-		selectionFrame = requestAnimationFrame(() => updateSelectionFeedback(getValidSelection()));
-      });
+		selectionFrame = requestAnimationFrame(() => {
+			selectionFrame = 0;
+			if (!signal.aborted) updateSelectionFeedback(getValidSelection());
+		});
+	  }, { signal });
 
       saveButton.addEventListener('pointerdown', () => {
 		const selection = getValidSelection();
 		if (selection) cachedSelection = selection;
 		preserveSelectionUntil = performance.now() + 500;
-      });
+	  }, { signal });
 
       saveButton.addEventListener('click', () => {
 		const selection = getValidSelection() ?? cachedSelection;
@@ -377,13 +467,13 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
 		render(record.id);
         setPanelOpen(true);
         window.getSelection()?.removeAllRanges();
-      });
+	  }, { signal });
 
-	  toggleButton.addEventListener('click', () => setPanelOpen(root.dataset.open !== 'true'));
+	  toggleButton.addEventListener('click', () => setPanelOpen(root.dataset.open !== 'true'), { signal });
 	  closeButton.addEventListener('click', () => {
 		setPanelOpen(false);
 		toggleButton.focus();
-	  });
+	  }, { signal });
 
       list.addEventListener('click', (event) => {
         const button = event.target instanceof Element
@@ -397,7 +487,7 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
 			button.dataset.confirming = 'true';
 			button.setAttribute('aria-label', '再次点击确认删除这条收藏');
 			status.textContent = '再次点击删除按钮以确认；该状态会在 3 秒后取消。';
-			deleteResetTimer = window.setTimeout(clearDeleteConfirmation, 3000);
+			deleteResetTimer = schedule(clearDeleteConfirmation, 3000);
 			return;
 		}
 
@@ -413,7 +503,7 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
         } else {
           records = previousRecords;
         }
-      });
+	  }, { signal });
 
       exportButton.addEventListener('click', () => {
         if (records.length === 0) return;
@@ -431,7 +521,11 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
 			link.click();
 			link.remove();
 			// 部分浏览器会异步接管下载，延迟释放对象 URL 可以避免空文件。
-			window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1200);
+			pendingObjectUrls.add(objectUrl);
+			schedule(() => {
+				URL.revokeObjectURL(objectUrl);
+				pendingObjectUrls.delete(objectUrl);
+			}, 1200);
 			exportButton.dataset.state = 'requested';
 			exportLabel.textContent = '已请求下载';
 			status.textContent = `已请求下载 ${records.length} 条收藏。`;
@@ -442,12 +536,12 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
 			status.textContent = '记忆库暂时无法导出，请稍后重试。';
 		} finally {
 			exportButton.removeAttribute('aria-busy');
-			window.setTimeout(() => {
+			schedule(() => {
 				delete exportButton.dataset.state;
 				exportLabel.textContent = '导出 JSON';
 			}, 1800);
 		}
-      });
+	  }, { signal });
 
 	  document.addEventListener('keydown', (event) => {
 		// 搜索等模态窗口优先消费 Escape，避免一次按键同时关闭两层界面。
@@ -457,13 +551,52 @@ const panelId = `memory-vault-${Math.random().toString(36).slice(2, 10)}`;
 			setPanelOpen(false);
 			toggleButton.focus();
 		}
-	  });
+	  }, { signal });
 
       window.addEventListener('storage', (event) => {
         if (event.key !== storageKey && event.key !== null) return;
         readRecords();
         render();
-      });
+	  }, { signal });
+
+	  const cleanup = () => {
+		if (disposed) return;
+		disposed = true;
+
+		// 先中止事件监听，再清理异步任务，保证清理过程中不会重新排队旧页面回调。
+		controller.abort();
+		if (selectionFrame) cancelAnimationFrame(selectionFrame);
+		selectionFrame = 0;
+		clearScheduled(deleteResetTimer);
+		clearScheduled(hidePanelTimer);
+		deleteResetTimer = 0;
+		hidePanelTimer = 0;
+		transientTimers.forEach((timer) => window.clearTimeout(timer));
+		transientTimers.clear();
+
+		pendingObjectUrls.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
+		pendingObjectUrls.clear();
+		captureAnimations.forEach((animation) => animation.cancel());
+		captureAnimations.clear();
+		capturePapers.forEach((paper) => paper.remove());
+		capturePapers.clear();
+
+		cachedSelection = null;
+		root.dataset.interactiveReady = 'false';
+		root.dataset.open = 'false';
+		root.dataset.selectionReady = 'false';
+		toggleButton.setAttribute('aria-expanded', 'false');
+		panel.hidden = true;
+		panel.inert = true;
+		selectionStatus.hidden = true;
+		selectionStatus.textContent = '';
+		exportButton.removeAttribute('aria-busy');
+		delete exportButton.dataset.state;
+		exportLabel.textContent = '导出 JSON';
+	  };
+
+	  memoryVaultCleanups.set(root, cleanup);
+	  activeMemoryVaults.add(root);
 
       readRecords();
       render();

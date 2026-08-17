@@ -7,7 +7,7 @@ import BaseLayout from './BaseLayout.astro';
 import KindLabel from '@/components/content/KindLabel.astro';
 import NightEcho from '@/components/content/NightEcho.astro';
 import PostMeta from '@/components/content/PostMeta.astro';
-import { CommentPanel, SceneGuide } from '@/components/interactive';
+import { CommentPanel, MemoryVault, SceneGuide } from '@/components/interactive';
 import ContentCoverScene from '@/components/visual/ContentCoverScene.astro';
 
 interface Props {
@@ -63,6 +63,17 @@ const relatedLinks = related.map((entry) => ({
 		<div class="article-layout">
 			<div class="article-layout__guide">
 				<SceneGuide contentSelector=".prose" headingSelector="h2, h3" />
+				<!--
+					摘录工具与目录共享阅读轨，而不是悬浮在页面角落。scopeSelector 只允许
+					选中正文，避免把导航、标签或评论区的文字误收入本机摘录。
+				-->
+				<MemoryVault
+					variant="article"
+					placement="article-tools"
+					title="摘录本"
+					triggerLabel="摘录"
+					scopeSelector=".reading-prose"
+				/>
 			</div>
 			<article class="prose reading-prose" data-article-title={post.data.title} data-article-path={Astro.url.pathname}>
 				<slot />
@@ -248,13 +259,24 @@ const relatedLinks = related.map((entry) => ({
 
 	.article-layout {
 		display: grid;
-		grid-template-columns: 240px minmax(0, 760px) 1fr;
-		gap: 64px;
+		grid-template-columns: 296px minmax(0, 760px) 1fr;
+		gap: 48px;
 		padding-top: 84px;
 	}
 
 	.article-layout__guide {
 		min-width: 0;
+		/*
+		 * 导览和摘录在同一条固定阅读轨中分配高度：目录自己滚动，摘录始终保留
+		 * 在底部，长文章也不会把保存入口推到视窗之外。
+		 */
+		position: sticky;
+		top: 32px;
+		display: grid;
+		grid-template-rows: minmax(0, 1fr) auto;
+		gap: 18px;
+		height: calc(100dvh - 64px);
+		align-self: start;
 	}
 
 	.prose {

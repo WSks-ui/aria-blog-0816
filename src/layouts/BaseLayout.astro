@@ -5,7 +5,7 @@ import SiteHeader from '@/components/shell/SiteHeader.astro';
 import RainField from '@/components/visual/RainField.astro';
 import RouteTransition from '@/components/visual/RouteTransition.astro';
 import WeatherTransition from '@/components/visual/WeatherTransition.astro';
-import { MemoryVault, SearchDialog, WeatherModeControl } from '@/components/interactive';
+import { SearchDialog, WeatherModeControl } from '@/components/interactive';
 import '@/styles/global.css';
 
 interface Props {
@@ -118,13 +118,5 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 		</main>
 		<SiteFooter />
 		<SearchDialog />
-		{type === 'article' && (
-			/*
-			 * “记忆库”用于从可阅读的正文中摘录句子，并且记录只保存在访客本机。
-			 * 栏目、归档等索引页没有连续正文，展示入口既没有操作对象也会增加干扰，
-			 * 因而只在文章页挂载；文章页仍保留收藏、查看和导出的完整能力。
-			 */
-			<MemoryVault />
-		)}
 	</body>
 </html>
