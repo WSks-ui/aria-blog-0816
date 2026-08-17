@@ -1,13 +1,18 @@
 /* 三态主题控件保持固定尺寸，切换标签不会推挤页眉。 */
 .weather-mode-control {
+  position: relative;
+  isolation: isolate;
   display: grid;
   grid-template-columns: repeat(3, minmax(58px, 1fr));
   height: 44px;
   margin-inline-start: 6px;
+  overflow: hidden;
   border: 1px solid var(--line);
 }
 
 .weather-mode-control__button {
+  position: relative;
+  isolation: isolate;
   display: inline-flex;
   min-width: 58px;
   height: 42px;
@@ -20,16 +25,91 @@
   background: transparent;
   color: var(--ink-muted);
   cursor: pointer;
+  transition:
+    color 180ms var(--ease-rain),
+    background-color 260ms var(--ease-rain),
+    transform 320ms var(--ease-drift);
 }
 
 .weather-mode-control__button:last-child {
   border-inline-end: 0;
 }
 
-.weather-mode-control__button:hover,
+.weather-mode-control__button::after {
+  position: absolute;
+  z-index: 0;
+  right: 8px;
+  bottom: 5px;
+  left: 8px;
+  height: 1px;
+  background: currentColor;
+  content: '';
+  opacity: 0;
+  pointer-events: none;
+  transform: scaleX(0.2);
+  transform-origin: center;
+  transition:
+    opacity 180ms var(--ease-rain),
+    transform 320ms var(--ease-drift);
+}
+
+.weather-mode-control__button > * {
+  position: relative;
+  z-index: 1;
+}
+
 .weather-mode-control__button[aria-pressed="true"] {
   background: var(--accent-soft);
   color: var(--accent-strong);
+}
+
+/* 悬停只短暂预览目标主题，底线与图标微动让可点击边界更明确。 */
+@media (hover: hover) {
+  .weather-mode-control__button:hover {
+    background: color-mix(in srgb, var(--accent-soft) 72%, transparent);
+    color: var(--accent-strong);
+    transform: translateY(-1px);
+  }
+
+  .weather-mode-control__button:hover::after,
+  .weather-mode-control__button:focus-visible::after,
+  .weather-mode-control__button[aria-pressed="true"]::after {
+    opacity: 0.82;
+    transform: scaleX(1);
+  }
+
+  .weather-mode-control__button:hover svg,
+  .weather-mode-control__button:focus-visible svg {
+    transform: translateY(-1px);
+  }
+
+  .weather-mode-control__button[data-weather-mode-value="clear"]:hover svg { transform: translateY(-1px) rotate(12deg); }
+  .weather-mode-control__button[data-weather-mode-value="rain"]:hover svg { transform: translateY(1px); }
+  .weather-mode-control__button[data-weather-mode-value="night"]:hover svg { transform: translateY(-1px) rotate(-10deg); }
+}
+
+.weather-mode-control__button:focus-visible {
+  z-index: 1;
+  outline: 1px solid var(--accent-strong);
+  outline-offset: -3px;
+  color: var(--accent-strong);
+}
+
+.weather-mode-control__button svg {
+  transition: transform 320ms var(--ease-drift);
+}
+
+.weather-mode-control__button:active {
+  transform: translateY(0);
+}
+
+/* 触屏与减少动态偏好仍保留清晰的选中态，避免动画成为必要反馈。 */
+@media (prefers-reduced-motion: reduce) {
+  .weather-mode-control__button,
+  .weather-mode-control__button::after,
+  .weather-mode-control__button svg {
+    transition: none;
+  }
 }
 
 .weather-mode-control__label {
