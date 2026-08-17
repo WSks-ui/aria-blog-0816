@@ -31,12 +31,6 @@
 		let arrivalPrimeFrame = 0;
 		let arrivalFrame = 0;
 		let navigating = false;
-		let activeMode: 'scene' | 'fade' = 'scene';
-
-		const setTransitionMode = (mode: 'scene' | 'fade') => {
-			activeMode = mode;
-			root.dataset.transitionMode = mode;
-		};
 
 		const resetTransition = () => {
 			window.clearTimeout(navigationTimer);
@@ -46,9 +40,9 @@
 			window.cancelAnimationFrame(arrivalFrame);
 			navigating = false;
 			root.classList.remove('is-leaving', 'is-arrival-ready', 'is-arriving');
-			delete root.dataset.transitionMode;
 			delete document.documentElement.dataset.routeTransition;
 			delete document.documentElement.dataset.routeArrival;
+			delete document.documentElement.dataset.routeDirection;
 			try {
 				window.sessionStorage.removeItem(ROUTE_ARRIVAL_KEY);
 			} catch {
@@ -57,17 +51,20 @@
 		};
 
 		const routeArrival = document.documentElement.dataset.routeArrival;
-		if ((routeArrival === 'scene' || routeArrival === 'fade' || routeArrival === 'true') && !reduceMotion.matches) {
-			setTransitionMode(routeArrival === 'fade' ? 'fade' : 'scene');
-			// 场景模式先用不透明遮罩接住 HTML 首帧；淡入淡出模式只叠加当前纸面色，
-			// 两者都在下一帧才退场，避免新页面的首帧和遮罩动画彼此抢占。
+		if (routeArrival === 'slide' && !reduceMotion.matches) {
+			// 主导航的入场动画由 BaseLayout 的内联 CSS 在首帧执行；这里只负责在动画
+			// 结束后清理 data 属性，避免浏览器后退或刷新时继承上一次的运动方向。
+			arrivalTimer = window.setTimeout(resetTransition, 260);
+		} else if ((routeArrival === 'scene' || routeArrival === 'true') && !reduceMotion.matches) {
+			// 场景模式先用不透明遮罩接住 HTML 首帧，下一帧才开始退场，
+			// 否则遮罩淡出时下层仍是黑色，末尾会整页突然显现为一次白闪。
 			root.classList.add('is-arrival-ready');
 			arrivalPrimeFrame = window.requestAnimationFrame(() => {
 				arrivalFrame = window.requestAnimationFrame(() => {
 					delete document.documentElement.dataset.routeArrival;
 					root.classList.remove('is-arrival-ready');
 					root.classList.add('is-arriving');
-					arrivalTimer = window.setTimeout(resetTransition, activeMode === 'fade' ? 220 : 680);
+					arrivalTimer = window.setTimeout(resetTransition, 680);
 				});
 			});
 		} else {
@@ -84,9 +81,9 @@
 
 			const target = event.target;
 			if (!(target instanceof Element)) return;
-			// 文章入口保留场景转场，主导航使用更短的淡入淡出；其余链接不主动接管，
+			// 文章入口保留场景转场，主导航使用更短的左右淡入淡出；其余链接不主动接管，
 			// 避免影响搜索、关系图、哈希定位和外部跳转。
-			const link = target.closest('a[data-article-transition-link], a[data-route-transition-link], a[data-nav-fade-link]');
+			const link = target.closest('a[data-article-transition-link], a[data-route-transition-link], a[data-nav-slide-link]');
 			if (!link || link.hasAttribute('download')) return;
 			const rawTarget = link.getAttribute('target');
 			const rawHref = link.getAttribute('href');
@@ -103,16 +100,40 @@
 
 			event.preventDefault();
 			navigating = true;
-			const mode = link.hasAttribute('data-nav-fade-link') ? 'fade' : 'scene';
+			const isNavigationSlide = link.hasAttribute('data-nav-slide-link');
+			const destinationIndex = Number(link.getAttribute('data-nav-index'));
+			const activeIndex = Number(document.querySelector('[data-nav-slide-link][aria-current="page"]')?.getAttribute('data-nav-index'));
+			const direction = Number.isFinite(destinationIndex) && Number.isFinite(activeIndex) && destinationIndex < activeIndex
+				? 'backward'
+				: 'forward';
 			// 到达动画尚未结束时也允许继续导航，但必须先取消旧清理任务，
 			// 避免它在离场中途移除遮罩并取消本次 navigationTimer。
 			window.clearTimeout(arrivalTimer);
 			window.cancelAnimationFrame(arrivalPrimeFrame);
 			window.cancelAnimationFrame(arrivalFrame);
+			if (isNavigationSlide) {
+				document.documentElement.dataset.routeTransition = 'slide-leaving';
+				document.documentElement.dataset.routeDirection = direction;
+				navigationTimer = window.setTimeout(() => {
+					try {
+						window.sessionStorage.setItem(ROUTE_ARRIVAL_KEY, JSON.stringify({
+							pathname: destination.pathname,
+							search: destination.search,
+							mode: 'slide',
+							direction,
+						}));
+					} catch {
+						// 隐私模式禁用会话存储时仍可完成离场，只会退化为目标页无入场动画。
+					}
+					safetyTimer = window.setTimeout(resetTransition, 520);
+					window.location.assign(destination.href);
+				}, 180);
+				return;
+			}
 			root.classList.remove('is-arrival-ready', 'is-arriving');
-			setTransitionMode(mode);
 			root.classList.add('is-leaving');
 			document.documentElement.dataset.routeTransition = 'leaving';
+			delete document.documentElement.dataset.routeDirection;
 
 			navigationTimer = window.setTimeout(() => {
 				// 标记绑定具体目标，并在真正导航前才写入；浏览器后退或重定向不会让无关页面误播入场。
@@ -120,15 +141,15 @@
 					window.sessionStorage.setItem(ROUTE_ARRIVAL_KEY, JSON.stringify({
 						pathname: destination.pathname,
 						search: destination.search,
-						mode,
+						mode: 'scene',
 					}));
 				} catch {
 					// 隐私模式禁用会话存储时仍完成离场与导航，只省略下一页的反向镜头。
 				}
 				// 哈希导航、浏览器拦截或异常路由都不应把全屏遮罩永久留在当前页面。
-				safetyTimer = window.setTimeout(resetTransition, mode === 'fade' ? 520 : 1400);
+				safetyTimer = window.setTimeout(resetTransition, 1400);
 				window.location.assign(destination.href);
-			}, mode === 'fade' ? 150 : 800);
+			}, 800);
 		});
 
 		// 浏览器从往返缓存恢复旧页面时，离场类可能被完整保存，必须立刻解除遮罩。
@@ -166,15 +187,6 @@
 	.route-transition.is-arrival-ready .route-transition__backdrop {
 		opacity: 1;
 	}
-
-	/* 主导航只需要遮住重绘中的一帧。禁用场景层后，视觉上是迅速的纸面淡出与淡入。 */
-	.route-transition[data-transition-mode='fade'] .route-transition__backdrop { background: var(--paper-0); }
-	.route-transition[data-transition-mode='fade'].is-arrival-ready .route-transition__backdrop { opacity: 0.86; }
-	.route-transition[data-transition-mode='fade'] .route-transition__corridor,
-	.route-transition[data-transition-mode='fade'] .route-transition__rain,
-	.route-transition[data-transition-mode='fade'] .route-transition__papers,
-	.route-transition[data-transition-mode='fade'] .route-transition__axis,
-	.route-transition[data-transition-mode='fade'] .route-transition__label { display: none; }
 
 	.route-transition__backdrop,
 	.route-transition__corridor,
@@ -290,8 +302,6 @@
 	.route-transition.is-arriving .route-transition__papers span { animation: route-paper-out 520ms var(--ease-rain) var(--paper-delay) both; }
 	.route-transition.is-arriving .route-transition__axis { animation: route-axis-out 540ms var(--ease-rain) both; }
 	.route-transition.is-arriving .route-transition__label { animation: route-label-out 440ms ease-out both; }
-	.route-transition[data-transition-mode='fade'].is-leaving .route-transition__backdrop { animation: route-nav-fade-out 150ms ease-out both; }
-	.route-transition[data-transition-mode='fade'].is-arriving .route-transition__backdrop { animation: route-nav-fade-in 200ms ease-out both; }
 
 	@keyframes route-backdrop-in { from { opacity: 0; } 72% { opacity: 0.94; } 90%, to { opacity: 1; } }
 	@keyframes route-backdrop-out { from { opacity: 1; } 24% { opacity: 0.92; } to { opacity: 0; } }
@@ -312,8 +322,6 @@
 	@keyframes route-axis-out { from { opacity: 0.9; transform: scaleX(1); } to { opacity: 0; transform: scaleX(0); } }
 	@keyframes route-label-in { 0%, 35% { opacity: 0; transform: translateY(8px); } 58%, 88% { opacity: 0.82; transform: translateY(0); } to { opacity: 0; } }
 	@keyframes route-label-out { from { opacity: 0.82; } to { opacity: 0; } }
-	@keyframes route-nav-fade-out { from { opacity: 0; } to { opacity: 0.86; } }
-	@keyframes route-nav-fade-in { from { opacity: 0.86; } to { opacity: 0; } }
 
 	@media (prefers-reduced-motion: reduce) {
 		.route-transition { display: none; }
