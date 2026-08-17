@@ -110,37 +110,99 @@ const firstTool = tools.find((tool) => tool.stage === initialStage.id) ?? tools[
 
 			const cards = [...root.querySelectorAll<HTMLElement>('[data-tool-card]')];
 			const stageButtons = [...root.querySelectorAll<HTMLButtonElement>('[data-tool-stage-button]')];
+			const status = root.querySelector<HTMLElement>('[data-tool-status]');
+			const grid = root.querySelector<HTMLElement>('[data-tool-grid]');
 			const statusName = root.querySelector<HTMLElement>('[data-tool-status-name]');
 			const statusStage = root.querySelector<HTMLElement>('[data-tool-status-stage]');
 			const statusSummary = root.querySelector<HTMLElement>('[data-tool-status-summary]');
 			// 这里从第一个实际阶段开始，和服务端输出的默认按钮状态保持一致，避免首屏先闪出全部卡片。
 			let activeStage = stageButtons.find((button) => button.getAttribute('aria-pressed') === 'true')?.dataset.toolStage ?? stageButtons[0]?.dataset.toolStage ?? '';
+			let stageReady = false;
+			let pendingStage = '';
+			let transitionSequence = 0;
+			const transitionNodes = [status, grid].filter((node): node is HTMLElement => Boolean(node));
+			const prefersReducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
 			const setActiveRecord = (card: HTMLElement | undefined) => {
-				if (!card) return;
+				if (!card) {
+					cards.forEach((item) => item.classList.remove('is-active'));
+					statusName && (statusName.textContent = '工具导航');
+					statusStage && (statusStage.textContent = 'TOOLCHAIN');
+					statusSummary && (statusSummary.textContent = '');
+					return;
+				}
 				cards.forEach((item) => item.classList.toggle('is-active', item === card));
 				statusName && (statusName.textContent = card.dataset.toolName ?? '工具导航');
 				statusStage && (statusStage.textContent = card.dataset.toolStageCode ?? 'TOOLCHAIN');
 				statusSummary && (statusSummary.textContent = card.dataset.toolSummary ?? '');
 			};
 
-			const applyStage = (stage: string) => {
-				activeStage = stage;
-				root.dataset.activeStage = stage;
-				stageButtons.forEach((button) => {
-					button.setAttribute('aria-pressed', String(button.dataset.toolStage === stage));
-				});
-
+			const updateStageContent = (stage: string, animateCards: boolean) => {
 				const visibleCards = cards.filter((card) => card.dataset.toolStage === stage);
+				let visibleIndex = 0;
+
 				cards.forEach((card) => {
+					card.classList.remove('is-stage-entering');
 					const visible = visibleCards.includes(card);
 					card.dataset.filteredOut = String(!visible);
 					card.setAttribute('aria-hidden', String(!visible));
 					card.querySelectorAll<HTMLAnchorElement>('a').forEach((link) => {
 						link.tabIndex = visible ? 0 : -1;
 					});
+
+					if (visible) {
+						card.style.setProperty('--tool-stage-delay', `${visibleIndex * 36}ms`);
+						if (animateCards) card.classList.add('is-stage-entering');
+						visibleIndex += 1;
+					} else {
+						card.style.removeProperty('--tool-stage-delay');
+					}
 				});
+
 				setActiveRecord(visibleCards[0]);
+				if (animateCards) {
+					// 先让浏览器提交“入场前”的样式，再移除状态类，才能稳定触发卡片过渡。
+					window.requestAnimationFrame(() => {
+						visibleCards.forEach((card) => card.classList.remove('is-stage-entering'));
+					});
+				}
+			};
+
+			const applyStage = (stage: string, animate = true) => {
+				if (!stage || (stage === activeStage && (stageReady || pendingStage === stage))) return;
+				activeStage = stage;
+				pendingStage = stage;
+				root.dataset.activeStage = stage;
+				stageButtons.forEach((button) => {
+					button.setAttribute('aria-pressed', String(button.dataset.toolStage === stage));
+				});
+
+				const shouldAnimate = animate && stageReady && !prefersReducedMotion();
+				const sequence = ++transitionSequence;
+				if (!shouldAnimate) {
+					transitionNodes.forEach((node) => node.classList.remove('is-stage-leaving'));
+					grid?.removeAttribute('aria-busy');
+					updateStageContent(stage, false);
+					stageReady = true;
+					pendingStage = '';
+					return;
+				}
+
+				/*
+				 * 阶段切换不设置固定高度，也不在过渡期间压缩 Grid 行轨道。
+				 * 先淡出当前内容，等离场完成后一次性更新筛选状态，再淡入新内容，
+				 * 这样阶段卡片数量变化时不会把“空白占位”暴露给用户。
+				 */
+				transitionNodes.forEach((node) => node.classList.add('is-stage-leaving'));
+				grid?.setAttribute('aria-busy', 'true');
+				window.setTimeout(() => {
+					if (sequence !== transitionSequence) return;
+					updateStageContent(stage, true);
+					transitionNodes.forEach((node) => node.classList.remove('is-stage-leaving'));
+					grid?.removeAttribute('aria-busy');
+					stageReady = true;
+					pendingStage = '';
+				}, 180);
 			};
 
 			stageButtons.forEach((button) => {
@@ -150,7 +212,10 @@ const firstTool = tools.find((tool) => tool.stage === initialStage.id) ?? tools[
 					event.preventDefault();
 					const current = stageButtons.indexOf(button);
 					const direction = event.key === 'ArrowDown' ? 1 : -1;
-					stageButtons[(current + direction + stageButtons.length) % stageButtons.length]?.focus();
+					const nextButton = stageButtons[(current + direction + stageButtons.length) % stageButtons.length];
+					nextButton?.focus();
+					// 工具栏使用上下方向键时同步切换内容，避免焦点已移动但目录仍停留在旧阶段。
+					applyStage(nextButton?.dataset.toolStage ?? '');
 				});
 			});
 
@@ -163,7 +228,12 @@ const firstTool = tools.find((tool) => tool.stage === initialStage.id) ?? tools[
 				});
 			});
 
-			applyStage(activeStage);
+			/*
+			 * 首屏先直接建立已选阶段，再允许后续交互进入动画路径。
+			 * 不复用 applyStage(activeStage)，避免少数页面载入时首个点击仍被判定为初始化而跳过离场动画。
+			 */
+			updateStageContent(activeStage, false);
+			stageReady = true;
 		});
 	}
 
@@ -306,6 +376,13 @@ const firstTool = tools.find((tool) => tool.stage === initialStage.id) ?? tools[
 		border: 1px solid var(--line);
 		border-left: 3px solid var(--accent-strong);
 		background: color-mix(in srgb, var(--paper-0) 86%, transparent);
+		transition: opacity 180ms var(--ease-rain), transform 240ms var(--ease-drift);
+		will-change: opacity, transform;
+	}
+	.tutorial-toolkit__status.is-stage-leaving,
+	.tutorial-toolkit__grid.is-stage-leaving {
+		opacity: 0;
+		transform: translateY(8px);
 	}
 	.tutorial-toolkit__status p { color: var(--ink-muted); }
 	.tutorial-toolkit__status strong {
@@ -322,7 +399,10 @@ const firstTool = tools.find((tool) => tool.stage === initialStage.id) ?? tools[
 		grid-template-columns: repeat(3, minmax(0, 1fr));
 		gap: 10px;
 		margin-top: 10px;
+		transition: opacity 180ms var(--ease-rain), transform 240ms var(--ease-drift);
+		will-change: opacity, transform;
 	}
+	.tutorial-toolkit__grid.is-stage-leaving { pointer-events: none; }
 
 	.tutorial-tool {
 		min-height: 244px;
@@ -388,6 +468,14 @@ const firstTool = tools.find((tool) => tool.stage === initialStage.id) ?? tools[
 	.tutorial-tool:focus-within .tutorial-tool__open > footer svg,
 	.tutorial-tool.is-active .tutorial-tool__open > footer svg { transform: translateX(4px); }
 
+	/* 新阶段的卡片在父级淡入时错峰回到原位，避免所有内容同时“弹出”。 */
+	.tutorial-tool.is-stage-entering {
+		opacity: 0;
+		pointer-events: none;
+		transform: translateY(10px);
+		transition-delay: var(--tool-stage-delay, 0ms);
+	}
+
 	@media (max-width: 1050px) {
 		.tutorial-toolkit__body { grid-template-columns: 1fr; }
 		.tutorial-toolkit__rail-inner { position: static; }
@@ -405,6 +493,9 @@ const firstTool = tools.find((tool) => tool.stage === initialStage.id) ?? tools[
 
 	@media (prefers-reduced-motion: reduce) {
 		.tutorial-tool,
+		.tutorial-toolkit__status,
+		.tutorial-toolkit__grid,
+		.tutorial-tool.is-stage-entering,
 		.tutorial-toolkit__stages button,
 		.tutorial-toolkit__source,
 		.tutorial-tool__open > footer,
