@@ -70,15 +70,16 @@
 			<rect x="967" y="468" width="16" height="16" style="--paper-index: 10" />
 		</g>
 
-		<g class="hero-scene__telemetry">
-			<text x="50" y="60">VISUAL WEATHER / LIVE</text>
-			<text x="50" y="566">PRECIPITATION / LIVE · CN / UTC+8</text>
-		</g>
-
 		<g class="hero-scene__night-word" filter="url(#hero-liquid)">
 			<text x="790" y="446">ARCHIVE / 07</text>
 		</g>
 	</svg>
+
+	<!-- 置于左侧遮罩之上，保留制图标注气质，同时确保浅色背景下仍有足够对比度。 -->
+	<div class="hero-scene__telemetry" aria-hidden="true">
+		<span>VISUAL WEATHER / LIVE</span>
+		<span>PRECIPITATION / LIVE · CN / UTC+8</span>
+	</div>
 
 	<div class="hero-scene__wet-glass hero-scene__wet-glass--a"></div>
 	<div class="hero-scene__wet-glass hero-scene__wet-glass--b"></div>
@@ -502,10 +503,40 @@
 	.hero-scene[data-beat='3'] .hero-scene__satellites { opacity: 0.12; transform: translateY(12px); }
 
 	.hero-scene__telemetry {
-		fill: var(--ink-muted);
+		position: absolute;
+		inset: 0;
+		z-index: 4;
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		justify-content: space-between;
+		padding: 9.7% 4.2% 8.2%;
+		pointer-events: none;
 		font-family: var(--font-ui);
-		font-size: 9px;
-		opacity: 0.74;
+		font-size: 10px;
+		font-weight: 600;
+		letter-spacing: 0.12em;
+		line-height: 1.3;
+		color: var(--ink);
+		opacity: 0.92;
+	}
+
+	.hero-scene__telemetry span {
+		display: inline-flex;
+		align-items: center;
+		min-height: 16px;
+		padding-inline-start: 7px;
+		border-inline-start: 1px solid color-mix(in srgb, var(--accent-strong) 72%, transparent);
+		text-shadow: 0 1px 0 color-mix(in srgb, var(--paper-0) 88%, transparent);
+	}
+
+	:global(html[data-weather-mode='night']) .hero-scene__telemetry {
+		color: var(--night-text);
+	}
+
+	:global(html[data-weather-mode='night']) .hero-scene__telemetry span {
+		border-color: color-mix(in srgb, var(--night-text) 58%, transparent);
+		text-shadow: 0 1px 0 color-mix(in srgb, var(--night-0) 90%, transparent);
 	}
 
 	.hero-scene__night-word {

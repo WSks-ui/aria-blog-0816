@@ -45,7 +45,7 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 					<div class="home-hero__copy">
 						<p>PERSONAL ARCHIVE / 2026</p>
 						<h1 id="home-title">Aria-7</h1>
-						<strong>雨线之外，保存仍在形成的知识与观察。</strong>
+						<strong>欢迎来到我的个人博客，随便看看</strong>
 						<span>长文、学习笔记、项目、影像、代码与指南。</span>
 						<a class="home-hero__enter" href="/about/" data-route-transition-link>
 							<span>关于我</span>
@@ -153,12 +153,11 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 			</div>
 		</section>
 
-		<section class="home-scene home-scene--index" aria-labelledby="index-title" data-home-reveal>
+		<section class="home-scene home-scene--index" aria-label="内容索引" data-home-reveal>
 			<div class="scene-inner">
 				<header class="section-heading index-heading">
 					<div>
 						<p>03 / INDEX SYSTEM</p>
-						<h2 id="index-title">寻找一条路径</h2>
 					</div>
 					<span>{String(posts.length).padStart(2, '0')} RECORDS / {String(tagCounts.length).padStart(2, '0')} SIGNALS</span>
 				</header>
@@ -473,6 +472,10 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 
 	.home-scene--index { margin-top: 112px; padding-block: 96px 82px; background: color-mix(in srgb, var(--accent-soft) 44%, var(--paper-0)); }
 	.section-heading { display: flex; align-items: end; justify-content: space-between; gap: 32px; margin-bottom: 42px; }
+	/* 索引标题移除后只保留编号与统计，缩短页眉底距，避免留下不可见的标题占位。 */
+	.index-heading { margin-bottom: 28px; }
+	.index-heading > div { display: grid; gap: 0; }
+	.index-heading > div p { margin: 0; }
 	.index-heading > span { font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
 	.kind-index { --index-pointer-x: 50%; --index-pointer-y: 50%; position: relative; isolation: isolate; display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr; align-items: end; height: 410px; border-bottom: 1px solid var(--line-strong); transition: grid-template-columns 720ms var(--ease-drift); }
 	.kind-index::before,
