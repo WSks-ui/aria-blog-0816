@@ -72,9 +72,39 @@ const pageCount = isPhoto ? posts.length + IMAGE_COLLECTION.length : isTutorial 
 				<div class="type-stage" aria-hidden="true">
 					<ContentCoverScene kind={kind} class="type-stage__scene" />
 				</div>
-				<section class="page-list" aria-label={`${POST_KIND_LABELS[kind]}列表`}>
-					{posts.length > 0 ? posts.map((post, index) => <ArticleRow post={post} index={index + 1} />) : <p class="empty">这个分类还没有正式发布的内容。</p>}
-				</section>
+				{kind === 'essay' && posts.length === 0 ? (
+					<section class="essay-empty-state" aria-labelledby="essay-empty-title">
+						<header class="essay-empty-state__lead">
+							<div>
+								<p class="essay-empty-state__eyebrow">WRITING INDEX / UNFILED</p>
+								<h2 id="essay-empty-title">未归档观察</h2>
+							</div>
+							<p class="essay-empty-state__summary">这里暂时没有已发布的长文。先保留几个会慢慢展开的方向。</p>
+						</header>
+						<div class="essay-empty-state__grid" aria-label="长文写作方向">
+							<div class="essay-empty-state__item">
+								<span>01 / TIME</span>
+								<h3>时间</h3>
+								<p>给经验留下回看的间隔。</p>
+							</div>
+							<div class="essay-empty-state__item">
+								<span>02 / OBSERVATION</span>
+								<h3>观察</h3>
+								<p>从日常细节里保留值得追问的部分。</p>
+							</div>
+							<div class="essay-empty-state__item">
+								<span>03 / THOUGHT</span>
+								<h3>思考</h3>
+								<p>把一次经历慢慢写到可以被理解。</p>
+							</div>
+						</div>
+						<p class="essay-empty-state__status"><span>ARCHIVE STATUS</span> UNFILED / 等一件事被慢慢说清楚。</p>
+					</section>
+				) : (
+					<section class="page-list" aria-label={`${POST_KIND_LABELS[kind]}列表`}>
+						{posts.length > 0 ? posts.map((post, index) => <ArticleRow post={post} index={index + 1} />) : <p class="empty">这个分类还没有正式发布的内容。</p>}
+					</section>
+				)}
 			</>
 		)}
 	</div>
@@ -96,5 +126,29 @@ const pageCount = isPhoto ? posts.length + IMAGE_COLLECTION.length : isTutorial 
 	.tutorial-entries__header p { color: var(--accent-strong); }
 	.tutorial-entries__header h2 { margin: 7px 0 0; font-family: var(--font-display); font-size: 36px; font-weight: 500; }
 	.empty { padding-block: 72px; border-block: 1px solid var(--line); color: var(--ink-muted); }
+	.essay-empty-state { margin-top: 64px; border-block: 1px solid var(--line); }
+	.essay-empty-state__lead { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 0.82fr); gap: 36px; align-items: end; padding-block: 28px 26px; border-bottom: 1px solid var(--line); }
+	.essay-empty-state__eyebrow,
+	.essay-empty-state__item > span,
+	.essay-empty-state__status { margin: 0; font-family: var(--font-ui); font-size: 10px; line-height: 1.5; color: var(--ink-muted); }
+	.essay-empty-state__eyebrow { color: var(--accent-strong); }
+	.essay-empty-state h2 { margin: 8px 0 0; font-family: var(--font-display); font-size: 34px; font-weight: 500; }
+	.essay-empty-state__summary { max-width: 34ch; margin: 0; color: var(--ink-muted); }
+	.essay-empty-state__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+	.essay-empty-state__item { min-height: 156px; padding: 24px 24px 28px 0; }
+	.essay-empty-state__item + .essay-empty-state__item { padding-inline: 24px; border-inline-start: 1px solid var(--line); }
+	.essay-empty-state__item:last-child { padding-inline-end: 0; }
+	.essay-empty-state__item h3 { margin: 22px 0 8px; font-family: var(--font-display); font-size: 27px; font-weight: 500; }
+	.essay-empty-state__item p { max-width: 22ch; margin: 0; color: var(--ink-muted); }
+	.essay-empty-state__status { padding-block: 14px 16px; border-top: 1px solid var(--line); }
+	.essay-empty-state__status span { margin-right: 18px; color: var(--accent-strong); }
+	@media (max-width: 760px) {
+		.essay-empty-state__lead { grid-template-columns: 1fr; gap: 16px; }
+		.essay-empty-state__grid { grid-template-columns: 1fr; }
+		.essay-empty-state__item,
+		.essay-empty-state__item + .essay-empty-state__item,
+		.essay-empty-state__item:last-child { min-height: auto; padding: 22px 0; border-inline-start: 0; border-top: 1px solid var(--line); }
+		.essay-empty-state__item:first-child { border-top: 0; }
+	}
 	@media (max-width: 760px) { .page-shell { padding-inline: 20px; } }
 </style>
