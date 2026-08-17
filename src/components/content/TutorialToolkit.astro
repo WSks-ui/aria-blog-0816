@@ -11,7 +11,6 @@ interface Props {
 }
 
 const { tools } = Astro.props;
-const firstTool = tools[0];
 const stageCounts = new Map(
 	TUTORIAL_TOOL_STAGES.map((stage) => [
 		stage.id,
@@ -19,6 +18,9 @@ const stageCounts = new Map(
 	]),
 );
 const stageById = new Map(TUTORIAL_TOOL_STAGES.map((stage) => [stage.id, stage]));
+// 默认进入第一个实际有工具的学习阶段，避免再引入一个会稀释目录层级的“全部工具”虚拟选项。
+const initialStage = TUTORIAL_TOOL_STAGES.find((stage) => (stageCounts.get(stage.id) ?? 0) > 0) ?? TUTORIAL_TOOL_STAGES[0];
+const firstTool = tools.find((tool) => tool.stage === initialStage.id) ?? tools[0];
 ---
 
 <section class="tutorial-toolkit" aria-labelledby="tutorial-toolkit-title" data-tutorial-toolkit>
@@ -30,6 +32,7 @@ const stageById = new Map(TUTORIAL_TOOL_STAGES.map((stage) => [stage.id, stage])
 		<div class="tutorial-toolkit__reference">
 			<span>SELECT A STAGE / HOVER A RECORD</span>
 			<strong>ON-SITE DOSSIERS / {String(tools.length).padStart(2, '0')}</strong>
+			<a class="tutorial-toolkit__source" href="https://github.com/PKUFlyingPig/cs-self-learning/" target="_blank" rel="noreferrer">github.com/PKUFlyingPig/cs-self-learning/</a>
 		</div>
 	</header>
 
@@ -38,13 +41,8 @@ const stageById = new Map(TUTORIAL_TOOL_STAGES.map((stage) => [stage.id, stage])
 			<div class="tutorial-toolkit__rail-inner">
 				<p class="tutorial-toolkit__rail-label">LEARNING PATH / 06</p>
 				<div class="tutorial-toolkit__stages" role="toolbar" aria-label="工具学习阶段筛选">
-					<button type="button" data-tool-stage-button data-tool-stage="all" aria-pressed="true">
-						<span>00</span>
-						<strong>全部工具</strong>
-						<small>{String(tools.length).padStart(2, '0')}</small>
-					</button>
 					{TUTORIAL_TOOL_STAGES.map((stage) => (
-						<button type="button" data-tool-stage-button data-tool-stage={stage.id} aria-pressed="false" style={`--stage-accent: ${stage.accent};`}>
+						<button type="button" data-tool-stage-button data-tool-stage={stage.id} aria-pressed={stage.id === initialStage.id ? 'true' : 'false'} style={`--stage-accent: ${stage.accent};`}>
 							<span>{stage.index}</span>
 							<strong>{stage.label}</strong>
 							<small>{String(stageCounts.get(stage.id) ?? 0).padStart(2, '0')}</small>
@@ -115,7 +113,8 @@ const stageById = new Map(TUTORIAL_TOOL_STAGES.map((stage) => [stage.id, stage])
 			const statusName = root.querySelector<HTMLElement>('[data-tool-status-name]');
 			const statusStage = root.querySelector<HTMLElement>('[data-tool-status-stage]');
 			const statusSummary = root.querySelector<HTMLElement>('[data-tool-status-summary]');
-			let activeStage = 'all';
+			// 这里从第一个实际阶段开始，和服务端输出的默认按钮状态保持一致，避免首屏先闪出全部卡片。
+			let activeStage = stageButtons.find((button) => button.getAttribute('aria-pressed') === 'true')?.dataset.toolStage ?? stageButtons[0]?.dataset.toolStage ?? '';
 
 			const setActiveRecord = (card: HTMLElement | undefined) => {
 				if (!card) return;
@@ -132,7 +131,7 @@ const stageById = new Map(TUTORIAL_TOOL_STAGES.map((stage) => [stage.id, stage])
 					button.setAttribute('aria-pressed', String(button.dataset.toolStage === stage));
 				});
 
-				const visibleCards = cards.filter((card) => stage === 'all' || card.dataset.toolStage === stage);
+				const visibleCards = cards.filter((card) => card.dataset.toolStage === stage);
 				cards.forEach((card) => {
 					const visible = visibleCards.includes(card);
 					card.dataset.filteredOut = String(!visible);
@@ -145,7 +144,7 @@ const stageById = new Map(TUTORIAL_TOOL_STAGES.map((stage) => [stage.id, stage])
 			};
 
 			stageButtons.forEach((button) => {
-				button.addEventListener('click', () => applyStage(button.dataset.toolStage ?? 'all'));
+				button.addEventListener('click', () => applyStage(button.dataset.toolStage ?? ''));
 				button.addEventListener('keydown', (event) => {
 					if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
 					event.preventDefault();
@@ -157,14 +156,14 @@ const stageById = new Map(TUTORIAL_TOOL_STAGES.map((stage) => [stage.id, stage])
 
 			cards.forEach((card) => {
 				card.addEventListener('pointerenter', () => {
-					if (activeStage === 'all' || card.dataset.toolStage === activeStage) setActiveRecord(card);
+					if (card.dataset.toolStage === activeStage) setActiveRecord(card);
 				});
 				card.addEventListener('focusin', () => {
-					if (activeStage === 'all' || card.dataset.toolStage === activeStage) setActiveRecord(card);
+					if (card.dataset.toolStage === activeStage) setActiveRecord(card);
 				});
 			});
 
-			applyStage('all');
+			applyStage(activeStage);
 		});
 	}
 
@@ -241,6 +240,21 @@ const stageById = new Map(TUTORIAL_TOOL_STAGES.map((stage) => [stage.id, stage])
 	}
 
 	.tutorial-toolkit__reference > strong { color: var(--accent-strong); font-weight: 500; }
+	.tutorial-toolkit__source {
+		max-width: 100%;
+		overflow: hidden;
+		color: var(--ink-muted);
+		font-family: var(--font-ui);
+		font-size: 10px;
+		line-height: 1.4;
+		text-decoration: none;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		transition: color var(--duration-base) var(--ease-rain), border-color var(--duration-base) var(--ease-rain);
+		border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+	}
+	.tutorial-toolkit__source:hover,
+	.tutorial-toolkit__source:focus-visible { color: var(--accent-strong); border-color: var(--accent-strong); }
 
 	.tutorial-toolkit__body {
 		display: grid;
@@ -319,15 +333,13 @@ const stageById = new Map(TUTORIAL_TOOL_STAGES.map((stage) => [stage.id, stage])
 		transition: min-height 420ms var(--ease-drift), opacity 280ms var(--ease-rain), transform 420ms var(--ease-drift), border-color var(--duration-base) var(--ease-rain), box-shadow 420ms var(--ease-rain), margin 420ms var(--ease-drift);
 	}
 
-	.tutorial-tool[data-filtered-out='true'] {
-		min-height: 0;
-		max-height: 0;
-		opacity: 0;
-		margin-block: -5px;
-		border-color: transparent;
-		pointer-events: none;
-		transform: scale(0.96);
-	}
+	/*
+	 * 被筛掉的卡片必须从 Grid 的布局树中移除。
+	 * 仅把高度压到 0 会被卡片内部的 min-height 和 Grid 自动行轨道重新撑开，
+	 * 这正是阶段只有一两张工具时出现大面积空白的原因；display:none 也同时保证
+	 * 隐藏卡片不会继续参与鼠标命中或键盘焦点顺序。
+	 */
+	.tutorial-tool[data-filtered-out='true'] { display: none; }
 
 	.tutorial-tool:hover,
 	.tutorial-tool:focus-within,
@@ -394,6 +406,7 @@ const stageById = new Map(TUTORIAL_TOOL_STAGES.map((stage) => [stage.id, stage])
 	@media (prefers-reduced-motion: reduce) {
 		.tutorial-tool,
 		.tutorial-toolkit__stages button,
+		.tutorial-toolkit__source,
 		.tutorial-tool__open > footer,
 		.tutorial-tool__open > footer svg { transition: none; }
 	}
