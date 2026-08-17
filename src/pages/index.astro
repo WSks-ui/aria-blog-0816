@@ -224,70 +224,157 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 </BaseLayout>
 
 <script>
+	let disposeHomeScenes: (() => void) | undefined;
+
 	function initHomeScenes() {
+		// View Transitions 或未来的客户端路由会再次触发 page-load。先回收旧观察器和 RAF，
+		// 让这一页即使被反复进入也只保留一套首页交互，避免隐性的监听器与动画叠加。
+		disposeHomeScenes?.();
+
 		const page = document.querySelector<HTMLElement>('.home-page-scenes');
-		if (!page || page.dataset.motionReady === 'true') return;
+		if (!page) return;
 		page.dataset.motionReady = 'true';
 		document.documentElement.classList.add('home-motion-ready');
 
+		const controller = new AbortController();
+		const { signal } = controller;
 		const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		// 不能仅用 `"ResizeObserver" in window` 做分支：TypeScript 的现代 DOM 类型会把
+		// 否定分支判定为不可达。单独保存运行时能力标记，既保留旧浏览器兜底也方便维护。
+		const supportsIntersectionObserver = typeof window.IntersectionObserver === 'function';
+		const supportsResizeObserver = typeof window.ResizeObserver === 'function';
 		const revealTargets = page.querySelectorAll<HTMLElement>('[data-home-reveal]');
-		if (reduceMotion || !('IntersectionObserver' in window)) {
+		let revealObserver: IntersectionObserver | undefined;
+		if (reduceMotion || !supportsIntersectionObserver) {
 			revealTargets.forEach((target) => target.classList.add('is-in-view'));
 		} else {
-			const revealObserver = new IntersectionObserver((entries) => {
+			revealObserver = new IntersectionObserver((entries) => {
 				entries.forEach((entry) => {
 					if (!entry.isIntersecting) return;
 					entry.target.classList.add('is-in-view');
-					revealObserver.unobserve(entry.target);
+					revealObserver?.unobserve(entry.target);
 				});
 			}, { rootMargin: '0px 0px -14% 0px', threshold: 0.08 });
-			revealTargets.forEach((target) => revealObserver.observe(target));
+			revealTargets.forEach((target) => revealObserver?.observe(target));
 		}
 
 		const rows = [...page.querySelectorAll<HTMLElement>('[data-home-row]')];
 		const recentViewport = page.querySelector<HTMLElement>('[data-recent-scroll-viewport]');
 		const recentGroups = [...page.querySelectorAll<HTMLElement>('[data-recent-scroll-group]')];
 		const recentPreviews = [...page.querySelectorAll<HTMLElement>('[data-recent-preview]')];
+		// 复制组只负责无限循环的视觉连续性，已 inert 且不应参与焦点或高亮计算。
+		const primaryRecentPreviews = recentPreviews.filter((preview) => !preview.closest('[aria-hidden="true"]'));
 		let loopDistance = 0;
+		let recentCardStep = 0;
+		let firstRecentCardCenter = 0;
 		let activeRecentIndex = -1;
 		let pointerPaused = false;
 		let focusPaused = false;
-		let manualPauseUntil = 0;
-		let previousFrameTime = 0;
+		let streamIsVisible = false;
 		let streamPosition = 0;
+		let previousFrameTime = 0;
+		let recentStreamFrame = 0;
+		let recentHighlightFrame = 0;
+		let focusOutFrame = 0;
+		let manualResumeTimer = 0;
+		let recentVisibilityFrame = 0;
+		let recentResizeObserver: ResizeObserver | undefined;
+		let recentVisibilityObserver: IntersectionObserver | undefined;
 
 		const setActiveRecent = (index: number) => {
 			if (index === activeRecentIndex || index < 0) return;
 			activeRecentIndex = index;
 			rows.forEach((row, rowIndex) => row.classList.toggle('is-current', rowIndex === index));
-			recentPreviews.forEach((preview) => {
+			primaryRecentPreviews.forEach((preview) => {
 				preview.classList.toggle('is-current', Number(preview.dataset.recentPreviewIndex) === index);
 			});
 		};
 
 		const measureRecentStream = () => {
 			const [primaryGroup, duplicateGroup] = recentGroups;
-			if (!primaryGroup || !duplicateGroup) return;
+			const [firstPreview, secondPreview] = primaryRecentPreviews;
+			if (!primaryGroup || !duplicateGroup || !firstPreview) return;
+
 			loopDistance = duplicateGroup.offsetTop - primaryGroup.offsetTop;
+			recentCardStep = secondPreview
+				? secondPreview.offsetTop - firstPreview.offsetTop
+				: firstPreview.offsetHeight;
+			firstRecentCardCenter = firstPreview.offsetTop + firstPreview.offsetHeight / 2;
 		};
 
 		const normalizeRecentScroll = () => {
 			if (!recentViewport || loopDistance <= 0) return recentViewport?.scrollTop ?? 0;
-			while (recentViewport.scrollTop >= loopDistance) recentViewport.scrollTop -= loopDistance;
-			return recentViewport.scrollTop;
+			const normalizedPosition = recentViewport.scrollTop % loopDistance;
+			// 从复制组无缝回到原始组。两组内容完全一致，所以这里不会产生视觉跳跃。
+			if (Math.abs(recentViewport.scrollTop - normalizedPosition) > 0.5) recentViewport.scrollTop = normalizedPosition;
+			return normalizedPosition;
 		};
 
 		const syncRecentHighlight = () => {
-			if (!recentViewport || recentPreviews.length === 0) return;
-			// 以窗口上方约四分之一处作为阅读焦点，让初始状态明确对应时间序列中的第一条记录。
-			const viewportFocus = recentViewport.getBoundingClientRect().top + recentViewport.clientHeight * 0.26;
-			const nearestPreview = recentPreviews.reduce<{ preview: HTMLElement; distance: number } | null>((nearest, preview) => {
-				const bounds = preview.getBoundingClientRect();
-				const distance = Math.abs(bounds.top + bounds.height / 2 - viewportFocus);
-				return !nearest || distance < nearest.distance ? { preview, distance } : nearest;
-			}, null);
-			setActiveRecent(Number(nearestPreview?.preview.dataset.recentPreviewIndex ?? 0));
+			if (!recentViewport || primaryRecentPreviews.length === 0 || recentCardStep <= 0 || loopDistance <= 0) return;
+			// 用测量阶段缓存的首卡中心和固定卡距推导焦点，滚动期间不再逐卡读取布局。
+			const viewportFocus = normalizeRecentScroll() + recentViewport.clientHeight * 0.26;
+			const cycleOffset = ((viewportFocus - firstRecentCardCenter) % loopDistance + loopDistance) % loopDistance;
+			const index = Math.round(cycleOffset / recentCardStep) % primaryRecentPreviews.length;
+			setActiveRecent(index);
+		};
+
+		const queueRecentHighlight = () => {
+			if (recentHighlightFrame) return;
+			recentHighlightFrame = requestAnimationFrame(() => {
+				recentHighlightFrame = 0;
+				syncRecentHighlight();
+			});
+		};
+
+		const stopRecentStream = () => {
+			if (recentStreamFrame) cancelAnimationFrame(recentStreamFrame);
+			recentStreamFrame = 0;
+			previousFrameTime = 0;
+		};
+
+		const canAdvanceRecentStream = () => (
+			!reduceMotion
+			&& streamIsVisible
+			&& !document.hidden
+			&& !pointerPaused
+			&& !focusPaused
+			&& loopDistance > 0
+		);
+
+		const advanceRecentStream = (frameTime: number) => {
+			recentStreamFrame = 0;
+			if (!page.isConnected || !canAdvanceRecentStream()) return;
+
+			const elapsed = previousFrameTime === 0 ? 0 : Math.min(frameTime - previousFrameTime, 48);
+			previousFrameTime = frameTime;
+			streamPosition += elapsed * 0.026;
+			if (loopDistance > 0) streamPosition %= loopDistance;
+			if (recentViewport) recentViewport.scrollTop = streamPosition;
+			// scroll 事件会在下一帧合并高亮；此循环只负责推进 scrollTop，不再读取布局。
+			recentStreamFrame = requestAnimationFrame(advanceRecentStream);
+		};
+
+		const startRecentStream = () => {
+			if (recentStreamFrame || !canAdvanceRecentStream()) return;
+			previousFrameTime = 0;
+			recentStreamFrame = requestAnimationFrame(advanceRecentStream);
+		};
+
+		const refreshRecentStreamVisibility = () => {
+			if (!recentViewport) return;
+			const viewportBounds = recentViewport.getBoundingClientRect();
+			streamIsVisible = viewportBounds.bottom > 0 && viewportBounds.top < window.innerHeight;
+			if (streamIsVisible) startRecentStream();
+			else stopRecentStream();
+		};
+
+		const queueRecentStreamVisibility = () => {
+			if (recentVisibilityFrame) return;
+			recentVisibilityFrame = requestAnimationFrame(() => {
+				recentVisibilityFrame = 0;
+				refreshRecentStreamVisibility();
+			});
 		};
 
 		// 移动端已经隐藏预览窗口，继续维持无限 RAF 只会白白占用电量；
@@ -297,68 +384,93 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 			measureRecentStream();
 			streamPosition = normalizeRecentScroll();
 			syncRecentHighlight();
+
 			recentViewport.addEventListener('pointerdown', () => {
 				pointerPaused = true;
-			});
+				stopRecentStream();
+			}, { signal });
 			window.addEventListener('pointerup', () => {
 				pointerPaused = false;
-			});
+				startRecentStream();
+			}, { signal });
 			recentViewport.addEventListener('pointercancel', () => {
 				pointerPaused = false;
-			});
+				startRecentStream();
+			}, { signal });
 			recentViewport.addEventListener('wheel', () => {
-				// 滚轮输入优先交给访客；停止操作片刻后，从用户选定的位置继续自动推进。
-				manualPauseUntil = performance.now() + 1400;
-			}, { passive: true });
+				// 滚轮输入优先交给访客。静置 1.4 秒后从当前阅读位置继续推进，
+				// 期间直接停止 RAF，而不是让空循环持续检查时间。
+				stopRecentStream();
+				window.clearTimeout(manualResumeTimer);
+				manualResumeTimer = window.setTimeout(startRecentStream, 1400);
+			}, { passive: true, signal });
 			recentViewport.addEventListener('focusin', () => {
 				focusPaused = true;
-			});
+				stopRecentStream();
+			}, { signal });
 			recentViewport.addEventListener('focusout', () => {
-				requestAnimationFrame(() => {
+				focusOutFrame = requestAnimationFrame(() => {
+					focusOutFrame = 0;
 					focusPaused = recentViewport.contains(document.activeElement);
+					startRecentStream();
 				});
-			});
+			}, { signal });
 			recentViewport.addEventListener('scroll', () => {
 				const normalizedPosition = normalizeRecentScroll();
 				// 自动写入会产生细小的像素量化差；只有明显偏差才视为访客的滚轮或滚动条输入。
 				if (Math.abs(normalizedPosition - streamPosition) > 2) streamPosition = normalizedPosition;
-				syncRecentHighlight();
-			}, { passive: true });
-			recentPreviews.forEach((preview) => {
+				queueRecentHighlight();
+			}, { passive: true, signal });
+			primaryRecentPreviews.forEach((preview) => {
 				const selectPreview = () => setActiveRecent(Number(preview.dataset.recentPreviewIndex ?? 0));
-				preview.addEventListener('pointerenter', selectPreview);
-				preview.addEventListener('focus', selectPreview);
+				preview.addEventListener('pointerenter', selectPreview, { signal });
+				preview.addEventListener('focus', selectPreview, { signal });
 			});
 
-			// 预览流只在可见时推进；每帧按真实时间增量移动，刷新率变化不会改变滚动速度。
-			const advanceRecentStream = (frameTime: number) => {
-				if (!page.isConnected) return;
-				const elapsed = previousFrameTime === 0 ? 0 : Math.min(frameTime - previousFrameTime, 48);
-				previousFrameTime = frameTime;
-				const viewportBounds = recentViewport.getBoundingClientRect();
-				const streamIsVisible = viewportBounds.bottom > 0 && viewportBounds.top < window.innerHeight;
-				if (!reduceMotion && streamIsVisible && !pointerPaused && !focusPaused && frameTime >= manualPauseUntil) {
-					streamPosition += elapsed * 0.026;
-					while (loopDistance > 0 && streamPosition >= loopDistance) streamPosition -= loopDistance;
-					recentViewport.scrollTop = streamPosition;
-					syncRecentHighlight();
-				}
-				requestAnimationFrame(advanceRecentStream);
-			};
-			requestAnimationFrame(advanceRecentStream);
-
-			const resizeObserver = new ResizeObserver(() => {
+			const refreshRecentMeasurements = () => {
 				measureRecentStream();
 				streamPosition = normalizeRecentScroll();
-				syncRecentHighlight();
-			});
-			resizeObserver.observe(recentViewport);
-			recentGroups.forEach((group) => resizeObserver.observe(group));
+				queueRecentHighlight();
+				startRecentStream();
+			};
+			if (supportsResizeObserver) {
+				recentResizeObserver = new ResizeObserver(refreshRecentMeasurements);
+				recentResizeObserver.observe(recentViewport);
+				recentGroups.forEach((group) => recentResizeObserver?.observe(group));
+			} else {
+				// 旧内核没有 ResizeObserver 时，尺寸变化只在窗口 resize 时重测一次；
+				// 主流浏览器仍使用上方观察器，不会给动画循环增加任何布局读取。
+				window.addEventListener('resize', refreshRecentMeasurements, { signal });
+			}
+
+			// IntersectionObserver 取代逐帧 getBoundingClientRect：最近记录离开视口后彻底取消动画，
+			// 返回视口时再用真实时间推进，保持原本连续的雨幕节奏而不耗用后台 CPU。
+			if (supportsIntersectionObserver) {
+				recentVisibilityObserver = new IntersectionObserver((entries) => {
+					streamIsVisible = entries.some((entry) => entry.isIntersecting);
+					if (streamIsVisible) startRecentStream();
+					else stopRecentStream();
+				}, { threshold: 0.01 });
+				recentVisibilityObserver.observe(recentViewport);
+			} else {
+				// 仅为旧浏览器提供按滚动合帧的兜底。它每次页面滚动最多读取一次边界，
+				// 不会回退为原先离屏也持续执行的逐帧检测。
+				window.addEventListener('scroll', queueRecentStreamVisibility, { passive: true, signal });
+				window.addEventListener('resize', queueRecentStreamVisibility, { signal });
+				refreshRecentStreamVisibility();
+			}
+			document.addEventListener('visibilitychange', () => {
+				if (document.hidden) stopRecentStream();
+				else startRecentStream();
+			}, { signal });
 		}
 
 		const indexField = page.querySelector<HTMLElement>('[data-index-field]');
 		const indexTracks = [...page.querySelectorAll<HTMLElement>('[data-index-track]')];
 		const indexCoordinate = page.querySelector<HTMLElement>('[data-index-coordinate]');
+		let indexBounds: DOMRect | undefined;
+		let indexBoundsFrame = 0;
+		let indexResizeObserver: ResizeObserver | undefined;
 		const setActiveTrack = (track: HTMLElement | null) => {
 			indexTracks.forEach((candidate) => candidate.classList.toggle('is-active', candidate === track));
 			indexField?.classList.toggle('has-active', Boolean(track));
@@ -366,30 +478,68 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 		};
 
 		if (indexField && !reduceMotion) {
+			// 只在进入、缩放或页面滚动后更新一次区域边界；指针移动只使用缓存，
+			// 避免在高频 pointermove 中反复触发布局读取。
+			const measureIndexBounds = () => {
+				indexBounds = indexField?.getBoundingClientRect();
+			};
+			const queueIndexBoundsMeasurement = () => {
+				if (indexBoundsFrame) return;
+				indexBoundsFrame = requestAnimationFrame(() => {
+					indexBoundsFrame = 0;
+					measureIndexBounds();
+				});
+			};
+			measureIndexBounds();
+			if (supportsResizeObserver) {
+				indexResizeObserver = new ResizeObserver(queueIndexBoundsMeasurement);
+				indexResizeObserver.observe(indexField);
+			} else {
+				window.addEventListener('resize', queueIndexBoundsMeasurement, { signal });
+			}
+			window.addEventListener('scroll', queueIndexBoundsMeasurement, { passive: true, signal });
+			indexField.addEventListener('pointerenter', measureIndexBounds, { signal });
 			// 坐标线只跟随索引区内部的指针，离开后立即收束；链接焦点沿用同一套强调状态。
 			indexField.addEventListener('pointermove', (event) => {
-				const bounds = indexField.getBoundingClientRect();
+				const bounds = indexBounds ?? indexField.getBoundingClientRect();
 				const x = Math.max(0, Math.min(bounds.width, event.clientX - bounds.left));
 				const y = Math.max(0, Math.min(bounds.height, event.clientY - bounds.top));
 				indexField.style.setProperty('--index-pointer-x', `${x}px`);
 				indexField.style.setProperty('--index-pointer-y', `${y}px`);
 				indexField.classList.add('is-tracking');
 				if (indexCoordinate) indexCoordinate.textContent = `X ${String(Math.round(x)).padStart(3, '0')} / Y ${String(Math.round(y)).padStart(3, '0')}`;
-			});
+			}, { signal });
 			indexField.addEventListener('pointerleave', () => {
 				indexField.classList.remove('is-tracking');
 				if (!indexField.contains(document.activeElement)) setActiveTrack(null);
-			});
+			}, { signal });
 			indexTracks.forEach((track) => {
-				track.addEventListener('pointerenter', () => setActiveTrack(track));
-				track.addEventListener('focus', () => setActiveTrack(track));
-				track.addEventListener('blur', () => setActiveTrack(null));
+				track.addEventListener('pointerenter', () => setActiveTrack(track), { signal });
+				track.addEventListener('focus', () => setActiveTrack(track), { signal });
+				track.addEventListener('blur', () => setActiveTrack(null), { signal });
 			});
 		}
+
+		disposeHomeScenes = () => {
+			controller.abort();
+			revealObserver?.disconnect();
+			recentVisibilityObserver?.disconnect();
+			recentResizeObserver?.disconnect();
+			indexResizeObserver?.disconnect();
+			if (recentStreamFrame) cancelAnimationFrame(recentStreamFrame);
+			if (recentHighlightFrame) cancelAnimationFrame(recentHighlightFrame);
+			if (focusOutFrame) cancelAnimationFrame(focusOutFrame);
+			if (recentVisibilityFrame) cancelAnimationFrame(recentVisibilityFrame);
+			if (indexBoundsFrame) cancelAnimationFrame(indexBoundsFrame);
+			window.clearTimeout(manualResumeTimer);
+			if (page.isConnected) delete page.dataset.motionReady;
+			document.documentElement.classList.remove('home-motion-ready');
+		};
 	}
 
 	initHomeScenes();
 	document.addEventListener('astro:page-load', initHomeScenes);
+	document.addEventListener('astro:before-swap', () => disposeHomeScenes?.());
 </script>
 
 <style>

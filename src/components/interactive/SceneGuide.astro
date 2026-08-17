@@ -313,6 +313,12 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
         progress.setAttribute('aria-valuetext', `${percent}%`);
         remaining.textContent = minutesLeft > 0 ? `约剩 ${minutesLeft} 分钟` : '已读完';
         root.style.setProperty('--scene-reading-progress', String(ratio));
+
+        // 目录已经完成正文几何计算，阅读记录直接复用结果，避免同一篇文章上
+        // 再启动一套 scroll + requestAnimationFrame + getBoundingClientRect 链路。
+        document.dispatchEvent(new CustomEvent('aria7-reading-progress', {
+          detail: { content, ratio },
+        }));
         ticking = false;
       };
 
