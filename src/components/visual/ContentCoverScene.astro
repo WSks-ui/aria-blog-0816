@@ -228,7 +228,28 @@ const kindCode = {
 		isolation: isolate;
 	}
 
+	/*
+	 * 封面继续由 SVG 控制类型化的制图结构，但底部改用共享纸张纹理。
+	 * 这让首页预览、栏目封面和文章 Hero 拥有同一套材质，而无需让每个
+	 * 场景额外生成一张位图或持续运行复杂滤镜。
+	 */
+	.content-cover::before {
+		position: absolute;
+		z-index: 0;
+		inset: 0;
+		background-image:
+			url('/assets/patterns/archive-fiber.svg'),
+			radial-gradient(ellipse at 74% 18%, color-mix(in srgb, var(--color-rain) 24%, transparent), transparent 36%);
+		background-size: 340px 340px, cover;
+		opacity: 0.48;
+		mix-blend-mode: multiply;
+		content: '';
+		pointer-events: none;
+	}
+
 	.content-cover svg {
+		position: relative;
+		z-index: 1;
 		display: block;
 		width: 100%;
 		height: 100%;
@@ -237,6 +258,8 @@ const kindCode = {
 	/* compact 封面用于首页滚动预览：保留构图线索，降低滤镜和运动频率，
 	   避免同一页同时维护多套高密度 SVG 动画。 */
 	.content-cover--compact .content-cover__grain { display: none; }
+	/* 首屏最近记录会并行展示多张紧凑封面，保留材质但降低强度，避免纤维层压过文章信息。 */
+	.content-cover--compact::before { opacity: 0.24; }
 	.content-cover--compact .essay-scene__arcs,
 	.content-cover--compact .essay-scene__umbrella,
 	.content-cover--compact .content-cover__papers rect,
@@ -257,7 +280,12 @@ const kindCode = {
 		animation-play-state: paused !important;
 	}
 
-	.content-cover__base { fill: var(--cover-bg); }
+	/* 第二组仅用于无缝回环，隐藏其重复的纸纤维合成层以控制长列表的绘制成本。 */
+	:global(.recent-stage__group[aria-hidden='true']) .content-cover::before {
+		display: none;
+	}
+
+	.content-cover__base { fill: color-mix(in srgb, var(--cover-bg) 89%, transparent); }
 	.content-cover__grain { fill: var(--cover-ink); opacity: 0.045; mix-blend-mode: multiply; }
 	.content-cover__frame,
 	.essay-scene__arcs,
@@ -331,6 +359,7 @@ const kindCode = {
 		--cover-accent: #75c5d8;
 		--cover-fill: rgb(117 197 216 / 18%);
 	}
+	.content-cover--code::before { mix-blend-mode: screen; opacity: 0.34; }
 	.content-cover--code .content-cover__grain { mix-blend-mode: screen; opacity: 0.08; }
 	.code-scene__rain rect { fill: var(--cover-accent); opacity: 0.42; animation: code-rain-fall 3.8s linear infinite; animation-delay: calc(var(--i) * -170ms); }
 	.code-scene__corridor { opacity: 0.3; }
@@ -357,6 +386,10 @@ const kindCode = {
 	}
 
 	:global(html[data-weather-mode='night']) .content-cover__grain { mix-blend-mode: screen; opacity: 0.07; }
+	:global(html[data-weather-mode='night']) .content-cover:not(.content-cover--code)::before {
+		mix-blend-mode: screen;
+		opacity: 0.32;
+	}
 
 	@keyframes cover-line-build {
 		from { stroke-dashoffset: 920; opacity: 0.22; }

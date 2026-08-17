@@ -96,6 +96,7 @@ const relatedLinks = related.map((entry) => ({
 		min-height: 520px;
 		overflow: hidden;
 		background: var(--accent-soft);
+		isolation: isolate;
 	}
 
 	.article-hero__cover::before,
@@ -108,25 +109,42 @@ const relatedLinks = related.map((entry) => ({
 	}
 
 	.article-hero__cover::before {
+		/*
+		 * 阅读页需要比首页更安静：纸纤维和档案网格仅作为近景层，叠在自定义
+		 * 封面之上时也不会遮蔽图片主体；天气远景则交给 ::after 单独慢速移动。
+		 */
 		background-image:
+			url('/assets/patterns/archive-fiber.svg'),
 			linear-gradient(var(--line) 1px, transparent 1px),
-			linear-gradient(90deg, var(--line) 1px, transparent 1px);
-		background-size: 92px 92px;
-		opacity: 0.16;
+			linear-gradient(90deg, var(--line) 1px, transparent 1px),
+			radial-gradient(ellipse at 76% 16%, color-mix(in srgb, var(--weather-glow) 42%, transparent), transparent 38%);
+		background-position: center, center, center, center;
+		background-size: 380px 380px, 92px 92px, 92px 92px, cover;
+		opacity: 0.28;
 		mix-blend-mode: multiply;
 	}
 
 	.article-hero__cover::after {
-		background-image: url('/assets/patterns/rain-lines.svg');
-		background-position: center;
+		/* 三种天气只替换静态材质，循环只改变合成层 transform，避免滤镜导致阅读页卡顿。 */
+		z-index: 2;
+		background-image: url('/assets/patterns/atmosphere-rain.svg');
+		background-position: 62% center;
 		background-size: cover;
-		opacity: 0.12;
-		animation: article-cover-rain 12s var(--ease-drift) infinite alternate;
+		opacity: 0.24;
+		mix-blend-mode: multiply;
+		transform: scale(1.04);
+		animation: article-cover-material-drift 18s var(--ease-drift) infinite alternate;
+		transition:
+			opacity 760ms var(--ease-rain),
+			filter 760ms var(--ease-rain),
+			background-image 1ms linear;
+		will-change: transform;
 	}
 
 	.article-hero__cover img {
 		position: absolute;
 		inset: 0;
+		z-index: 0;
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
@@ -135,23 +153,31 @@ const relatedLinks = related.map((entry) => ({
 	.article-hero__cover > :global(.article-hero__cover-scene) {
 		position: absolute;
 		inset: 0;
+		z-index: 0;
 	}
 
 	:global(html[data-weather-mode='night']) .article-hero__cover::before {
 		mix-blend-mode: screen;
-		opacity: 0.2;
+		opacity: 0.24;
 	}
 
 	:global(html[data-weather-mode='night']) .article-hero__cover::after {
+		background-image: url('/assets/patterns/atmosphere-night.svg');
 		mix-blend-mode: screen;
-		opacity: 0.17;
+		opacity: 0.34;
+		filter: saturate(1.08) contrast(1.08);
+	}
+
+	:global(html[data-weather-mode='clear']) .article-hero__cover::after {
+		background-image: url('/assets/patterns/atmosphere-clear.svg');
+		opacity: 0.18;
 	}
 
 	.article-hero__scene {
 		position: absolute;
 		top: 18px;
 		left: 20px;
-		z-index: 2;
+		z-index: 3;
 		font-family: var(--font-ui);
 		font-size: 10px;
 		color: var(--ink-muted);
@@ -243,9 +269,9 @@ const relatedLinks = related.map((entry) => ({
 		border-top: 1px solid var(--line);
 	}
 
-	@keyframes article-cover-rain {
-		from { transform: translate3d(0, -1.5%, 0) scale(1.04); }
-		to { transform: translate3d(-0.8%, 1.5%, 0) scale(1.04); }
+	@keyframes article-cover-material-drift {
+		from { transform: translate3d(-0.7%, -0.6%, 0) scale(1.04); }
+		to { transform: translate3d(0.9%, 0.8%, 0) scale(1.075); }
 	}
 
 	@media (prefers-reduced-motion: reduce) {

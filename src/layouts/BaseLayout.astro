@@ -36,8 +36,8 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="generator" content={Astro.generator} />
 		<meta name="description" content={description} />
-		<meta name="theme-color" content="#f3f4f2" />
-		<meta name="theme-color" content="#091114" media="(prefers-color-scheme: dark)" />
+		<meta name="theme-color" content="#ebedec" />
+		<meta name="theme-color" content="#0d1216" media="(prefers-color-scheme: dark)" />
 		<link rel="canonical" href={canonical} />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<link rel="alternate" type="application/rss+xml" title="Aria-7 RSS" href="/rss.xml" />
@@ -50,12 +50,12 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 		<title>{pageTitle}</title>
 		<style is:inline>
 			/* 外部样式表尚未下载时先建立页面画布，避免完整页面导航暴露浏览器默认白底。 */
-			html { background-color: #edf1f1; }
-			html[data-weather-mode='clear'] { background-color: #f5f6f4; }
-			html[data-weather-mode='rain'] { background-color: #edf1f1; }
+			html { background-color: #ebedec; }
+			html[data-weather-mode='clear'] { background-color: #f6f7f3; }
+			html[data-weather-mode='rain'] { background-color: #ebedec; }
 			html[data-weather-mode='night'],
-			html[data-route-arrival='scene'] { background-color: #071014; }
-			html[data-route-arrival='scene'] body { background-color: #071014 !important; }
+			html[data-route-arrival='scene'] { background-color: #0d1216; }
+			html[data-route-arrival='scene'] body { background-color: #0d1216 !important; }
 			/* 主导航的栏目切换是轻量的左右滑动，而不是覆盖整个页面的场景动画。
 			   入口与出口都写在内联样式中，保证外部 CSS 尚未解析完时也不会闪现一帧静态页面。 */
 			html[data-route-transition='slide-leaving'][data-route-direction='forward'] body { animation: aria7-nav-leave-forward 180ms var(--ease-drift, ease) both; }

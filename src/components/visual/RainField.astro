@@ -1,8 +1,75 @@
+---
+/*
+ * 全站背景不再复用一张雨线平铺图，而是将纸张、远景制图、天气和碎片分开。
+ * 这些数组只描述静态初始位置；循环只修改 transform / opacity，避免滚动时重排。
+ */
+const rainTraces = [
+	{ x: '7%', length: '42vh', delay: '-5.8s', duration: '13.2s', opacity: '.42' },
+	{ x: '17%', length: '27vh', delay: '-1.4s', duration: '10.8s', opacity: '.24' },
+	{ x: '33%', length: '51vh', delay: '-8.1s', duration: '16.4s', opacity: '.36' },
+	{ x: '49%', length: '32vh', delay: '-3.6s', duration: '12.6s', opacity: '.22' },
+	{ x: '66%', length: '47vh', delay: '-10.5s', duration: '15.1s', opacity: '.4' },
+	{ x: '78%', length: '30vh', delay: '-6.7s', duration: '11.7s', opacity: '.28' },
+	{ x: '91%', length: '54vh', delay: '-2.8s', duration: '17.3s', opacity: '.38' },
+];
+
+const paperMarks = [
+	{ x: '9%', y: '19%', size: '10px', rotate: '12deg', delay: '-3.4s' },
+	{ x: '26%', y: '73%', size: '16px', rotate: '-9deg', delay: '-8.1s' },
+	{ x: '41%', y: '30%', size: '8px', rotate: '17deg', delay: '-4.7s' },
+	{ x: '57%', y: '84%', size: '13px', rotate: '-13deg', delay: '-10.2s' },
+	{ x: '72%', y: '15%', size: '18px', rotate: '8deg', delay: '-6.3s' },
+	{ x: '86%', y: '57%', size: '9px', rotate: '-17deg', delay: '-1.5s' },
+];
+---
+
 <div class="rain-field" aria-hidden="true">
-	<div class="rain-field__lines"></div>
-	<div class="rain-field__paper rain-field__paper--a"></div>
-	<div class="rain-field__paper rain-field__paper--b"></div>
-	<div class="rain-field__paper rain-field__paper--c"></div>
+	<!-- 底材与大面积色块保持静态，负责把参考画面中的纸感和景深带到所有页面。 -->
+	<div class="rain-field__ground"></div>
+	<div class="rain-field__mural"></div>
+	<div class="rain-field__fiber"></div>
+
+	<svg class="rain-field__atlas" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
+		<g class="rain-field__atlas-grid">
+			<path d="M0 176H1600M0 502H1600M0 828H1600M214 0V1000M732 0V1000M1278 0V1000" />
+		</g>
+		<g class="rain-field__atlas-orbits">
+			<path d="M-80 776C216 441 506 919 824 538S1285 354 1692 617" />
+			<path d="M-64 807C246 489 509 951 858 578S1308 395 1670 652" />
+			<circle cx="1326" cy="216" r="154" />
+			<circle cx="1326" cy="216" r="82" />
+		</g>
+		<g class="rain-field__atlas-frame">
+			<path d="M42 106V42h64M1494 42h64v64M42 894v64h64M1494 958h64v-64" />
+			<path d="M42 132h1516M42 868h1516M336 42v916M1226 42v916" />
+		</g>
+		<g class="rain-field__atlas-signal">
+			<path d="M184 310h266M184 310v116M1074 718h300M1374 718V586" />
+			<path d="M1066 146 1415 264 1246 454 936 342Z" />
+			<path d="M100 636 388 512l142 167-312 164Z" />
+		</g>
+	</svg>
+
+	<!-- 玻璃板只慢速漂移，和固定底图叠在一起制造水汽折射，不使用逐帧 SVG 滤镜。 -->
+	<div class="rain-field__glass rain-field__glass--a"></div>
+	<div class="rain-field__glass rain-field__glass--b"></div>
+	<div class="rain-field__glass rain-field__glass--c"></div>
+
+	<div class="rain-field__rain" aria-hidden="true">
+		{rainTraces.map((trace) => (
+			<span
+				style={`--trace-x: ${trace.x}; --trace-length: ${trace.length}; --trace-delay: ${trace.delay}; --trace-duration: ${trace.duration}; --trace-opacity: ${trace.opacity};`}
+			></span>
+		))}
+	</div>
+
+	<div class="rain-field__papers" aria-hidden="true">
+		{paperMarks.map((mark) => (
+			<span
+				style={`--paper-x: ${mark.x}; --paper-y: ${mark.y}; --paper-size: ${mark.size}; --paper-rotate: ${mark.rotate}; --paper-delay: ${mark.delay};`}
+			></span>
+		))}
+	</div>
 </div>
 
 <style>
@@ -11,78 +78,196 @@
 		inset: 0;
 		z-index: -1;
 		overflow: hidden;
-		opacity: 1;
+		isolation: isolate;
+		background: var(--weather-base);
+		contain: paint;
 		pointer-events: none;
-		transition: opacity 460ms var(--ease-rain), visibility 460ms;
+		transition: background-color 900ms var(--ease-rain);
 	}
 
-	.rain-field__lines {
+	.rain-field__ground,
+	.rain-field__mural,
+	.rain-field__fiber,
+	.rain-field__atlas,
+	.rain-field__rain,
+	.rain-field__papers {
 		position: absolute;
 		inset: 0;
-		background-image: url('/assets/patterns/rain-lines.svg');
+		width: 100%;
+		height: 100%;
+		pointer-events: none;
+	}
+
+	.rain-field__ground {
+		background:
+			radial-gradient(ellipse at 76% 12%, color-mix(in srgb, var(--weather-glow) 42%, transparent), transparent 35%),
+			radial-gradient(ellipse at 18% 88%, color-mix(in srgb, var(--weather-haze) 28%, transparent), transparent 38%),
+			linear-gradient(128deg, var(--weather-base), var(--weather-surface));
+	}
+
+	.rain-field__mural {
+		z-index: 1;
+		background-image: url('/assets/patterns/atmosphere-rain.svg');
 		background-position: center;
 		background-size: cover;
-		opacity: var(--rain-opacity, 0.2);
-		mix-blend-mode: multiply;
+		opacity: var(--weather-mural-opacity);
+		mix-blend-mode: var(--weather-mural-blend, multiply);
+		transform: scale(1.035);
+		animation: atmosphere-mural-drift 28s var(--ease-drift) infinite alternate;
+		transition: opacity 900ms var(--ease-rain), filter 900ms var(--ease-rain);
+		will-change: transform;
 	}
 
-	.rain-field__paper {
+	.rain-field__fiber {
+		z-index: 2;
+		background-image: url('/assets/patterns/archive-fiber.svg');
+		background-size: 420px 420px;
+		opacity: var(--weather-fiber-opacity);
+		mix-blend-mode: var(--weather-fiber-blend, multiply);
+		transition: opacity 720ms var(--ease-rain);
+	}
+
+	.rain-field__atlas {
+		z-index: 3;
+		color: var(--weather-line);
+		opacity: var(--weather-atlas-opacity);
+		transition: color 720ms var(--ease-rain), opacity 720ms var(--ease-rain);
+	}
+
+	.rain-field__atlas-grid,
+	.rain-field__atlas-frame,
+	.rain-field__atlas-orbits,
+	.rain-field__atlas-signal {
+		fill: none;
+		stroke: currentColor;
+		vector-effect: non-scaling-stroke;
+	}
+
+	.rain-field__atlas-grid { stroke-width: 1; opacity: 0.34; }
+	.rain-field__atlas-frame { stroke-width: 1; opacity: 0.46; }
+	.rain-field__atlas-orbits { stroke: var(--weather-accent); stroke-width: 1.25; opacity: 0.5; }
+	.rain-field__atlas-signal { stroke: var(--weather-accent); stroke-width: 1; opacity: 0.4; }
+
+	.rain-field__glass {
 		position: absolute;
-		width: 11px;
+		z-index: 4;
+		border: 1px solid color-mix(in srgb, var(--weather-glass-line) 44%, transparent);
+		background:
+			linear-gradient(115deg, color-mix(in srgb, var(--weather-glow) 16%, transparent), transparent 42%, color-mix(in srgb, var(--weather-haze) 15%, transparent)),
+			linear-gradient(90deg, transparent, color-mix(in srgb, var(--weather-glow) 14%, transparent), transparent);
+		box-shadow: inset 0 0 36px color-mix(in srgb, var(--weather-glow) 10%, transparent), 0 0 64px color-mix(in srgb, var(--weather-haze) 8%, transparent);
+		opacity: var(--weather-glass-opacity);
+		transition: border-color 720ms var(--ease-rain), background 720ms var(--ease-rain), opacity 720ms var(--ease-rain);
+		will-change: transform;
+	}
+
+	.rain-field__glass--a {
+		/* 仅保留主玻璃板的背景采样，其他两层使用渐变与阴影模拟折射，降低固定层滚动合成压力。 */
+		top: 13%;
+		right: 8%;
+		width: min(34vw, 560px);
+		height: min(28vh, 290px);
+		backdrop-filter: blur(5px) contrast(1.06) saturate(1.1);
+		transform: rotate(6deg) translate3d(0, 0, 0);
+		animation: atmosphere-glass-a 19s var(--ease-drift) infinite alternate;
+	}
+
+	.rain-field__glass--b {
+		bottom: 10%;
+		left: 4%;
+		width: min(28vw, 440px);
+		height: min(19vh, 220px);
+		transform: rotate(-8deg) translate3d(0, 0, 0);
+		animation: atmosphere-glass-b 23s var(--ease-drift) -7s infinite alternate;
+	}
+
+	.rain-field__glass--c {
+		top: 42%;
+		left: 52%;
+		width: min(14vw, 250px);
+		height: min(41vh, 420px);
+		transform: rotate(3deg) translate3d(0, 0, 0);
+		animation: atmosphere-glass-c 21s var(--ease-drift) -13s infinite alternate;
+	}
+
+	.rain-field__rain { z-index: 5; overflow: hidden; opacity: var(--weather-rain-opacity); transition: opacity 720ms var(--ease-rain); }
+	.rain-field__rain span {
+		position: absolute;
+		top: -62vh;
+		left: var(--trace-x);
+		width: 1px;
+		height: var(--trace-length);
+		background: linear-gradient(to bottom, transparent, var(--weather-rain), transparent 92%);
+		opacity: var(--trace-opacity);
+		filter: blur(.15px);
+		transform: skewX(-3deg);
+		animation: atmosphere-rain-fall var(--trace-duration) linear var(--trace-delay) infinite;
+		will-change: transform;
+	}
+
+	.rain-field__papers { z-index: 6; opacity: var(--weather-particle-opacity); transition: opacity 720ms var(--ease-rain); }
+	.rain-field__papers span {
+		position: absolute;
+		top: var(--paper-y);
+		left: var(--paper-x);
+		width: var(--paper-size);
 		aspect-ratio: 1;
-		border: 1px solid var(--line-strong);
-		background: color-mix(in srgb, var(--paper-0) 72%, transparent);
-		animation: paper-drift 12s linear infinite;
+		border: 1px solid color-mix(in srgb, var(--weather-glass-line) 68%, transparent);
+		background: color-mix(in srgb, var(--weather-paper) 74%, transparent);
+		box-shadow: 0 0 12px color-mix(in srgb, var(--weather-glow) 12%, transparent);
+		transform: rotate(var(--paper-rotate));
+		animation: atmosphere-paper-float 9s var(--ease-drift) var(--paper-delay) infinite alternate;
+		will-change: transform;
 	}
 
-	.rain-field__paper--a {
-		top: 18%;
-		left: 8%;
+	:global(html[data-weather-mode='clear']) .rain-field__mural { background-image: url('/assets/patterns/atmosphere-clear.svg'); }
+	:global(html[data-weather-mode='night']) .rain-field__mural { background-image: url('/assets/patterns/atmosphere-night.svg'); }
+	:global(html[data-weather-mode='night']) .rain-field__mural { filter: saturate(1.08) contrast(1.1); }
+	:global(html[data-weather-mode='night']) .rain-field__atlas { mix-blend-mode: screen; }
+	:global(html[data-weather-mode='night']) .rain-field__glass--a { backdrop-filter: blur(7px) contrast(1.16) saturate(1.22); }
+
+	@keyframes atmosphere-mural-drift {
+		from { transform: scale(1.035) translate3d(-0.8%, -0.5%, 0); }
+		to { transform: scale(1.07) translate3d(0.8%, 0.7%, 0); }
 	}
 
-	.rain-field__paper--b {
-		top: 36%;
-		right: 12%;
-		width: 18px;
-		animation-delay: -7s;
+	@keyframes atmosphere-rain-fall {
+		from { transform: translate3d(0, 0, 0) skewX(-3deg); }
+		to { transform: translate3d(-18px, 156vh, 0) skewX(-3deg); }
 	}
 
-	.rain-field__paper--c {
-		bottom: 14%;
-		left: 64%;
-		width: 7px;
-		animation-delay: -3s;
+	@keyframes atmosphere-paper-float {
+		from { transform: translate3d(-3px, -8px, 0) rotate(var(--paper-rotate)); }
+		to { transform: translate3d(12px, 28px, 0) rotate(calc(var(--paper-rotate) + 20deg)); }
 	}
 
-	:global(html[data-weather-mode='clear']) .rain-field {
-		visibility: hidden;
-		opacity: 0;
+	@keyframes atmosphere-glass-a {
+		from { transform: rotate(6deg) translate3d(-10px, -8px, 0) scale(.98); }
+		to { transform: rotate(6deg) translate3d(16px, 14px, 0) scale(1.03); }
 	}
 
-	:global(html[data-weather-mode='clear']) .rain-field__paper {
-		animation-play-state: paused;
+	@keyframes atmosphere-glass-b {
+		from { transform: rotate(-8deg) translate3d(10px, 8px, 0) scale(1); }
+		to { transform: rotate(-8deg) translate3d(-14px, -10px, 0) scale(.97); }
 	}
 
-	:global(html[data-weather-mode='night']) .rain-field__lines {
-		mix-blend-mode: screen;
-		opacity: 0.1;
+	@keyframes atmosphere-glass-c {
+		from { transform: rotate(3deg) translate3d(8px, -12px, 0) scale(.97); }
+		to { transform: rotate(3deg) translate3d(-9px, 18px, 0) scale(1.03); }
 	}
 
-	@keyframes paper-drift {
-		0% {
-			transform: translate3d(0, -16px, 0) rotate(0deg);
-		}
-		50% {
-			transform: translate3d(9px, 16px, 0) rotate(12deg);
-		}
-		100% {
-			transform: translate3d(0, 48px, 0) rotate(20deg);
-		}
+	@media (max-width: 760px) {
+		.rain-field__glass--c { display: none; }
+		.rain-field__glass--a { right: -18%; width: 56vw; }
+		.rain-field__glass--b { left: -12%; width: 48vw; }
+		.rain-field__fiber { background-size: 340px 340px; }
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.rain-field__paper {
-			animation: none;
-		}
+		.rain-field__mural,
+		.rain-field__glass,
+		.rain-field__rain span,
+		.rain-field__papers span { animation: none; }
+		.rain-field__rain { opacity: calc(var(--weather-rain-opacity) * .36); }
 	}
 </style>

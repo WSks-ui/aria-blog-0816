@@ -4,18 +4,18 @@
 [data-weather-mode="rain"] {
   color-scheme: light;
   /* 三种模式都显式声明完整色板，保证从夜间返回时浏览器立即重算组件变量。 */
-  --color-canvas: #edf1f1;
-  --color-surface: #f7f8f6;
-  --color-surface-muted: #dce8eb;
-  --color-ink: #27373b;
-  --color-ink-muted: #607378;
-  --color-line: #9bb6bd;
-  --color-line-strong: #55757e;
-  --color-rain: #59b8cf;
+  --color-canvas: #ebedec;
+  --color-surface: #f6f7f5;
+  --color-surface-muted: #d7e6e8;
+  --color-ink: #26383e;
+  --color-ink-muted: #5b7176;
+  --color-line: #9fbcc2;
+  --color-line-strong: #5c838b;
+  --color-rain: #73d0e2;
   --color-rain-deep: #1887aa;
-  --color-rain-pale: #b9dfe8;
-  --color-paper: #f3f2ec;
-  --color-warm: #c78e82;
+  --color-rain-pale: #b7e5ec;
+  --color-paper: #f3f1ea;
+  --color-warm: #b77a76;
   --color-focus: #006f91;
   --color-selection: #99d8e6;
   --color-danger: #aa4f46;
@@ -25,25 +25,42 @@
   --theme-muted: var(--color-ink-muted);
   --theme-line: var(--color-line);
   --theme-accent: var(--color-rain-deep);
-  --theme-pattern-opacity: 0.16;
+  --theme-pattern-opacity: 0;
+  --weather-base: #ebedec;
+  --weather-surface: #eef4f2;
+  --weather-haze: #a8d9e2;
+  --weather-glow: #c9edf0;
+  --weather-line: #6b9ea9;
+  --weather-accent: #1887aa;
+  --weather-rain: #73d0e2;
+  --weather-paper: #f8f6ef;
+  --weather-glass-line: #75b8c5;
+  --weather-mural-opacity: 0.72;
+  --weather-fiber-opacity: 0.18;
+  --weather-atlas-opacity: 0.16;
+  --weather-glass-opacity: 0.2;
+  --weather-rain-opacity: 0.42;
+  --weather-particle-opacity: 0.42;
+  --weather-mural-blend: multiply;
+  --weather-fiber-blend: multiply;
 }
 
 [data-theme="clear"],
 [data-weather="clear"],
 [data-weather-mode="clear"] {
   color-scheme: light;
-  --color-canvas: #f5f6f4;
-  --color-surface: #ffffff;
-  --color-surface-muted: #e5ecec;
-  --color-ink: #263237;
-  --color-ink-muted: #68767a;
-  --color-line: #bdc8ca;
-  --color-line-strong: #687f85;
-  --color-rain: #59b8cf;
+  --color-canvas: #f6f7f3;
+  --color-surface: #fffdf8;
+  --color-surface-muted: #e5efed;
+  --color-ink: #293a3d;
+  --color-ink-muted: #687b7d;
+  --color-line: #b7c9ca;
+  --color-line-strong: #68878b;
+  --color-rain: #7bcbd9;
   --color-rain-deep: #187f9d;
-  --color-rain-pale: #d6e9ed;
-  --color-paper: #f5f4ee;
-  --color-warm: #c78e82;
+  --color-rain-pale: #d6edef;
+  --color-paper: #f8f6ef;
+  --color-warm: #b77a76;
   --color-focus: #006f91;
   --color-selection: #a6dce8;
   --color-danger: #aa4f46;
@@ -54,22 +71,39 @@
   --theme-line: var(--color-line);
   --theme-accent: var(--color-rain-deep);
   --theme-pattern-opacity: 0;
+  --weather-base: #f6f7f3;
+  --weather-surface: #fcfbf5;
+  --weather-haze: #b8e1e2;
+  --weather-glow: #ffffff;
+  --weather-line: #78aeb6;
+  --weather-accent: #258ca3;
+  --weather-rain: #8dced9;
+  --weather-paper: #fffdf6;
+  --weather-glass-line: #91c6cd;
+  --weather-mural-opacity: 0.56;
+  --weather-fiber-opacity: 0.11;
+  --weather-atlas-opacity: 0.11;
+  --weather-glass-opacity: 0.12;
+  --weather-rain-opacity: 0.06;
+  --weather-particle-opacity: 0.25;
+  --weather-mural-blend: multiply;
+  --weather-fiber-blend: multiply;
 }
 
 [data-theme="night"],
 [data-weather="night"],
 [data-weather-mode="night"] {
   color-scheme: dark;
-  --color-canvas: #091114;
-  --color-surface: #101d22;
-  --color-surface-muted: #183039;
-  --color-ink: #edf1ef;
-  --color-ink-muted: #a8b8bb;
-  --color-line: #47616a;
-  --color-line-strong: #87a2aa;
-  --color-rain: #75c5d8;
-  --color-rain-deep: #96d9e7;
-  --color-rain-pale: #244b56;
+  --color-canvas: #0d1216;
+  --color-surface: #14242a;
+  --color-surface-muted: #1f333a;
+  --color-ink: #edf2ef;
+  --color-ink-muted: #a6b8ba;
+  --color-line: #476871;
+  --color-line-strong: #86a7ad;
+  --color-rain: #7bcbd9;
+  --color-rain-deep: #9ce1eb;
+  --color-rain-pale: #244d58;
   --color-paper: #e8ece9;
   --color-focus: #a8e5f0;
   --color-selection: #356d79;
@@ -79,8 +113,25 @@
   --theme-muted: var(--color-ink-muted);
   --theme-line: var(--color-line);
   --theme-accent: var(--color-rain-deep);
-  --theme-pattern-opacity: 0.1;
+  --theme-pattern-opacity: 0;
   --shadow-paper: var(--shadow-night);
+  --weather-base: #0d1216;
+  --weather-surface: #162930;
+  --weather-haze: #245563;
+  --weather-glow: #75cbd9;
+  --weather-line: #71939a;
+  --weather-accent: #a4e5ed;
+  --weather-rain: #9ee7ef;
+  --weather-paper: #eff8f3;
+  --weather-glass-line: #9edfe8;
+  --weather-mural-opacity: 0.78;
+  --weather-fiber-opacity: 0.08;
+  --weather-atlas-opacity: 0.24;
+  --weather-glass-opacity: 0.26;
+  --weather-rain-opacity: 0.18;
+  --weather-particle-opacity: 0.62;
+  --weather-mural-blend: screen;
+  --weather-fiber-blend: screen;
 }
 
 body {
@@ -91,41 +142,10 @@ body {
     background-color var(--duration-slow) var(--ease-rain);
 }
 
-[data-theme="night"] body,
-[data-weather="night"] body,
-[data-weather-mode="night"] body,
-body[data-theme="night"] {
-  background-image: url("/assets/patterns/night-grid.svg");
-  background-attachment: fixed;
-}
-
-[data-weather-mode="clear"] body,
-[data-weather-mode="rain"] body {
-  background-image: none;
-  background-attachment: scroll;
-}
-
-[data-theme="clear"] .atmosphere,
-[data-theme="clear"] .rain-layer,
-[data-theme="clear"] .paper-drift,
-[data-weather="clear"] .atmosphere,
-[data-weather="clear"] .rain-layer,
-[data-weather="clear"] .paper-drift,
-[data-weather-mode="clear"] .atmosphere,
-[data-weather-mode="clear"] .rain-layer,
-[data-weather-mode="clear"] .paper-drift {
-  display: none;
-}
-
-[data-weather-mode="clear"] .rain-field {
-  visibility: hidden;
-  opacity: 0;
-}
-
-[data-weather-mode="night"] .rain-field__lines {
-  mix-blend-mode: screen;
-  opacity: 0.1;
-}
+/*
+ * 三种主题都保留背景场景，只切换纸面、远景和天气层。旧逻辑在晴天直接隐藏
+ * 雨场，导致模式切换后只剩大面积平色；现在组件通过 --weather-* 完成完整换景。
+ */
 
 .theme-surface {
   color: var(--theme-ink, var(--color-ink));

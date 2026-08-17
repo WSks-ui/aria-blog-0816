@@ -99,7 +99,8 @@ const {
         delete root.dataset.pendingMode;
         const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]:not([media])');
         if (themeColor) {
-          themeColor.content = mode === 'night' ? '#091114' : mode === 'clear' ? '#f5f6f4' : '#edf1f1';
+		  // 地址栏颜色必须与场景底材同步，避免主题切换时浏览器边缘闪出旧色板。
+          themeColor.content = mode === 'night' ? '#0d1216' : mode === 'clear' ? '#f6f7f3' : '#ebedec';
         }
 
         buttons.forEach((button) => {

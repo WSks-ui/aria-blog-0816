@@ -1,19 +1,19 @@
 :root {
   color-scheme: light;
 
-  /* 雨天档案以高明度冷灰为纸面，青色只承担状态与导引。 */
-  --color-canvas: #edf1f1;
-  --color-surface: #f7f8f6;
-  --color-surface-muted: #dce8eb;
-  --color-ink: #27373b;
-  --color-ink-muted: #607378;
-  --color-line: #9bb6bd;
-  --color-line-strong: #55757e;
-  --color-rain: #59b8cf;
+  /* 冷白纸面是基底，青色承担天气与空间层级，暖灰只留给极少数状态信号。 */
+  --color-canvas: #ebedec;
+  --color-surface: #f6f7f5;
+  --color-surface-muted: #d7e6e8;
+  --color-ink: #26383e;
+  --color-ink-muted: #5b7176;
+  --color-line: #9fbcc2;
+  --color-line-strong: #5c838b;
+  --color-rain: #73d0e2;
   --color-rain-deep: #1887aa;
-  --color-rain-pale: #b9dfe8;
-  --color-paper: #f3f2ec;
-  --color-warm: #c78e82;
+  --color-rain-pale: #b7e5ec;
+  --color-paper: #f3f1ea;
+  --color-warm: #b77a76;
   --color-focus: #006f91;
   --color-selection: #99d8e6;
   --color-danger: #aa4f46;
@@ -91,6 +91,28 @@
   --space-16: 1rem;
   --space-32: 2rem;
   --rain-opacity: 0.16;
+
+  /*
+   * 背景场景单独使用这一组语义变量：组件只读取天气层级，不直接耦合具体色值。
+   * 每种天气模式都重写完整变量，模式切换时可同时更新纸张、玻璃、雨幕和制图线。
+   */
+  --weather-base: #ebedec;
+  --weather-surface: #eef4f2;
+  --weather-haze: #a8d9e2;
+  --weather-glow: #c9edf0;
+  --weather-line: #6b9ea9;
+  --weather-accent: #1887aa;
+  --weather-rain: #73d0e2;
+  --weather-paper: #f8f6ef;
+  --weather-glass-line: #75b8c5;
+  --weather-mural-opacity: 0.72;
+  --weather-fiber-opacity: 0.18;
+  --weather-atlas-opacity: 0.16;
+  --weather-glass-opacity: 0.2;
+  --weather-rain-opacity: 0.42;
+  --weather-particle-opacity: 0.42;
+  --weather-mural-blend: multiply;
+  --weather-fiber-blend: multiply;
 }
 
 @media (max-width: 48rem) {

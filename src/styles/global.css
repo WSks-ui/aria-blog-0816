@@ -11,18 +11,6 @@ body {
   overflow-x: clip;
 }
 
-body::before {
-  position: fixed;
-  z-index: var(--z-background);
-  inset: 0;
-  background-image: url("/assets/patterns/rain-lines.svg");
-  background-position: center top;
-  background-size: cover;
-  content: "";
-  opacity: var(--theme-pattern-opacity, 0.16);
-  pointer-events: none;
-}
-
 .site-shell {
   width: min(100%, calc(var(--content-width) + (var(--page-gutter) * 2)));
   margin-inline: auto;
@@ -167,11 +155,6 @@ body::before {
 }
 
 @media (max-width: 48rem) {
-  body::before {
-    background-size: auto 100vh;
-    opacity: min(var(--theme-pattern-opacity, 0.12), 0.1);
-  }
-
   .site-shell {
     padding-inline: var(--page-gutter);
   }
@@ -202,7 +185,9 @@ body::before {
   body::before,
   .atmosphere,
   .rain-layer,
-  .paper-drift {
+  .paper-drift,
+  .rain-field,
+  .weather-transition {
     display: none !important;
   }
 
