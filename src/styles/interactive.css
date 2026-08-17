@@ -14,8 +14,8 @@
   --cursor-ink: color-mix(in srgb, var(--ink) 92%, #001c24);
   --cursor-paper: color-mix(in srgb, var(--paper-0) 84%, white 16%);
   transform: translate3d(var(--archive-cursor-x, -80px), var(--archive-cursor-y, -80px), 0);
-  /* 移动不能加 transition，否则每一帧都会追赶上一帧而产生明显拖尾。 */
-  transition: opacity 100ms linear;
+  /* 光标本身不参与任何过渡，保证位置与状态都在当前输入帧立即生效。 */
+  transition: none;
   will-change: transform, opacity;
 }
 
@@ -31,16 +31,16 @@
   left: 1px;
   width: 21px;
   height: 27px;
-  background: var(--cursor-paper);
+  background: var(--cursor-ink);
   clip-path: polygon(0 0, 0 82%, 26% 62%, 43% 100%, 57% 94%, 40% 57%, 77% 57%);
   filter:
-    drop-shadow(1px 0 0 var(--cursor-ink))
-    drop-shadow(-1px 0 0 var(--cursor-ink))
-    drop-shadow(0 1px 0 var(--cursor-ink))
-    drop-shadow(0 -1px 0 var(--cursor-ink))
-    drop-shadow(2px 3px 0 color-mix(in srgb, var(--cursor-ink) 18%, transparent));
+    drop-shadow(1px 0 0 var(--cursor-paper))
+    drop-shadow(-1px 0 0 var(--cursor-paper))
+    drop-shadow(0 1px 0 var(--cursor-paper))
+    drop-shadow(0 -1px 0 var(--cursor-paper))
+    drop-shadow(2px 3px 0 color-mix(in srgb, var(--cursor-ink) 30%, transparent));
   transform: rotate(-4deg);
-  transition: width 150ms var(--ease-rain), height 150ms var(--ease-rain), opacity 100ms linear, clip-path 150ms var(--ease-rain), transform 120ms var(--ease-rain);
+  transition: none;
 }
 
 .archive-cursor__dot {
@@ -48,11 +48,11 @@
   left: 15px;
   width: 4px;
   height: 4px;
-  border: 1px solid var(--cursor-ink);
+  border: 1px solid var(--cursor-paper);
   background: var(--accent-strong);
-  box-shadow: 1px 1px 0 color-mix(in srgb, var(--cursor-ink) 22%, transparent);
+  box-shadow: 1px 1px 0 color-mix(in srgb, var(--cursor-ink) 30%, transparent);
   transform: rotate(-4deg);
-  transition: opacity 100ms linear, transform 140ms var(--ease-rain);
+  transition: none;
 }
 
 .archive-cursor[data-visible='true'] { opacity: 1; }
@@ -62,14 +62,14 @@
   left: 1px;
   width: 22px;
   height: 22px;
-  border: 1px solid var(--cursor-ink);
+  border: 1px solid var(--cursor-paper);
   border-radius: 50%;
   background:
-    linear-gradient(var(--cursor-ink), var(--cursor-ink)) center / 8px 1px no-repeat,
-    linear-gradient(var(--cursor-ink), var(--cursor-ink)) center / 1px 8px no-repeat,
-    var(--cursor-paper);
+    linear-gradient(var(--cursor-paper), var(--cursor-paper)) center / 8px 1px no-repeat,
+    linear-gradient(var(--cursor-paper), var(--cursor-paper)) center / 1px 8px no-repeat,
+    var(--cursor-ink);
   clip-path: none;
-  filter: drop-shadow(2px 3px 0 color-mix(in srgb, var(--cursor-ink) 18%, transparent));
+  filter: drop-shadow(2px 3px 0 color-mix(in srgb, var(--cursor-ink) 30%, transparent));
   opacity: 1;
   transform: rotate(0deg);
 }
@@ -89,12 +89,12 @@
   width: 16px;
   height: 23px;
   background:
-    linear-gradient(var(--cursor-ink), var(--cursor-ink)) center / 1px 23px no-repeat,
-    linear-gradient(var(--cursor-paper), var(--cursor-paper)) center / 11px 3px no-repeat,
-    linear-gradient(var(--cursor-ink), var(--cursor-ink)) center top / 11px 1px no-repeat,
-    linear-gradient(var(--cursor-ink), var(--cursor-ink)) center bottom / 11px 1px no-repeat;
+    linear-gradient(var(--cursor-paper), var(--cursor-paper)) center / 1px 23px no-repeat,
+    linear-gradient(var(--cursor-ink), var(--cursor-ink)) center / 11px 3px no-repeat,
+    linear-gradient(var(--cursor-paper), var(--cursor-paper)) center top / 11px 1px no-repeat,
+    linear-gradient(var(--cursor-paper), var(--cursor-paper)) center bottom / 11px 1px no-repeat;
   clip-path: none;
-  filter: drop-shadow(1px 1px 0 color-mix(in srgb, var(--cursor-paper) 78%, transparent));
+  filter: drop-shadow(1px 1px 0 color-mix(in srgb, var(--cursor-ink) 38%, transparent));
   opacity: 1;
   transform: none;
 }
