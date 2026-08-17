@@ -234,6 +234,29 @@ const kindCode = {
 		height: 100%;
 	}
 
+	/* compact 封面用于首页滚动预览：保留构图线索，降低滤镜和运动频率，
+	   避免同一页同时维护多套高密度 SVG 动画。 */
+	.content-cover--compact .content-cover__grain { display: none; }
+	.content-cover--compact .essay-scene__arcs,
+	.content-cover--compact .essay-scene__umbrella,
+	.content-cover--compact .content-cover__papers rect,
+	.content-cover--compact .note-scene__markers,
+	.content-cover--compact .project-scene__links,
+	.content-cover--compact .project-scene__blocks,
+	.content-cover--compact .photo-scene__image,
+	.content-cover--compact .photo-scene__reflection,
+	.content-cover--compact .code-scene__rain rect,
+	.content-cover--compact .code-scene__scan,
+	.content-cover--compact .tutorial-scene__steps path,
+	.content-cover--compact .tutorial-scene__arrow {
+		animation-duration: 14s;
+	}
+
+	/* 无限滚动流的第二组只是回环占位，不需要重复消耗动效帧。 */
+	:global(.recent-stage__group[aria-hidden='true']) .content-cover * {
+		animation-play-state: paused !important;
+	}
+
 	.content-cover__base { fill: var(--cover-bg); }
 	.content-cover__grain { fill: var(--cover-ink); opacity: 0.045; mix-blend-mode: multiply; }
 	.content-cover__frame,

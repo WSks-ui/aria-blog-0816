@@ -15,30 +15,53 @@ const { mode = 'rain', label } = Astro.props;
 </section>
 
 <script>
-	const fronts = document.querySelectorAll<HTMLElement>('[data-weather-front]');
-	const activeFronts = new Map<Element, number>();
+	let weatherFrontObserver: IntersectionObserver | null = null;
 
-	const updateFront = () => {
-		const active = [...activeFronts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] as HTMLElement | undefined;
-		if (active?.dataset.weatherFront) {
-			document.documentElement.dataset.readingFront = active.dataset.weatherFront;
-		} else {
+	function initWeatherFronts() {
+		weatherFrontObserver?.disconnect();
+		weatherFrontObserver = null;
+
+		const fronts = [...document.querySelectorAll<HTMLElement>('[data-weather-front]')];
+		// 页面切换到没有天气分段的路由时，必须清掉上一页留下的 html 状态，
+		// 否则阅读中的色彩变量会继续污染普通页面。
+		if (fronts.length === 0) {
 			delete document.documentElement.dataset.readingFront;
+			return;
 		}
-	};
 
-	const observer = new IntersectionObserver(
-		(entries) => {
-			entries.forEach((entry) => {
-				if (entry.isIntersecting) activeFronts.set(entry.target, entry.intersectionRatio);
-				else activeFronts.delete(entry.target);
-			});
-			updateFront();
-		},
-		{ rootMargin: '-20% 0px -55%', threshold: [0, 0.25, 0.5, 0.75] },
-	);
+		const activeFronts = new Map<Element, number>();
+		const updateFront = () => {
+			const active = [...activeFronts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] as HTMLElement | undefined;
+			if (active?.dataset.weatherFront) {
+				document.documentElement.dataset.readingFront = active.dataset.weatherFront;
+			} else {
+				delete document.documentElement.dataset.readingFront;
+			}
+		};
 
-	fronts.forEach((front) => observer.observe(front));
+		// IntersectionObserver 并非所有嵌入式浏览器都可用；缺失时退化为静态主题，
+		// 不能让一块内容组件的脚本错误中断整页初始化。
+		if (!('IntersectionObserver' in window)) {
+			delete document.documentElement.dataset.readingFront;
+			return;
+		}
+		weatherFrontObserver = new IntersectionObserver(
+			(entries) => {
+				entries.forEach((entry) => {
+					if (entry.isIntersecting) activeFronts.set(entry.target, entry.intersectionRatio);
+					else activeFronts.delete(entry.target);
+				});
+				updateFront();
+			},
+			{ rootMargin: '-20% 0px -55%', threshold: [0, 0.25, 0.5, 0.75] },
+		);
+
+		fronts.forEach((front) => weatherFrontObserver?.observe(front));
+	}
+
+	initWeatherFronts();
+	document.addEventListener('astro:page-load', initWeatherFronts);
+	document.addEventListener('astro:before-swap', () => weatherFrontObserver?.disconnect(), { once: true });
 </script>
 
 <style>

@@ -654,9 +654,10 @@
 	}
 
 	@media (max-width: 760px) {
-		.hero-scene::before { inset: 0; background: color-mix(in srgb, var(--paper-0) 72%, transparent); }
-		:global(html[data-weather-mode='night']) .hero-scene::before { background: color-mix(in srgb, var(--night-0) 66%, transparent); }
-		.hero-scene__draft { width: 155%; translate: -36% 0; opacity: 0.75; }
+		/* 窄屏只遮住文案所在的左侧，右侧保留伞面和制图网格作为首屏焦点。 */
+		.hero-scene::before { inset: 0 36% 0 0; background: color-mix(in srgb, var(--paper-0) 88%, transparent); }
+		:global(html[data-weather-mode='night']) .hero-scene::before { background: color-mix(in srgb, var(--night-0) 82%, transparent); }
+		.hero-scene__draft { width: 132%; translate: -18% 0; opacity: 0.9; }
 		.hero-scene__telemetry, .hero-scene__beat { display: none; }
 	}
 
