@@ -5,7 +5,7 @@ import SiteHeader from '@/components/shell/SiteHeader.astro';
 import RainField from '@/components/visual/RainField.astro';
 import RouteTransition from '@/components/visual/RouteTransition.astro';
 import WeatherTransition from '@/components/visual/WeatherTransition.astro';
-import { SearchDialog, WeatherModeControl } from '@/components/interactive';
+import { InteractionSurface, SearchDialog, WeatherModeControl } from '@/components/interactive';
 import '@/styles/global.css';
 
 interface Props {
@@ -110,6 +110,7 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 		<RainField />
 		<WeatherTransition />
 		<RouteTransition />
+		<InteractionSurface />
 		<SiteHeader pathname={Astro.url.pathname}>
 			<WeatherModeControl slot="weather-control" />
 		</SiteHeader>

@@ -71,6 +71,12 @@ const variantClass = `memory-vault--${variant}`;
     </button>
   </div>
 	<output class="memory-vault__selection" data-memory-selection aria-live="polite" hidden></output>
+	<div class="memory-vault__context-menu" data-memory-context-menu hidden>
+		<button class="memory-vault__context-save" type="button" data-memory-context-save>
+			<BookmarkPlus size={17} stroke-width={1.5} aria-hidden="true" />
+			<span>摘录选句</span>
+		</button>
+	</div>
 
   <div
     class="memory-vault__panel"
@@ -162,8 +168,10 @@ const variantClass = `memory-vault--${variant}`;
       const exportButton = root.querySelector<HTMLButtonElement>('[data-memory-export]');
       const exportLabel = root.querySelector<HTMLElement>('[data-memory-export-label]');
       const selectionStatus = root.querySelector<HTMLOutputElement>('[data-memory-selection]');
+      const contextMenu = root.querySelector<HTMLElement>('[data-memory-context-menu]');
+      const contextSaveButton = root.querySelector<HTMLButtonElement>('[data-memory-context-save]');
       const deleteTemplate = root.querySelector<HTMLTemplateElement>('[data-memory-delete-template]');
-      if (!saveButton || !toggleButton || !closeButton || !panel || !status || !empty || !list || !exportButton || !exportLabel || !selectionStatus || !deleteTemplate) return;
+      if (!saveButton || !toggleButton || !closeButton || !panel || !status || !empty || !list || !exportButton || !exportLabel || !selectionStatus || !contextMenu || !contextSaveButton || !deleteTemplate) return;
 
       root.dataset.interactiveReady = 'true';
 
@@ -175,10 +183,13 @@ const variantClass = `memory-vault--${variant}`;
       let pendingDeleteId: string | null = null;
       let deleteResetTimer = 0;
 	  let hidePanelTimer = 0;
+	  let longPressTimer = 0;
+	  let longPressSelection: CachedSelection | null = null;
       let selectionFrame = 0;
 	  const transientTimers = new Set<number>();
 	  const pendingObjectUrls = new Set<string>();
 	  const captureAnimations = new Set<Animation>();
+	  const panelResizeAnimations = new Set<Animation>();
 	  const capturePapers = new Set<HTMLElement>();
 	  const controller = new AbortController();
 	  const { signal } = controller;
@@ -276,11 +287,35 @@ const variantClass = `memory-vault--${variant}`;
 		return { text, rect: range.getBoundingClientRect(), pageKey: currentPageKey() };
       };
 
+	  const hideContextMenu = () => {
+		contextMenu.hidden = true;
+		delete root.dataset.contextReady;
+	  };
+
+	  const showContextMenu = (selection: CachedSelection) => {
+		/*
+		 * 长按菜单使用 selection 的屏幕坐标，而不是正文相对坐标。这样无论文章
+		 * 滚动到哪里，菜单都贴在选区附近，也不会被侧栏自身的滚动区域裁掉。
+		 */
+		contextMenu.hidden = false;
+		const menuWidth = contextMenu.getBoundingClientRect().width || 132;
+		const left = Math.max(12, Math.min(
+			window.innerWidth - menuWidth - 12,
+			selection.rect.left + Math.min(selection.rect.width / 2, 120) - menuWidth / 2,
+		));
+		const preferredTop = selection.rect.top - 46;
+		const top = preferredTop >= 12 ? preferredTop : selection.rect.bottom + 12;
+		contextMenu.style.left = String(left) + 'px';
+		contextMenu.style.top = String(top) + 'px';
+		root.dataset.contextReady = 'true';
+	  };
+
 	  const clearSelectionFeedback = () => {
 		cachedSelection = null;
 		root.dataset.selectionReady = 'false';
 		selectionStatus.hidden = true;
 		selectionStatus.textContent = '';
+		hideContextMenu();
 	  };
 
 	  const updateSelectionFeedback = (selection: CachedSelection | null) => {
@@ -347,6 +382,7 @@ const variantClass = `memory-vault--${variant}`;
 	  };
 
       const render = (enteringId = '') => {
+		const previousPanelHeight = panel.hidden ? 0 : panel.getBoundingClientRect().height;
 		clearDeleteConfirmation();
         list.replaceChildren();
         syncCountDisplays();
@@ -386,6 +422,23 @@ const variantClass = `memory-vault--${variant}`;
           item.append(quote, meta, deleteControl);
           list.append(item);
         });
+
+		/*
+		 * 面板打开时新增或删除纸片会改变内容高度。浏览器不能直接过渡 auto 高度，
+		 * 因此按本次布局前后的实际像素高度补一段 Web Animation，避免突然跳高。
+		 */
+		if (!panel.hidden && !reduceMotion.matches && previousPanelHeight > 0) {
+			const nextPanelHeight = panel.getBoundingClientRect().height;
+			if (Math.abs(nextPanelHeight - previousPanelHeight) > 1) {
+				const animation = panel.animate([
+					{ height: String(previousPanelHeight) + 'px' },
+					{ height: String(nextPanelHeight) + 'px' },
+				], { duration: 420, easing: 'cubic-bezier(0.22, 0.75, 0.28, 1)' });
+				panelResizeAnimations.add(animation);
+				const releaseResizeAnimation = () => panelResizeAnimations.delete(animation);
+				animation.finished.then(releaseResizeAnimation, releaseResizeAnimation);
+			}
+		}
       };
 
       const setPanelOpen = (open: boolean) => {
@@ -422,7 +475,7 @@ const variantClass = `memory-vault--${variant}`;
 		preserveSelectionUntil = performance.now() + 500;
 	  }, { signal });
 
-      saveButton.addEventListener('click', () => {
+      const saveCurrentSelection = () => {
 		const selection = getValidSelection() ?? cachedSelection;
         if (!scope) {
           status.textContent = '未找到可收藏的正文区域。';
@@ -467,8 +520,60 @@ const variantClass = `memory-vault--${variant}`;
 		render(record.id);
         setPanelOpen(true);
         window.getSelection()?.removeAllRanges();
+      };
+
+	  saveButton.addEventListener('click', saveCurrentSelection, { signal });
+	  const clearLongPress = () => {
+		clearScheduled(longPressTimer);
+		longPressTimer = 0;
+		longPressSelection = null;
+	  };
+
+	  contextSaveButton.addEventListener('pointerdown', (event) => {
+		event.preventDefault();
+		const selection = getValidSelection();
+		if (selection) cachedSelection = selection;
+		preserveSelectionUntil = performance.now() + 600;
+	  }, { signal });
+	  contextSaveButton.addEventListener('click', () => {
+		saveCurrentSelection();
+		hideContextMenu();
 	  }, { signal });
 
+	  if (scope) {
+		/*
+		 * 左键按住一段时间且确实已经选中文本时才显示自定义菜单。这里不在
+		 * pointerdown 阶段阻止默认行为，保证拖动选字和键盘可访问性不被破坏。
+		 */
+		scope.addEventListener('pointerdown', (event) => {
+			if (event.button !== 0 || !event.isPrimary) return;
+			clearLongPress();
+			/*
+			 * 已经选中的文字在下一次按下时可能被浏览器折叠。因此先缓存按下瞬间
+			 * 的有效选区，长按到时再优先使用它，保证“先选中，再长按”稳定可用。
+			 */
+			longPressSelection = getValidSelection() ?? cachedSelection;
+			longPressTimer = schedule(() => {
+				longPressTimer = 0;
+				const selection = getValidSelection() ?? longPressSelection ?? cachedSelection;
+				if (!selection) return;
+				cachedSelection = selection;
+				updateSelectionFeedback(selection);
+				showContextMenu(selection);
+			}, 560);
+		}, { signal });
+		scope.addEventListener('pointerup', clearLongPress, { signal });
+		scope.addEventListener('pointercancel', () => {
+			clearLongPress();
+			hideContextMenu();
+		}, { signal });
+	  }
+
+	  document.addEventListener('pointerdown', (event) => {
+		const target = event.target;
+		if (target instanceof Node && (contextMenu.contains(target) || scope?.contains(target))) return;
+		hideContextMenu();
+	  }, { signal, capture: true });
 	  toggleButton.addEventListener('click', () => setPanelOpen(root.dataset.open !== 'true'), { signal });
 	  closeButton.addEventListener('click', () => {
 		setPanelOpen(false);
@@ -569,8 +674,11 @@ const variantClass = `memory-vault--${variant}`;
 		selectionFrame = 0;
 		clearScheduled(deleteResetTimer);
 		clearScheduled(hidePanelTimer);
+		clearScheduled(longPressTimer);
 		deleteResetTimer = 0;
 		hidePanelTimer = 0;
+		longPressTimer = 0;
+		longPressSelection = null;
 		transientTimers.forEach((timer) => window.clearTimeout(timer));
 		transientTimers.clear();
 
@@ -578,6 +686,8 @@ const variantClass = `memory-vault--${variant}`;
 		pendingObjectUrls.clear();
 		captureAnimations.forEach((animation) => animation.cancel());
 		captureAnimations.clear();
+		panelResizeAnimations.forEach((animation) => animation.cancel());
+		panelResizeAnimations.clear();
 		capturePapers.forEach((paper) => paper.remove());
 		capturePapers.clear();
 
@@ -590,6 +700,7 @@ const variantClass = `memory-vault--${variant}`;
 		panel.inert = true;
 		selectionStatus.hidden = true;
 		selectionStatus.textContent = '';
+		hideContextMenu();
 		exportButton.removeAttribute('aria-busy');
 		delete exportButton.dataset.state;
 		exportLabel.textContent = '导出 JSON';

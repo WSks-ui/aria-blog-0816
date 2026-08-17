@@ -7,7 +7,7 @@ import BaseLayout from './BaseLayout.astro';
 import KindLabel from '@/components/content/KindLabel.astro';
 import NightEcho from '@/components/content/NightEcho.astro';
 import PostMeta from '@/components/content/PostMeta.astro';
-import { CommentPanel, MemoryVault, SceneGuide } from '@/components/interactive';
+import { CommentPanel, MemoryVault, ReadingSession, SceneGuide } from '@/components/interactive';
 import ContentCoverScene from '@/components/visual/ContentCoverScene.astro';
 
 interface Props {
@@ -63,6 +63,12 @@ const relatedLinks = related.map((entry) => ({
 		<div class="article-layout">
 			<div class="article-layout__guide">
 				<SceneGuide contentSelector=".prose" headingSelector="h2, h3" />
+				<div class="article-layout__tools">
+					<!--
+						阅读记录仅保存在当前浏览器；退出入口固定在阅读轨内，长文滚动到
+						任何位置时都不必回到首屏寻找“全部文章”。
+					-->
+					<ReadingSession contentSelector=".reading-prose" postTitle={post.data.title} />
 				<!--
 					摘录工具与目录共享阅读轨，而不是悬浮在页面角落。scopeSelector 只允许
 					选中正文，避免把导航、标签或评论区的文字误收入本机摘录。
@@ -74,6 +80,7 @@ const relatedLinks = related.map((entry) => ({
 					triggerLabel="摘录"
 					scopeSelector=".reading-prose"
 				/>
+				</div>
 			</div>
 			<article class="prose reading-prose" data-article-title={post.data.title} data-article-path={Astro.url.pathname}>
 				<slot />
@@ -277,6 +284,11 @@ const relatedLinks = related.map((entry) => ({
 		gap: 18px;
 		height: calc(100dvh - 64px);
 		align-self: start;
+	}
+
+	.article-layout__tools {
+		display: grid;
+		gap: 9px;
 	}
 
 	.prose {

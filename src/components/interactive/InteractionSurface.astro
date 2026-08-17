@@ -1,0 +1,88 @@
+<div class="archive-cursor" data-archive-cursor aria-hidden="true" hidden>
+  <span class="archive-cursor__ring"></span>
+  <span class="archive-cursor__dot"></span>
+</div>
+
+<script>
+  function initInteractionSurface() {
+    const root = document.documentElement;
+    if (root.dataset.interactionSurfaceReady === 'true') return;
+    root.dataset.interactionSurfaceReady = 'true';
+
+    const cursor = document.querySelector<HTMLElement>('[data-archive-cursor]');
+    const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
+    let frame = 0;
+    let pointerX = -80;
+    let pointerY = -80;
+
+    const paintCursor = () => {
+      cursor?.style.setProperty('--archive-cursor-x', String(pointerX) + 'px');
+      cursor?.style.setProperty('--archive-cursor-y', String(pointerY) + 'px');
+      frame = 0;
+    };
+
+    const queueCursorPaint = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(paintCursor);
+    };
+
+    const setCursorAvailability = () => {
+      const enabled = finePointer.matches && Boolean(cursor);
+      root.dataset.archiveCursor = enabled ? 'enabled' : 'disabled';
+      if (cursor) {
+        cursor.hidden = !enabled;
+        cursor.dataset.visible = 'false';
+      }
+    };
+
+    const setCursorMode = (target: EventTarget | null) => {
+      if (!(target instanceof Element) || !cursor) return;
+      const isTextSurface = target.closest('.reading-prose, .prose, input, textarea, [contenteditable="true"]');
+      const isAction = target.closest('a, button, input, textarea, select, summary, [role="button"], [data-cursor="action"]');
+      cursor.dataset.mode = isAction ? 'action' : (isTextSurface ? 'text' : 'default');
+    };
+
+    // 右键与常见开发者工具快捷键只能在页面层拦截，浏览器仍可由用户自行绕过。
+    document.addEventListener('contextmenu', (event) => event.preventDefault(), { capture: true });
+    document.addEventListener('keydown', (event) => {
+      const key = event.key.toUpperCase();
+      const isInspectorShortcut = event.key === 'F12'
+        || (event.ctrlKey && event.shiftKey && ['I', 'J', 'C'].includes(key));
+      if (!isInspectorShortcut) return;
+      event.preventDefault();
+      event.stopPropagation();
+    }, { capture: true });
+
+    document.addEventListener('pointermove', (event) => {
+      if (!finePointer.matches || !cursor) return;
+      pointerX = event.clientX;
+      pointerY = event.clientY;
+      cursor.dataset.visible = 'true';
+      setCursorMode(event.target);
+      queueCursorPaint();
+    }, { passive: true });
+
+    document.addEventListener('pointerdown', (event) => {
+      if (!finePointer.matches || !cursor) return;
+      cursor.dataset.pressed = 'true';
+      setCursorMode(event.target);
+    }, { passive: true });
+
+    document.addEventListener('pointerup', () => {
+      if (cursor) delete cursor.dataset.pressed;
+    }, { passive: true });
+
+    document.addEventListener('pointerout', (event) => {
+      if (cursor && event.relatedTarget === null) cursor.dataset.visible = 'false';
+    }, { passive: true });
+
+    window.addEventListener('blur', () => {
+      if (cursor) cursor.dataset.visible = 'false';
+    });
+    finePointer.addEventListener('change', setCursorAvailability);
+    setCursorAvailability();
+  }
+
+  initInteractionSurface();
+  document.addEventListener('astro:page-load', initInteractionSurface);
+</script>
