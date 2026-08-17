@@ -1,11 +1,8 @@
 ---
-import { ArrowLeft, ArrowRight, ExternalLink } from '@lucide/astro';
+import { render, type CollectionEntry } from 'astro:content';
+import { ArrowLeft, ArrowRight, ExternalLink, GitBranch } from '@lucide/astro';
 import ContentCoverScene from '@/components/visual/ContentCoverScene.astro';
-import {
-	TUTORIAL_TOOL_STAGES,
-	type TutorialTool,
-} from '@/data/tutorial-tools';
-import type { TutorialToolDossier as TutorialToolDossierData } from '@/data/tutorial-dossiers';
+import { TUTORIAL_TOOL_STAGES, type TutorialTool } from '@/data/tutorial-tools';
 
 interface ToolNeighbor {
 	tool: TutorialTool;
@@ -14,23 +11,31 @@ interface ToolNeighbor {
 
 interface Props {
 	tool: TutorialTool;
-	dossier: TutorialToolDossierData;
+	guide: CollectionEntry<'toolGuides'>;
 	previous?: ToolNeighbor;
 	next?: ToolNeighbor;
 }
 
-const { tool, dossier, previous, next } = Astro.props;
+const { tool, guide, previous, next } = Astro.props;
+const { Content, headings } = await render(guide);
 const stage = TUTORIAL_TOOL_STAGES.find((item) => item.id === tool.stage);
 const stageIndex = stage?.index ?? '00';
 const stageLabel = stage?.label ?? '工具路线';
 const accent = stage?.accent ?? 'var(--accent-strong)';
 
-const sectionItems = [
-	{ id: 'why-now', index: '01', label: '为什么现在学习' },
-	{ id: 'minimum-practice', index: '02', label: '最小实践' },
-	{ id: 'learning-route', index: '03', label: '学习路线' },
-	{ id: 'resources', index: '04', label: '资料入口' },
-];
+// CSDIY 当前页面将仓库显示为 pkuflyingpig/cs-self-learning；同步脚本如携带仓库字段，
+// 优先使用快照中的地址，避免未来上游迁移时页面仍把访客指向旧仓库。
+const upstreamRepository =
+	guide.data.sourceRepository ??
+	guide.data.sourceRepoUrl ??
+	guide.data.upstreamRepository ??
+	guide.data.upstreamRepoUrl ??
+	guide.data.repositoryUrl ??
+	'https://github.com/pkuflyingpig/cs-self-learning/';
+
+// Markdown 的 h1 已由封面标题承担视觉层级；目录从原文 h2/h3 生成，确保链接和正文
+// 的 slug 完全由 Astro 编译结果决定，而不是在这里重新改写上游标题。
+const tocHeadings = headings.filter((heading) => heading.depth >= 2 && heading.depth <= 3);
 ---
 
 <article class="tool-dossier" style={`--tool-dossier-accent: ${accent};`} data-tool-dossier>
@@ -50,10 +55,9 @@ const sectionItems = [
 			</a>
 			<div class="tool-dossier__eyebrow">
 				<span>{stageIndex} / {stage?.code ?? 'TOOLCHAIN'}</span>
-				<span>{tool.status}</span>
+				<span>SYNCED GUIDE</span>
 			</div>
-			<h1>{tool.name}</h1>
-			<p class="tool-dossier__summary">{tool.summary}</p>
+			<h1>{guide.data.title}</h1>
 			<div class="tool-dossier__meta">
 				<span>{stageLabel}</span>
 				<span>ARIA-7 / FIELD GUIDE</span>
@@ -61,31 +65,40 @@ const sectionItems = [
 		</div>
 	</header>
 
-	<div class="tool-dossier__intro">
-		<div class="tool-dossier__intro-label">
-			<span>READING NOTE</span>
+	<div class="tool-dossier__provenance" aria-label="上游来源信息">
+		<div class="tool-dossier__provenance-label">
+			<span>SOURCE RECORD</span>
 			<strong>00</strong>
 		</div>
-		<div class="tool-dossier__intro-copy">
-			{dossier.overview.map((paragraph) => <p>{paragraph}</p>)}
+		<div class="tool-dossier__provenance-copy">
+			<p>本文正文直接渲染自 CSDIY 同步快照，站内页面只提供阅读框架与来源标记。</p>
+			<div class="tool-dossier__provenance-meta">
+				<span>同步自 CSDIY</span>
+				<span>版本 / {guide.data.sourceRevision}</span>
+				<a class="tool-dossier__license" href="/licenses/cs-self-learning-MIT.txt" target="_blank" rel="noreferrer" aria-label="查看 cs-self-learning 的 MIT 许可证文本">{guide.data.license} License</a>
+			</div>
 		</div>
 	</div>
 
 	<div class="tool-dossier__layout">
 		<aside class="tool-dossier__guide" aria-label="工具讲义目录">
 			<div class="tool-dossier__guide-inner">
-				<p class="tool-dossier__guide-label">DOSSIER / {tool.code}</p>
-				<nav aria-label={`${tool.name}讲义目录`}>
-					<ol class="tool-dossier__toc">
-						{sectionItems.map((item) => (
-							<li>
-								<a href={`#${item.id}`}>
-									<span>{item.index}</span>
-									<strong>{item.label}</strong>
-								</a>
-							</li>
-						))}
-					</ol>
+				<p class="tool-dossier__guide-label">CONTENTS / {tool.code}</p>
+				<nav aria-label={`${guide.data.title}原文目录`}>
+					{tocHeadings.length > 0 ? (
+						<ol class="tool-dossier__toc">
+							{tocHeadings.map((heading, index) => (
+								<li class:list={[heading.depth === 3 && 'is-subheading']}>
+									<a href={`#${heading.slug}`}>
+										<span>{String(index + 1).padStart(2, '0')}</span>
+										<strong>{heading.text}</strong>
+									</a>
+								</li>
+							))}
+						</ol>
+					) : (
+						<p class="tool-dossier__toc-empty">该同步版本未提供二级目录。</p>
+					)}
 				</nav>
 				<div class="tool-dossier__guide-stage">
 					<span>LEARNING STAGE</span>
@@ -95,104 +108,37 @@ const sectionItems = [
 		</aside>
 
 		<div class="tool-dossier__content">
-			<section class="dossier-section" id="why-now">
-				<header class="dossier-section__header">
-					<div>
-						<span class="dossier-section__index">01</span>
-						<p>CONTEXT / TIMING</p>
-					</div>
-					<h2>为什么现在学习</h2>
-				</header>
-				<div class="dossier-section__body">
-					<p class="dossier-section__lead">学习 {tool.name} 的理由，不是把工具收进收藏夹，而是为当前的工作建立一条更短、更可复查的路径。</p>
-					<ul class="dossier-points">
-						{dossier.why.map((point, index) => (
-							<li>
-								<span>{String(index + 1).padStart(2, '0')}</span>
-								<p>{point}</p>
-							</li>
-						))}
-					</ul>
-				</div>
-			</section>
+			<div class="tool-dossier__source reading-prose" data-source-content data-article-title={guide.data.title}>
+			<!-- Content 是 Astro 对同步 Markdown 的编译结果；不在此处拼接、摘要或改写上游正文。 -->
+			<Content />
+			</div>
 
-			<section class="dossier-section dossier-section--practice" id="minimum-practice">
-				<header class="dossier-section__header">
+			<section class="tool-dossier__resources" id="resources" aria-labelledby="resources-title">
+				<header>
 					<div>
-						<span class="dossier-section__index">02</span>
-						<p>FIELD TEST / FIRST LOOP</p>
-					</div>
-					<h2>最小实践</h2>
-				</header>
-				<div class="dossier-section__body">
-					<h3>{dossier.practice.title}</h3>
-					<p class="dossier-section__lead">{dossier.practice.description}</p>
-					<ol class="dossier-steps">
-						{dossier.practice.steps.map((step, index) => (
-							<li>
-								<span>{String(index + 1).padStart(2, '0')}</span>
-								<p>{step}</p>
-							</li>
-						))}
-					</ol>
-					{dossier.practice.command && (
-						<figure class="dossier-command">
-							<figcaption>{dossier.practice.commandLabel ?? 'COMMAND / MINIMUM'}</figcaption>
-							<pre><code>{dossier.practice.command}</code></pre>
-						</figure>
-					)}
-				</div>
-			</section>
-
-			<section class="dossier-section" id="learning-route">
-				<header class="dossier-section__header">
-					<div>
-						<span class="dossier-section__index">03</span>
-						<p>SEQUENCE / NEXT SIGNAL</p>
-					</div>
-					<h2>学习路线</h2>
-				</header>
-				<div class="dossier-section__body">
-					<ol class="dossier-route">
-						{dossier.route.map((step, index) => (
-							<li>
-								<span>{String(index + 1).padStart(2, '0')}</span>
-								<div>
-									<strong>{index === 0 ? '建立边界' : index === dossier.route.length - 1 ? '进入真实任务' : '增加复杂度'}</strong>
-									<p>{step}</p>
-								</div>
-							</li>
-						))}
-					</ol>
-				</div>
-			</section>
-
-			<section class="dossier-section dossier-section--resources" id="resources">
-				<header class="dossier-section__header">
-					<div>
-						<span class="dossier-section__index">04</span>
+						<span class="tool-dossier__section-index">SOURCE / 01</span>
 						<p>REFERENCE / OPEN SOURCES</p>
 					</div>
-					<h2>资料入口</h2>
+					<h2 id="resources-title">资料入口</h2>
 				</header>
-				<div class="dossier-section__body">
-					<p class="dossier-section__lead">下面的入口用于继续核对版本、语法和完整上下文。讲义本身保持站内独立，外部页面不会替代这里的学习顺序。</p>
-					<div class="dossier-resources">
-						<a href={tool.href} target="_blank" rel="noreferrer">
-							<span>
-								<small>OFFICIAL / PRIMARY</small>
-								<strong>官方文档或项目主页</strong>
-							</span>
-							<ExternalLink size={17} stroke-width={1.5} aria-hidden="true" />
-						</a>
-						<a href={tool.csdiyHref} target="_blank" rel="noreferrer">
-							<span>
-								<small>CURATED / CSDIY</small>
-								<strong>CSDIY 对应工具页</strong>
-							</span>
-							<ExternalLink size={17} stroke-width={1.5} aria-hidden="true" />
-						</a>
-					</div>
+				<p>以下入口用于核对原文、同步版本、许可证和工具官方资料。</p>
+				<div class="tool-dossier__resource-grid">
+					<a href={tool.csdiyHref} target="_blank" rel="noreferrer noopener">
+						<span><small>CSDIY / ORIGINAL PAGE</small><strong>查看 CSDIY 原文</strong></span>
+						<ExternalLink size={17} stroke-width={1.5} aria-hidden="true" />
+					</a>
+					<a href={guide.data.sourceUrl} target="_blank" rel="noreferrer noopener">
+						<span><small>SNAPSHOT / SOURCE FILE</small><strong>查看同步文件</strong></span>
+						<ExternalLink size={17} stroke-width={1.5} aria-hidden="true" />
+					</a>
+					<a href={upstreamRepository} target="_blank" rel="noreferrer noopener">
+						<span><small>UPSTREAM / REPOSITORY</small><strong>查看上游仓库</strong></span>
+						<GitBranch size={17} stroke-width={1.5} aria-hidden="true" />
+					</a>
+					<a href={tool.href} target="_blank" rel="noreferrer noopener">
+						<span><small>OFFICIAL / PRIMARY</small><strong>查看 {tool.name} 官方资料</strong></span>
+						<ExternalLink size={17} stroke-width={1.5} aria-hidden="true" />
+					</a>
 				</div>
 			</section>
 		</div>
@@ -239,11 +185,7 @@ const sectionItems = [
 		background: var(--accent-soft);
 	}
 
-	.tool-dossier__cover-scene {
-		position: absolute;
-		inset: 0;
-	}
-
+	.tool-dossier__cover-scene { position: absolute; inset: 0; }
 	.tool-dossier__cover-label {
 		position: absolute;
 		z-index: 2;
@@ -281,7 +223,6 @@ const sectionItems = [
 	}
 
 	.tool-dossier__back:hover { color: var(--tool-dossier-accent); transform: translateX(-3px); }
-
 	.tool-dossier__eyebrow,
 	.tool-dossier__meta {
 		display: flex;
@@ -294,9 +235,8 @@ const sectionItems = [
 	}
 
 	.tool-dossier__eyebrow span:first-child { color: var(--tool-dossier-accent); }
-
 	.tool-dossier h1 {
-		margin: 18px 0 18px;
+		margin: 18px 0;
 		font-family: var(--font-display);
 		font-size: clamp(56px, 6vw, 88px);
 		font-weight: 500;
@@ -304,25 +244,17 @@ const sectionItems = [
 		overflow-wrap: anywhere;
 	}
 
-	.tool-dossier__summary {
-		max-width: 440px;
-		margin: 0 0 28px;
-		font-size: 15px;
-		line-height: 1.85;
-		color: var(--ink-muted);
-	}
-
 	.tool-dossier__meta { padding-top: 16px; border-top: 1px solid var(--line); }
 
-	.tool-dossier__intro {
+	.tool-dossier__provenance {
 		display: grid;
 		grid-template-columns: 220px minmax(0, 760px);
 		gap: 64px;
-		padding-block: 58px 72px;
+		padding-block: 42px 50px;
 		border-bottom: 1px solid var(--line);
 	}
 
-	.tool-dossier__intro-label {
+	.tool-dossier__provenance-label {
 		display: flex;
 		justify-content: space-between;
 		align-items: start;
@@ -333,10 +265,12 @@ const sectionItems = [
 		color: var(--ink-muted);
 	}
 
-	.tool-dossier__intro-label strong { font-size: 28px; font-weight: 400; color: var(--tool-dossier-accent); }
-	.tool-dossier__intro-copy { max-width: 760px; }
-	.tool-dossier__intro-copy p { margin: 0; font-size: 18px; line-height: 1.95; color: var(--ink); }
-	.tool-dossier__intro-copy p + p { margin-top: 18px; color: var(--ink-muted); }
+	.tool-dossier__provenance-label strong { font-size: 28px; font-weight: 400; color: var(--tool-dossier-accent); }
+	.tool-dossier__provenance-copy { max-width: 760px; }
+	.tool-dossier__provenance-copy p { margin: 0; font-size: 16px; line-height: 1.85; color: var(--ink-muted); }
+	.tool-dossier__provenance-meta { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-top: 22px; font-family: var(--font-ui); font-size: 10px; color: var(--tool-dossier-accent); }
+	.tool-dossier__license { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+	.tool-dossier__license:hover { color: var(--ink); }
 
 	.tool-dossier__layout {
 		display: grid;
@@ -348,10 +282,9 @@ const sectionItems = [
 	.tool-dossier__guide-inner { position: sticky; top: 112px; }
 	.tool-dossier__guide-label,
 	.tool-dossier__guide-stage span,
-	.dossier-section__header p,
-	.dossier-section__index,
-	.dossier-command figcaption,
-	.dossier-resources small,
+	.tool-dossier__resources header p,
+	.tool-dossier__section-index,
+	.tool-dossier__resource-grid small,
 	.tool-dossier__neighbors small {
 		font-family: var(--font-ui);
 		font-size: 9px;
@@ -361,6 +294,7 @@ const sectionItems = [
 	.tool-dossier__guide-label { margin: 0; padding-bottom: 14px; border-bottom: 1px solid var(--line); color: var(--ink-muted); }
 	.tool-dossier__toc { margin: 0; padding: 0; list-style: none; }
 	.tool-dossier__toc li { border-bottom: 1px solid color-mix(in srgb, var(--line) 74%, transparent); }
+	.tool-dossier__toc li.is-subheading a { padding-left: 18px; }
 	.tool-dossier__toc a {
 		display: grid;
 		grid-template-columns: 32px minmax(0, 1fr);
@@ -372,53 +306,36 @@ const sectionItems = [
 		text-decoration: none;
 		transition: color var(--duration-base) var(--ease-rain), padding-inline var(--duration-base) var(--ease-drift), background-color var(--duration-base) var(--ease-rain);
 	}
+
 	.tool-dossier__toc a:hover { padding-inline: 10px; background: color-mix(in srgb, var(--tool-dossier-accent) 10%, transparent); color: var(--ink); }
 	.tool-dossier__toc a span { font-family: var(--font-ui); font-size: 9px; color: var(--tool-dossier-accent); }
 	.tool-dossier__toc a strong { font-size: 12px; font-weight: 500; }
+	.tool-dossier__toc-empty { margin: 18px 0; font-size: 12px; color: var(--ink-muted); }
 	.tool-dossier__guide-stage { display: grid; gap: 8px; margin-top: 44px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--ink-muted); }
 	.tool-dossier__guide-stage strong { font-family: var(--font-display); font-size: 18px; font-weight: 500; color: var(--tool-dossier-accent); }
 
 	.tool-dossier__content { min-width: 0; }
-	.dossier-section { padding-bottom: 72px; border-bottom: 1px solid var(--line); scroll-margin-top: 120px; }
-	.dossier-section + .dossier-section { padding-top: 72px; }
-	.dossier-section__header { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 24px; align-items: start; }
-	.dossier-section__header > div { display: grid; gap: 10px; }
-	.dossier-section__header p { margin: 0; color: var(--ink-muted); }
-	.dossier-section__index { color: var(--tool-dossier-accent); }
-	.dossier-section h2 { margin: 0; font-family: var(--font-display); font-size: 42px; font-weight: 500; line-height: 1.18; }
-	.dossier-section__body { margin-left: 164px; padding-top: 30px; }
-	.dossier-section__lead { max-width: 620px; margin: 0; font-size: 16px; line-height: 1.9; color: var(--ink-muted); }
-	.dossier-points,
-	.dossier-steps,
-	.dossier-route { display: grid; gap: 0; margin: 32px 0 0; padding: 0; list-style: none; }
-	.dossier-points li,
-	.dossier-steps li,
-	.dossier-route li { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 16px; padding: 18px 0; border-top: 1px solid color-mix(in srgb, var(--line) 78%, transparent); }
-	.dossier-points li:last-child,
-	.dossier-steps li:last-child,
-	.dossier-route li:last-child { border-bottom: 1px solid color-mix(in srgb, var(--line) 78%, transparent); }
-	.dossier-points li > span,
-	.dossier-steps li > span,
-	.dossier-route li > span { padding-top: 3px; font-family: var(--font-ui); font-size: 9px; color: var(--tool-dossier-accent); }
-	.dossier-points p,
-	.dossier-steps p,
-	.dossier-route p { margin: 0; font-size: 15px; line-height: 1.75; }
+	.tool-dossier__source { min-width: 0; }
+	/* 原文 h1 仍保留在编译后的 DOM 中，但视觉标题由上方封面承担，避免页面出现两个主标题。 */
+	.tool-dossier__source :global(h1) { display: none; }
+	.tool-dossier__source :global(img) { max-width: 100%; height: auto; }
+	.tool-dossier__source :global(table) { display: block; max-width: 100%; overflow-x: auto; }
+	.tool-dossier__source :global(a) { overflow-wrap: anywhere; }
 
-	.dossier-section--practice { background: linear-gradient(90deg, color-mix(in srgb, var(--tool-dossier-accent) 6%, transparent), transparent 68%); }
-	.dossier-section h3 { margin: 0 0 14px; font-family: var(--font-display); font-size: 28px; font-weight: 500; line-height: 1.25; }
-	.dossier-command { margin: 34px 0 0; border: 1px solid var(--line); background: color-mix(in srgb, var(--paper-0) 85%, var(--tool-dossier-accent) 15%); }
-	.dossier-command figcaption { padding: 12px 16px; border-bottom: 1px solid var(--line); color: var(--tool-dossier-accent); }
-	.dossier-command pre { margin: 0; padding: 18px 16px; overflow-x: auto; font-family: var(--font-mono); font-size: 13px; line-height: 1.7; color: var(--ink); white-space: pre-wrap; }
-	.dossier-route li > div { min-width: 0; }
-	.dossier-route strong { display: block; margin-bottom: 6px; font-family: var(--font-display); font-size: 21px; font-weight: 500; }
-	.dossier-section--resources { border-bottom: 0; }
-	.dossier-resources { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 34px; }
-	.dossier-resources a { display: flex; min-height: 104px; justify-content: space-between; align-items: end; gap: 16px; padding: 16px; border: 1px solid var(--line); color: var(--ink); text-decoration: none; transition: border-color var(--duration-base) var(--ease-rain), transform var(--duration-base) var(--ease-drift), background-color var(--duration-base) var(--ease-rain); }
-	.dossier-resources a:hover { border-color: var(--tool-dossier-accent); background: color-mix(in srgb, var(--tool-dossier-accent) 8%, transparent); transform: translateY(-3px); }
-	.dossier-resources a > span { display: grid; gap: 10px; min-width: 0; }
-	.dossier-resources small { color: var(--tool-dossier-accent); }
-	.dossier-resources strong { font-size: 13px; font-weight: 500; }
-	.dossier-resources svg { flex: 0 0 auto; color: var(--tool-dossier-accent); }
+	.tool-dossier__resources { margin-top: 76px; padding-top: 34px; border-top: 1px solid var(--line); }
+	.tool-dossier__resources header { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 24px; align-items: start; }
+	.tool-dossier__resources header > div { display: grid; gap: 10px; }
+	.tool-dossier__resources header p { margin: 0; color: var(--ink-muted); }
+	.tool-dossier__section-index { color: var(--tool-dossier-accent); }
+	.tool-dossier__resources h2 { margin: 0; font-family: var(--font-display); font-size: 42px; font-weight: 500; line-height: 1.18; }
+	.tool-dossier__resources > p { max-width: 620px; margin: 30px 0 0 164px; font-size: 15px; line-height: 1.75; color: var(--ink-muted); }
+	.tool-dossier__resource-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 34px 0 0 164px; }
+	.tool-dossier__resource-grid a { display: flex; min-height: 112px; justify-content: space-between; align-items: end; gap: 16px; padding: 16px; border: 1px solid var(--line); color: var(--ink); text-decoration: none; transition: border-color var(--duration-base) var(--ease-rain), transform var(--duration-base) var(--ease-drift), background-color var(--duration-base) var(--ease-rain); }
+	.tool-dossier__resource-grid a:hover { border-color: var(--tool-dossier-accent); background: color-mix(in srgb, var(--tool-dossier-accent) 8%, transparent); transform: translateY(-3px); }
+	.tool-dossier__resource-grid a > span { display: grid; gap: 10px; min-width: 0; }
+	.tool-dossier__resource-grid small { color: var(--tool-dossier-accent); }
+	.tool-dossier__resource-grid strong { font-size: 13px; font-weight: 500; }
+	.tool-dossier__resource-grid svg { flex: 0 0 auto; color: var(--tool-dossier-accent); }
 
 	.tool-dossier__neighbors { display: grid; grid-template-columns: minmax(0, 1fr) 160px minmax(0, 1fr); gap: 10px; align-items: stretch; margin-bottom: 112px; border-block: 1px solid var(--line); }
 	.tool-dossier__neighbors > a { display: flex; min-height: 92px; align-items: center; gap: 12px; padding: 14px 16px; color: var(--ink); text-decoration: none; transition: background-color var(--duration-base) var(--ease-rain), color var(--duration-base) var(--ease-rain); }
@@ -438,15 +355,18 @@ const sectionItems = [
 	}
 
 	@media (max-width: 900px) {
-		.tool-dossier__intro,
+		.tool-dossier__provenance,
 		.tool-dossier__layout { grid-template-columns: 1fr; gap: 34px; }
-		.tool-dossier__intro-label { padding: 0 0 14px; border-right: 0; border-bottom: 1px solid var(--line); }
+		.tool-dossier__provenance-label { padding: 0 0 14px; border-right: 0; border-bottom: 1px solid var(--line); }
 		.tool-dossier__guide-inner { position: static; }
-		.tool-dossier__toc { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+		.tool-dossier__toc { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 		.tool-dossier__toc li { border-right: 1px solid var(--line); }
-		.tool-dossier__toc li:last-child { border-right: 0; }
-		.tool-dossier__toc a { grid-template-columns: 1fr; gap: 7px; min-height: 76px; padding: 12px; }
+		.tool-dossier__toc li:nth-child(even) { border-right: 0; }
+		.tool-dossier__toc a { min-height: 68px; padding: 12px; }
 		.tool-dossier__guide-stage { display: none; }
+		.tool-dossier__resources > p,
+		.tool-dossier__resource-grid { margin-left: 0; }
+		.tool-dossier__resource-grid { grid-template-columns: 1fr; }
 	}
 
 	@media (max-width: 760px) {
@@ -454,14 +374,10 @@ const sectionItems = [
 		.tool-dossier__heading { padding: 36px 24px; }
 		.tool-dossier h1 { font-size: 48px; }
 		.tool-dossier__cover { min-height: 290px; }
-		.tool-dossier__intro { padding-block: 42px 56px; }
-		.tool-dossier__intro-copy p { font-size: 16px; }
+		.tool-dossier__provenance { padding-block: 34px 44px; }
 		.tool-dossier__layout { padding-block: 56px 72px; }
-		.dossier-section__header { grid-template-columns: 1fr; gap: 12px; }
-		.dossier-section__header > div { display: flex; justify-content: space-between; }
-		.dossier-section h2 { font-size: 34px; }
-		.dossier-section__body { margin-left: 0; }
-		.dossier-resources { grid-template-columns: 1fr; }
+		.tool-dossier__resources header { grid-template-columns: 1fr; gap: 12px; }
+		.tool-dossier__resources h2 { font-size: 34px; }
 		.tool-dossier__neighbors { grid-template-columns: 1fr 1fr; }
 		.tool-dossier__neighbors-index { grid-column: 1 / -1; grid-row: 1; min-height: 56px; border-inline: 0; border-bottom: 1px solid var(--line); }
 		.tool-dossier__neighbor-placeholder { display: none; }
@@ -470,7 +386,7 @@ const sectionItems = [
 	@media (prefers-reduced-motion: reduce) {
 		.tool-dossier__back,
 		.tool-dossier__toc a,
-		.dossier-resources a,
+		.tool-dossier__resource-grid a,
 		.tool-dossier__neighbors > a { transition: none; }
 	}
 </style>

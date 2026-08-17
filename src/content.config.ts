@@ -35,4 +35,29 @@ const posts = defineCollection({
 	}),
 });
 
-export const collections = { posts };
+/**
+ * 工具讲义由同步脚本从 CSDIY 上游 Markdown 生成。
+ * 这里仅校验来源元数据，不在 schema 或组件中重新组织正文，保证构建结果始终对应
+ * 工作树中那份可审计的上游快照。仓库字段兼容几种命名，便于未来同步脚本调整字段名时
+ * 不需要改动渲染层；缺失字段不会影响 CSDIY 原文链接，但会在页面中回退到总仓库地址。
+ */
+const toolGuides = defineCollection({
+	loader: glob({
+		base: './src/content/tool-guides',
+		pattern: '**/*.md',
+	}),
+	schema: z.object({
+		toolId: z.string().trim().min(1),
+		title: z.string().trim().min(1),
+		sourceUrl: z.url(),
+		sourceRevision: z.coerce.string().trim().min(1),
+		license: z.coerce.string().trim().min(1),
+		sourceRepository: z.url().nullable().optional(),
+		sourceRepoUrl: z.url().nullable().optional(),
+		upstreamRepository: z.url().nullable().optional(),
+		upstreamRepoUrl: z.url().nullable().optional(),
+		repositoryUrl: z.url().nullable().optional(),
+	}),
+});
+
+export const collections = { posts, toolGuides };

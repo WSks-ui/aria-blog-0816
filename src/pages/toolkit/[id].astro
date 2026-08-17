@@ -1,43 +1,45 @@
 ---
+import { getCollection, type CollectionEntry } from 'astro:content';
 import TutorialToolDossier from '@/components/content/TutorialToolDossier.astro';
 import { TUTORIAL_TOOLS, type TutorialTool } from '@/data/tutorial-tools';
-import { getTutorialToolDossier } from '@/data/tutorial-dossiers';
 import BaseLayout from '@/layouts/BaseLayout.astro';
 
-export function getStaticPaths() {
-	return TUTORIAL_TOOLS.flatMap((tool, index) => {
-		const dossier = getTutorialToolDossier(tool);
-		if (!dossier) return [];
+export async function getStaticPaths() {
+	const guides = await getCollection('toolGuides');
+	const guideByToolId = new Map(guides.map((guide) => [guide.data.toolId, guide]));
+
+	return TUTORIAL_TOOLS.map((tool, index) => {
+		const guide = guideByToolId.get(tool.id);
+		// 工具目录和同步内容必须一一对应。静默跳过会让线上目录出现无法打开的卡片，
+		// 因此把缺失快照升级为构建错误，提醒维护者先运行同步命令再部署。
+		if (!guide) {
+			throw new Error(`缺少 CSDIY 工具讲义：${tool.id}。请先生成 src/content/tool-guides/${tool.id}.md`);
+		}
 
 		const previousTool = TUTORIAL_TOOLS[index - 1];
 		const nextTool = TUTORIAL_TOOLS[index + 1];
-		return [{
+		return {
 			params: { id: tool.id },
 			props: {
 				tool,
-				dossier,
+				guide,
 				previous: previousTool ? { tool: previousTool, index: index - 1 } : undefined,
 				next: nextTool ? { tool: nextTool, index: index + 1 } : undefined,
 			},
-		}];
+		};
 	});
 }
 
 interface Props {
 	tool: TutorialTool;
-	dossier: NonNullable<ReturnType<typeof getTutorialToolDossier>>;
+	guide: CollectionEntry<'toolGuides'>;
 	previous?: { tool: TutorialTool; index: number };
 	next?: { tool: TutorialTool; index: number };
 }
 
-const { tool, dossier, previous, next } = Astro.props;
-// 详情页只接受由 getStaticPaths 构建出的 id；这个保护让未来改为动态渲染时仍能给出可读的 404，
-// 同时不会把缺失讲义的数据继续传给模板，避免页面出现半套目录或无目标链接。
-if (!tool || !dossier) {
-	return Astro.redirect('/types/tutorial/');
-}
+const { tool, guide, previous, next } = Astro.props;
 ---
 
-<BaseLayout title={`${tool.name} 工具讲义`} description={tool.summary} className="tutorial-tool-page">
-	<TutorialToolDossier tool={tool} dossier={dossier} previous={previous} next={next} />
+<BaseLayout title={`${guide.data.title} 工具讲义`} description={`来自 CSDIY 的 ${guide.data.title} 工具讲义。`} className="tutorial-tool-page">
+	<TutorialToolDossier tool={tool} guide={guide} previous={previous} next={next} />
 </BaseLayout>
