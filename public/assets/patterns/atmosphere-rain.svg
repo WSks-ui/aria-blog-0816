@@ -34,12 +34,13 @@
     <rect x="755" y="274" width="742" height="236" rx="4" fill="url(#glass)" transform="rotate(7 1126 392)"/>
     <rect x="662" y="657" width="762" height="128" rx="4" fill="url(#glass)" transform="rotate(-4 1043 721)"/>
   </g>
-  <g fill="#fbfaf2" stroke="#5b9cab" stroke-width="1" stroke-opacity=".34">
-    <rect x="236" y="162" width="18" height="18" transform="rotate(11 245 171)"/>
-    <rect x="620" y="318" width="28" height="28" transform="rotate(-8 634 332)"/>
-    <rect x="1090" y="165" width="12" height="12" transform="rotate(12 1096 171)"/>
-    <rect x="1336" y="600" width="21" height="21" transform="rotate(-13 1346.5 610.5)"/>
-    <rect x="400" y="790" width="10" height="10" transform="rotate(8 405 795)"/>
+  <!-- 不等边纸片替换规则方块，描边保持像素级轻薄以接近手绘档案碎片。 -->
+  <g fill="#fbfaf2" stroke="#5b9cab" stroke-width="1" stroke-opacity=".34" stroke-linejoin="round">
+    <path d="M238 161 251 160 256 172 248 181 235 174Z"/>
+    <path d="M624 317 645 319 651 339 635 350 619 339 618 326Z"/>
+    <path d="M1093 164 1102 165 1105 174 1097 180 1089 175Z"/>
+    <path d="M1341 600 1357 603 1360 618 1347 625 1335 615 1337 606Z"/>
+    <path d="M402 790 410 791 412 799 405 803 398 798Z"/>
   </g>
   <g stroke="#54adc0" stroke-width="1" stroke-opacity=".22" fill="none">
     <path d="M284 90h318M284 90v134M1032 821h360M1392 821V676"/>

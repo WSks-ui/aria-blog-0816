@@ -82,9 +82,10 @@ const kindCode = {
 					<path d="M104 260h118M104 278h74" />
 				</g>
 				<g class="content-cover__papers">
-					<rect x="430" y="92" width="18" height="18" style="--i: 0" />
-					<rect x="646" y="144" width="28" height="28" style="--i: 1" />
-					<rect x="578" y="418" width="12" height="12" style="--i: 2" />
+					<!-- 碎片使用不等边纸形，避免封面场景退化为规则 UI 方块。 -->
+					<path d="M432 92 446 93 450 106 440 112 429 104Z" style="--i: 0" />
+					<path d="M650 144 671 146 677 164 662 174 645 163 644 151Z" style="--i: 1" />
+					<path d="M580 418 590 417 593 427 585 433 577 427Z" style="--i: 2" />
 				</g>
 			</g>
 		)}
@@ -262,7 +263,7 @@ const kindCode = {
 	.content-cover--compact::before { opacity: 0.24; }
 	.content-cover--compact .essay-scene__arcs,
 	.content-cover--compact .essay-scene__umbrella,
-	.content-cover--compact .content-cover__papers rect,
+	.content-cover--compact .content-cover__papers path,
 	.content-cover--compact .note-scene__markers,
 	.content-cover--compact .project-scene__links,
 	.content-cover--compact .project-scene__blocks,
@@ -318,7 +319,7 @@ const kindCode = {
 	.essay-scene__index { color: var(--cover-muted); }
 	.essay-scene__index text { fill: currentColor; stroke: none; font-family: var(--font-ui); font-size: 9px; }
 
-	.content-cover__papers rect {
+	.content-cover__papers path {
 		fill: var(--color-paper);
 		stroke: var(--cover-line-strong);
 		transform-box: fill-box;

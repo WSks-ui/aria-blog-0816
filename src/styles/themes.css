@@ -36,7 +36,8 @@
   --weather-paper: #f8f6ef;
   --weather-glass-line: #75b8c5;
   --weather-mural-opacity: 0.72;
-  --weather-fiber-opacity: 0.18;
+	/* 纸浆颗粒应当在留白处可见、在正文下面退后，不把页面压成脏灰。 */
+	--weather-fiber-opacity: 0.24;
   --weather-atlas-opacity: 0.16;
   --weather-glass-opacity: 0.2;
   --weather-rain-opacity: 0.42;
@@ -81,7 +82,7 @@
   --weather-paper: #fffdf6;
   --weather-glass-line: #91c6cd;
   --weather-mural-opacity: 0.56;
-  --weather-fiber-opacity: 0.11;
+	--weather-fiber-opacity: 0.16;
   --weather-atlas-opacity: 0.11;
   --weather-glass-opacity: 0.12;
   --weather-rain-opacity: 0.06;
@@ -125,7 +126,7 @@
   --weather-paper: #eff8f3;
   --weather-glass-line: #9edfe8;
   --weather-mural-opacity: 0.78;
-  --weather-fiber-opacity: 0.08;
+	--weather-fiber-opacity: 0.12;
   --weather-atlas-opacity: 0.24;
   --weather-glass-opacity: 0.26;
   --weather-rain-opacity: 0.18;

@@ -11,9 +11,9 @@
     <path d="M104 87 339 349M572 118 339 349M104 87 572 118"/>
     <path d="M0 240h720M360 0v480"/>
   </g>
-  <g fill="#f3f2ec" stroke="#55757e" stroke-width="1" opacity=".68">
-    <rect x="186" y="76" width="19" height="19" transform="rotate(7 195.5 85.5)"/>
-    <rect x="426" y="258" width="12" height="12" transform="rotate(-9 432 264)"/>
-    <rect x="627" y="360" width="24" height="24" transform="rotate(13 639 372)"/>
+  <g fill="#f3f2ec" stroke="#55757e" stroke-width="1" stroke-linejoin="round" opacity=".68">
+    <path d="M189 75 204 77 208 91 197 101 184 92 185 81Z"/>
+    <path d="M428 258 438 259 441 268 433 274 425 268Z"/>
+    <path d="M631 359 650 362 655 379 640 390 624 379 626 367Z"/>
   </g>
 </svg>

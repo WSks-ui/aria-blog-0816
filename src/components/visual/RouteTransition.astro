@@ -246,29 +246,57 @@
 		--paper-y: -34vh;
 		--paper-r: -18deg;
 		--paper-delay: 0ms;
+		--paper-cut: polygon(9% 2%, 91% 0, 100% 72%, 72% 100%, 6% 87%, 0 28%);
 		position: absolute;
 		top: 50%;
 		left: 50%;
 		width: 58px;
 		height: 72px;
-		border: 1px solid #87a2aa;
-		background: #edf1ef;
-		box-shadow: 0 12px 34px rgb(0 0 0 / 22%);
+		isolation: isolate;
+		filter: drop-shadow(0 12px 18px rgb(0 0 0 / 24%));
 		opacity: 0;
 		transform: translate(var(--paper-x), var(--paper-y)) rotate(var(--paper-r));
 	}
 
-	.route-transition__papers span:nth-child(2) { --paper-x: -24vw; --paper-y: -45vh; --paper-r: 14deg; --paper-delay: 34ms; width: 42px; height: 55px; }
-	.route-transition__papers span:nth-child(3) { --paper-x: 8vw; --paper-y: -39vh; --paper-r: -26deg; --paper-delay: 12ms; width: 76px; height: 94px; }
-	.route-transition__papers span:nth-child(4) { --paper-x: 34vw; --paper-y: -27vh; --paper-r: 22deg; --paper-delay: 58ms; }
-	.route-transition__papers span:nth-child(5) { --paper-x: 43vw; --paper-y: -2vh; --paper-r: -12deg; --paper-delay: 20ms; width: 46px; height: 60px; }
-	.route-transition__papers span:nth-child(6) { --paper-x: 32vw; --paper-y: 31vh; --paper-r: 31deg; --paper-delay: 72ms; width: 70px; height: 86px; }
-	.route-transition__papers span:nth-child(7) { --paper-x: 5vw; --paper-y: 38vh; --paper-r: -8deg; --paper-delay: 42ms; }
-	.route-transition__papers span:nth-child(8) { --paper-x: -19vw; --paper-y: 43vh; --paper-r: 18deg; --paper-delay: 86ms; width: 48px; height: 61px; }
-	.route-transition__papers span:nth-child(9) { --paper-x: -39vw; --paper-y: 26vh; --paper-r: -30deg; --paper-delay: 24ms; width: 70px; height: 88px; }
-	.route-transition__papers span:nth-child(10) { --paper-x: -46vw; --paper-y: 3vh; --paper-r: 9deg; --paper-delay: 64ms; width: 44px; height: 57px; }
-	.route-transition__papers span:nth-child(11) { --paper-x: 17vw; --paper-y: 17vh; --paper-r: -22deg; --paper-delay: 6ms; width: 38px; height: 50px; }
-	.route-transition__papers span:nth-child(12) { --paper-x: -12vw; --paper-y: -11vh; --paper-r: 27deg; --paper-delay: 76ms; width: 34px; height: 44px; }
+	/*
+	 * 转场纸片采用两层同形裁切：后层是偏移的青灰描边，前层是带纸纤维的暖白纸面。
+	 * 这样大块碎片缩放进出时仍保留手工裁切的边缘，而不是一组直角卡片。
+	 */
+	.route-transition__papers span::before,
+	.route-transition__papers span::after {
+		position: absolute;
+		content: '';
+		clip-path: var(--paper-cut);
+	}
+
+	.route-transition__papers span::before {
+		z-index: 1;
+		inset: 0;
+		background:
+			linear-gradient(138deg, #f4f6ef 0%, #e1ece7 82%),
+			url('/assets/patterns/archive-fiber.svg');
+		background-size: cover, 180px 180px;
+		box-shadow: inset 0 0 0 1px rgb(237 246 241 / 48%);
+	}
+
+	.route-transition__papers span::after {
+		z-index: 0;
+		inset: -1px;
+		background: #87a2aa;
+		transform: translate3d(.9px, 1.2px, 0) scale(1.02);
+	}
+
+	.route-transition__papers span:nth-child(2) { --paper-x: -24vw; --paper-y: -45vh; --paper-r: 14deg; --paper-delay: 34ms; --paper-cut: polygon(2% 14%, 78% 0, 100% 32%, 88% 100%, 15% 92%, 0 58%); width: 42px; height: 55px; }
+	.route-transition__papers span:nth-child(3) { --paper-x: 8vw; --paper-y: -39vh; --paper-r: -26deg; --paper-delay: 12ms; --paper-cut: polygon(12% 0, 100% 15%, 84% 100%, 20% 90%, 0 41%); width: 76px; height: 94px; }
+	.route-transition__papers span:nth-child(4) { --paper-x: 34vw; --paper-y: -27vh; --paper-r: 22deg; --paper-delay: 58ms; --paper-cut: polygon(0 19%, 66% 0, 100% 28%, 79% 100%, 10% 83%); }
+	.route-transition__papers span:nth-child(5) { --paper-x: 43vw; --paper-y: -2vh; --paper-r: -12deg; --paper-delay: 20ms; --paper-cut: polygon(10% 0, 92% 8%, 100% 67%, 62% 100%, 0 82%, 7% 38%); width: 46px; height: 60px; }
+	.route-transition__papers span:nth-child(6) { --paper-x: 32vw; --paper-y: 31vh; --paper-r: 31deg; --paper-delay: 72ms; --paper-cut: polygon(0 9%, 83% 0, 100% 58%, 73% 100%, 5% 91%, 15% 46%); width: 70px; height: 86px; }
+	.route-transition__papers span:nth-child(7) { --paper-x: 5vw; --paper-y: 38vh; --paper-r: -8deg; --paper-delay: 42ms; --paper-cut: polygon(13% 0, 100% 14%, 85% 100%, 21% 90%, 0 42%); }
+	.route-transition__papers span:nth-child(8) { --paper-x: -19vw; --paper-y: 43vh; --paper-r: 18deg; --paper-delay: 86ms; --paper-cut: polygon(9% 2%, 91% 0, 100% 72%, 72% 100%, 6% 87%, 0 28%); width: 48px; height: 61px; }
+	.route-transition__papers span:nth-child(9) { --paper-x: -39vw; --paper-y: 26vh; --paper-r: -30deg; --paper-delay: 24ms; --paper-cut: polygon(2% 14%, 78% 0, 100% 32%, 88% 100%, 15% 92%, 0 58%); width: 70px; height: 88px; }
+	.route-transition__papers span:nth-child(10) { --paper-x: -46vw; --paper-y: 3vh; --paper-r: 9deg; --paper-delay: 64ms; --paper-cut: polygon(12% 0, 100% 15%, 84% 100%, 20% 90%, 0 41%); width: 44px; height: 57px; }
+	.route-transition__papers span:nth-child(11) { --paper-x: 17vw; --paper-y: 17vh; --paper-r: -22deg; --paper-delay: 6ms; --paper-cut: polygon(0 19%, 66% 0, 100% 28%, 79% 100%, 10% 83%); width: 38px; height: 50px; }
+	.route-transition__papers span:nth-child(12) { --paper-x: -12vw; --paper-y: -11vh; --paper-r: 27deg; --paper-delay: 76ms; --paper-cut: polygon(10% 0, 92% 8%, 100% 67%, 62% 100%, 0 82%, 7% 38%); width: 34px; height: 44px; }
 
 	.route-transition__axis {
 		top: 50%;

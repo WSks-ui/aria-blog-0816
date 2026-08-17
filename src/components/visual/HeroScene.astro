@@ -59,17 +59,18 @@
 		</g>
 
 		<g class="hero-scene__papers">
-			<rect x="540" y="88" width="24" height="24" style="--paper-index: 0" />
-			<rect x="635" y="214" width="14" height="14" style="--paper-index: 1" />
-			<rect x="706" y="64" width="35" height="35" style="--paper-index: 2" />
-			<rect x="775" y="231" width="18" height="18" style="--paper-index: 3" />
-			<rect x="872" y="49" width="22" height="22" style="--paper-index: 4" />
-			<rect x="941" y="254" width="40" height="40" style="--paper-index: 5" />
-			<rect x="1028" y="127" width="17" height="17" style="--paper-index: 6" />
-			<rect x="1098" y="344" width="30" height="30" style="--paper-index: 7" />
-			<rect x="498" y="475" width="18" height="18" style="--paper-index: 8" />
-			<rect x="738" y="505" width="28" height="28" style="--paper-index: 9" />
-			<rect x="967" y="468" width="16" height="16" style="--paper-index: 10" />
+			<!-- 纸片不再使用标准矩形；每块都保留轻微缺口与不等边，形成手工裁切感。 -->
+			<path d="M542 88 561 87 565 105 553 113 540 104 539 95Z" style="--paper-index: 0" />
+			<path d="M636 214 647 214 650 224 642 229 635 225Z" style="--paper-index: 1" />
+			<path d="M711 64 736 66 744 87 729 101 707 95 705 76Z" style="--paper-index: 2" />
+			<path d="M777 231 790 230 794 244 782 251 774 243Z" style="--paper-index: 3" />
+			<path d="M875 49 891 50 896 64 885 73 871 66Z" style="--paper-index: 4" />
+			<path d="M947 254 978 257 983 280 965 298 941 286 939 267Z" style="--paper-index: 5" />
+			<path d="M1031 127 1044 126 1048 139 1038 146 1027 140Z" style="--paper-index: 6" />
+			<path d="M1104 344 1127 348 1131 368 1112 378 1097 365Z" style="--paper-index: 7" />
+			<path d="M501 475 514 474 519 487 508 496 497 488Z" style="--paper-index: 8" />
+			<path d="M743 505 764 507 769 527 753 537 738 525Z" style="--paper-index: 9" />
+			<path d="M971 468 984 467 988 479 978 486 967 480Z" style="--paper-index: 10" />
 		</g>
 
 		<g class="hero-scene__night-word" filter="url(#hero-liquid)">
@@ -490,7 +491,7 @@
 		transition: opacity 900ms var(--ease-rain), transform 1400ms var(--ease-drift);
 	}
 
-	.hero-scene__papers rect {
+	.hero-scene__papers path {
 		fill: var(--color-paper);
 		stroke: var(--line-strong);
 		stroke-width: 1;
@@ -510,7 +511,7 @@
 	.hero-scene[data-beat='0'] .hero-scene__columns { opacity: 0.1; }
 	.hero-scene[data-beat='0'] .hero-scene__columns rect { transform: scaleY(0.08); }
 	.hero-scene[data-beat='0'] .hero-scene__perspective { opacity: 0.42; transform: scaleY(0.975); }
-	.hero-scene[data-beat='0'] .hero-scene__papers rect {
+	.hero-scene[data-beat='0'] .hero-scene__papers path {
 		opacity: 0;
 		transform: translate3d(-5px, -16px, 0) rotate(calc(var(--paper-index) * 3deg));
 		/* 上一幕已将纸片淡出，此处立即归位，避免逆向飞回顶部。 */
@@ -524,7 +525,7 @@
 	.hero-scene[data-beat='1'] .hero-scene__columns { opacity: 0.4; }
 	.hero-scene[data-beat='1'] .hero-scene__columns rect { transform: scaleY(1); }
 	.hero-scene[data-beat='1'] .hero-scene__perspective { opacity: 0.52; transform: scaleY(1.01); }
-	.hero-scene[data-beat='1'] .hero-scene__papers rect {
+	.hero-scene[data-beat='1'] .hero-scene__papers path {
 		opacity: 0.42;
 		transform: translate3d(2px, 24px, 0) rotate(calc(12deg + var(--paper-index) * 3deg));
 	}
@@ -537,7 +538,7 @@
 	.hero-scene[data-beat='2'] .hero-scene__columns { opacity: 0.48; }
 	.hero-scene[data-beat='2'] .hero-scene__columns rect { transform: scaleY(0.9); }
 	.hero-scene[data-beat='2'] .hero-scene__perspective { opacity: 0.34; transform: scaleY(1.025); }
-	.hero-scene[data-beat='2'] .hero-scene__papers rect {
+	.hero-scene[data-beat='2'] .hero-scene__papers path {
 		opacity: 0.7;
 		transform: translate3d(11px, 78px, 0) rotate(calc(34deg + var(--paper-index) * 4deg));
 	}
@@ -550,7 +551,7 @@
 	.hero-scene[data-beat='3'] .hero-scene__columns { opacity: 0.05; }
 	.hero-scene[data-beat='3'] .hero-scene__columns rect { transform: scaleY(0.14); }
 	.hero-scene[data-beat='3'] .hero-scene__perspective { opacity: 0.14; transform: scaleY(0.99); }
-	.hero-scene[data-beat='3'] .hero-scene__papers rect {
+	.hero-scene[data-beat='3'] .hero-scene__papers path {
 		opacity: 0;
 		transform: translate3d(24px, 142px, 0) rotate(calc(72deg + var(--paper-index) * 5deg));
 	}
@@ -750,7 +751,7 @@
 		display: block;
 	}
 
-	:global(html[data-weather-mode='night']) .hero-scene__papers rect {
+	:global(html[data-weather-mode='night']) .hero-scene__papers path {
 		fill: var(--night-text);
 	}
 
@@ -786,7 +787,7 @@
 		}
 
 		.hero-scene__columns rect { opacity: 0.42; transform: scaleY(1); transition: none; }
-		.hero-scene__papers rect,
+		.hero-scene__papers path,
 		.hero-scene__perspective,
 		.hero-scene__wet-glass,
 		.hero-scene__scanline { transition: none; }

@@ -30,10 +30,10 @@
     <circle cx="1330" cy="210" r="15"/>
     <circle cx="860" cy="820" r="7"/>
   </g>
-  <g fill="#fffdf7" stroke="#679bab" stroke-width="1" stroke-opacity=".24">
-    <rect x="470" y="252" width="18" height="18" transform="rotate(10 479 261)"/>
-    <rect x="780" y="680" width="12" height="12" transform="rotate(-9 786 686)"/>
-    <rect x="1240" y="510" width="23" height="23" transform="rotate(12 1251.5 521.5)"/>
+  <g fill="#fffdf7" stroke="#679bab" stroke-width="1" stroke-opacity=".24" stroke-linejoin="round">
+    <path d="M472 252 486 253 490 265 480 272 469 264Z"/>
+    <path d="M782 680 792 681 794 690 786 695 779 689Z"/>
+    <path d="M1244 510 1262 512 1267 528 1254 538 1239 530 1240 518Z"/>
   </g>
   <rect width="1600" height="1000" fill="url(#sky)"/>
 </svg>

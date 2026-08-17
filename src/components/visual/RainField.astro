@@ -14,12 +14,12 @@ const rainTraces = [
 ];
 
 const paperMarks = [
-	{ x: '9%', y: '19%', size: '10px', rotate: '12deg', delay: '-3.4s' },
-	{ x: '26%', y: '73%', size: '16px', rotate: '-9deg', delay: '-8.1s' },
-	{ x: '41%', y: '30%', size: '8px', rotate: '17deg', delay: '-4.7s' },
-	{ x: '57%', y: '84%', size: '13px', rotate: '-13deg', delay: '-10.2s' },
-	{ x: '72%', y: '15%', size: '18px', rotate: '8deg', delay: '-6.3s' },
-	{ x: '86%', y: '57%', size: '9px', rotate: '-17deg', delay: '-1.5s' },
+	{ x: '9%', y: '19%', size: '10px', rotate: '12deg', delay: '-3.4s', cut: 'polygon(9% 3%, 92% 0, 100% 72%, 74% 100%, 7% 88%, 0 28%)' },
+	{ x: '26%', y: '73%', size: '16px', rotate: '-9deg', delay: '-8.1s', cut: 'polygon(2% 13%, 78% 0, 100% 33%, 88% 100%, 15% 93%, 0 59%)' },
+	{ x: '41%', y: '30%', size: '8px', rotate: '17deg', delay: '-4.7s', cut: 'polygon(13% 0, 100% 14%, 85% 100%, 21% 90%, 0 42%)' },
+	{ x: '57%', y: '84%', size: '13px', rotate: '-13deg', delay: '-10.2s', cut: 'polygon(0 19%, 66% 0, 100% 28%, 79% 100%, 10% 84%)' },
+	{ x: '72%', y: '15%', size: '18px', rotate: '8deg', delay: '-6.3s', cut: 'polygon(10% 0, 92% 8%, 100% 67%, 62% 100%, 0 82%, 7% 39%)' },
+	{ x: '86%', y: '57%', size: '9px', rotate: '-17deg', delay: '-1.5s', cut: 'polygon(0 9%, 83% 0, 100% 58%, 73% 100%, 5% 91%, 15% 46%)' },
 ];
 ---
 
@@ -66,7 +66,7 @@ const paperMarks = [
 	<div class="rain-field__papers" aria-hidden="true">
 		{paperMarks.map((mark) => (
 			<span
-				style={`--paper-x: ${mark.x}; --paper-y: ${mark.y}; --paper-size: ${mark.size}; --paper-rotate: ${mark.rotate}; --paper-delay: ${mark.delay};`}
+				style={`--paper-x: ${mark.x}; --paper-y: ${mark.y}; --paper-size: ${mark.size}; --paper-rotate: ${mark.rotate}; --paper-delay: ${mark.delay}; --paper-cut: ${mark.cut};`}
 			></span>
 		))}
 	</div>
@@ -212,12 +212,36 @@ const paperMarks = [
 		left: var(--paper-x);
 		width: var(--paper-size);
 		aspect-ratio: 1;
-		border: 1px solid color-mix(in srgb, var(--weather-glass-line) 68%, transparent);
-		background: color-mix(in srgb, var(--weather-paper) 74%, transparent);
-		box-shadow: 0 0 12px color-mix(in srgb, var(--weather-glow) 12%, transparent);
+		isolation: isolate;
+		filter: drop-shadow(0 1px 1px color-mix(in srgb, var(--weather-line) 24%, transparent));
 		transform: rotate(var(--paper-rotate));
 		animation: atmosphere-paper-float 9s var(--ease-drift) var(--paper-delay) infinite alternate;
 		will-change: transform;
+	}
+
+	/* 不规则切角与一层偏移描边让碎片接近手工裁切纸张，而不是悬浮的 UI 方块。 */
+	.rain-field__papers span::before,
+	.rain-field__papers span::after {
+		position: absolute;
+		content: '';
+		clip-path: var(--paper-cut);
+	}
+
+	.rain-field__papers span::before {
+		z-index: 1;
+		inset: 0;
+		background:
+			linear-gradient(134deg, color-mix(in srgb, var(--weather-paper) 92%, transparent), color-mix(in srgb, var(--weather-paper) 54%, var(--weather-haze))),
+			url('/assets/patterns/archive-fiber.svg');
+		background-size: cover, 72px 72px;
+		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--weather-paper) 38%, transparent);
+	}
+
+	.rain-field__papers span::after {
+		z-index: 0;
+		inset: -1px;
+		background: color-mix(in srgb, var(--weather-glass-line) 68%, transparent);
+		transform: translate3d(.7px, 1px, 0) scale(1.025);
 	}
 
 	:global(html[data-weather-mode='clear']) .rain-field__mural { background-image: url('/assets/patterns/atmosphere-clear.svg'); }
