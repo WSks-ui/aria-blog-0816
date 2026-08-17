@@ -1,12 +1,11 @@
-/* 三态主题控件保持固定尺寸，切换标签不会推挤页眉。 */
+/* 三态主题控件默认仅保留图标，标签在桌面悬停时沿着当前按钮平滑展开。 */
 .weather-mode-control {
   position: relative;
   isolation: isolate;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(58px, 1fr));
+  display: inline-flex;
+  width: fit-content;
   height: 44px;
   margin-inline-start: 6px;
-  overflow: hidden;
   border: 1px solid var(--line);
 }
 
@@ -14,21 +13,26 @@
   position: relative;
   isolation: isolate;
   display: inline-flex;
-  min-width: 58px;
+  flex: 0 0 44px;
+  min-width: 0;
   height: 42px;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding-inline: 8px;
+  gap: 0;
+  padding-inline: 0;
   border: 0;
   border-inline-end: 1px solid var(--line);
   background: transparent;
   color: var(--ink-muted);
   cursor: pointer;
+  overflow: hidden;
   transition:
     color 180ms var(--ease-rain),
     background-color 260ms var(--ease-rain),
-    transform 320ms var(--ease-drift);
+    transform 320ms var(--ease-drift),
+    flex-basis 420ms var(--ease-drift),
+    gap 320ms var(--ease-drift),
+    padding 320ms var(--ease-drift);
 }
 
 .weather-mode-control__button:last-child {
@@ -63,12 +67,38 @@
   color: var(--accent-strong);
 }
 
-/* 悬停只短暂预览目标主题，底线与图标微动让可点击边界更明确。 */
-@media (hover: hover) {
+/* 文字的空间、透明度和位移同步变化，避免 hover 后直接跳出标签。 */
+.weather-mode-control__label {
+  display: inline-block;
+  max-inline-size: 0;
+  overflow: hidden;
+  font-family: var(--font-ui);
+  font-size: 9px;
+  line-height: 1;
+  opacity: 0;
+  transform: translateX(-5px);
+  transition:
+    max-inline-size 400ms var(--ease-drift),
+    opacity 160ms var(--ease-rain),
+    transform 320ms var(--ease-drift);
+  white-space: nowrap;
+}
+
+/* 悬停只短暂预览目标主题，底线、图标和文字共同建立可点击反馈。 */
+@media (hover: hover) and (min-width: 1241px) {
   .weather-mode-control__button:hover {
+    flex-basis: 78px;
+    gap: 5px;
+    padding-inline: 8px;
     background: color-mix(in srgb, var(--accent-soft) 72%, transparent);
     color: var(--accent-strong);
     transform: translateY(-1px);
+  }
+
+  .weather-mode-control__button:hover .weather-mode-control__label {
+    max-inline-size: 34px;
+    opacity: 1;
+    transform: translateX(0);
   }
 
   .weather-mode-control__button:hover::after,
@@ -95,6 +125,20 @@
   color: var(--accent-strong);
 }
 
+@media (min-width: 1241px) {
+  .weather-mode-control__button:focus-visible {
+    flex-basis: 78px;
+    gap: 5px;
+    padding-inline: 8px;
+  }
+
+  .weather-mode-control__button:focus-visible .weather-mode-control__label {
+    max-inline-size: 34px;
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 .weather-mode-control__button svg {
   transition: transform 320ms var(--ease-drift);
 }
@@ -107,14 +151,10 @@
 @media (prefers-reduced-motion: reduce) {
   .weather-mode-control__button,
   .weather-mode-control__button::after,
-  .weather-mode-control__button svg {
+  .weather-mode-control__button svg,
+  .weather-mode-control__label {
     transition: none;
   }
-}
-
-.weather-mode-control__label {
-  font-family: var(--font-ui);
-  font-size: 9px;
 }
 
 .search-dialog__trigger[hidden] {
@@ -766,13 +806,11 @@
 
 @media (max-width: 1240px) {
   .weather-mode-control__label { display: none; }
-  .weather-mode-control { grid-template-columns: repeat(3, 44px); }
-  .weather-mode-control__button { min-width: 44px; padding: 0; }
+  .weather-mode-control__button { flex-basis: 44px; padding: 0; }
 }
 
 @media (max-width: 760px) {
-  .weather-mode-control { grid-template-columns: repeat(3, 42px); }
-  .weather-mode-control__button { min-width: 42px; }
+  .weather-mode-control__button { flex-basis: 42px; }
   .scene-guide--desktop { display: none; }
   .memory-vault { right: 12px; bottom: 12px; }
   .memory-vault__save span, .memory-vault__toggle > span:not(.memory-vault__count) { display: none; }
