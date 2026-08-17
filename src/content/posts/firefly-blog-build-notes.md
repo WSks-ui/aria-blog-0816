@@ -6,7 +6,7 @@ updatedAt: null
 tags:
   - 博客搭建
   - 建站记录
-kind: tutorial
+kind: project
 featured: false
 draft: false
 github: https://github.com/WSks-ui/aria7-blog

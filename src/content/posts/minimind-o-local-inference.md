@@ -6,7 +6,7 @@ updatedAt: null
 tags:
   - AI
   - 本地推理
-kind: tutorial
+kind: code
 featured: false
 draft: false
 github: https://github.com/jingyaogong/minimind-o

@@ -8,7 +8,7 @@ export const POST_KIND_LABELS = {
 	project: '项目',
 	photo: '影像',
 	code: '代码',
-	tutorial: '教程',
+	tutorial: '指南',
 } as const satisfies Record<PostKind, string>;
 
 export const SITE = {

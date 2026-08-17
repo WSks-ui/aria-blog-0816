@@ -38,6 +38,7 @@ const pageCount = isPhoto ? posts.length + IMAGE_COLLECTION.length : isTutorial 
 		<PageHeader
 			eyebrow={isTutorial ? 'GUIDE SYSTEM / TOOLCHAIN' : `TYPE / ${kind.toUpperCase()}`}
 			title={POST_KIND_LABELS[kind]}
+			description={isTutorial ? '这个页面主要是为了给同校同学一些学习方向和交流平台。' : undefined}
 			count={pageCount}
 			variant={isPhoto ? 'photo' : isTutorial ? 'tutorial' : 'default'}
 		/>
@@ -57,7 +58,7 @@ const pageCount = isPhoto ? posts.length + IMAGE_COLLECTION.length : isTutorial 
 					<header class="tutorial-entries__header">
 						<div>
 							<p>FIELD NOTES / {String(posts.length).padStart(2, '0')}</p>
-							<h2 id="tutorial-entries-title">已发布教程</h2>
+							<h2 id="tutorial-entries-title">已发布指南</h2>
 						</div>
 						<span>ARIA-7 / GUIDES</span>
 					</header>
