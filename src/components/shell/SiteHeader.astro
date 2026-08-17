@@ -250,10 +250,9 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 	.site-tool-button {
 		position: relative;
 		isolation: isolate;
+		display: inline-grid;
 		overflow: hidden;
-		grid-template-rows: 20px 11px;
-		align-content: center;
-		row-gap: 1px;
+		place-items: center;
 		transition: color 180ms var(--ease-rain), transform 320ms var(--ease-drift), background-color 260ms var(--ease-rain);
 	}
 
@@ -273,19 +272,23 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 	}
 
 	.site-tool-button svg {
-		grid-row: 1;
+		position: relative;
+		z-index: 1;
 		transition: transform 320ms var(--ease-drift);
 	}
 
 	.site-tool-button__label {
-		grid-row: 2;
+		position: absolute;
+		z-index: 1;
+		bottom: 5px;
+		left: 50%;
 		max-width: 0;
 		overflow: hidden;
 		font-family: var(--font-ui);
 		font-size: 9px;
 		line-height: 1;
 		opacity: 0;
-		transform: translateY(5px);
+		transform: translate(-50%, 5px);
 		transition: max-width 320ms var(--ease-drift), opacity 160ms var(--ease-rain), transform 320ms var(--ease-drift);
 		white-space: nowrap;
 	}
@@ -305,14 +308,14 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 
 		.site-tool-button:hover svg,
 		.site-tool-button:focus-visible svg {
-			transform: translateY(-1px);
+			transform: translateY(-5px);
 		}
 
 		.site-tool-button:hover .site-tool-button__label,
 		.site-tool-button:focus-visible .site-tool-button__label {
 			max-width: 38px;
 			opacity: 1;
-			transform: translateY(0);
+			transform: translate(-50%, 0);
 		}
 	}
 
