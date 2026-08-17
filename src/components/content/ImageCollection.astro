@@ -297,7 +297,13 @@ const serializedItems = JSON.stringify(items).replace(/</g, '\\u003c');
 	.gallery-stage::before { top: 18px; left: 18px; border-top: 1px solid; border-left: 1px solid; }
 	.gallery-stage::after { right: 18px; bottom: 106px; border-right: 1px solid; border-bottom: 1px solid; }
 	.gallery-stage__image-wrap { position: relative; display: grid; min-height: 0; place-items: center; overflow: hidden; background: #071014; }
-	.gallery-stage__image-wrap > img { display: block; width: 100%; height: 100%; object-fit: contain; opacity: 1; transform: scale(1); transition: opacity 380ms var(--ease-rain), transform 760ms var(--ease-drift); }
+	/*
+	 * 主画幅必须同时受容器宽高约束。仅使用 width/height: 100% 时，
+	 * CSS Grid 可能依据图片固有比例把图片框撑出图像区，导致底部或两侧被
+	 * .gallery-stage__image-wrap 裁掉。auto + max-* 让横图、竖图都在稳定的
+	 * 舞台内完整缩放，切换图片时也不会改变舞台本身的高度。
+	 */
+	.gallery-stage__image-wrap > img { display: block; width: auto; height: auto; min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; object-fit: contain; opacity: 1; transform: scale(1); transition: opacity 380ms var(--ease-rain), transform 760ms var(--ease-drift); }
 	.gallery-stage.is-switching .gallery-stage__image-wrap > img { opacity: 0; transform: scale(0.992); }
 	.gallery-stage__grain { position: absolute; inset: 0; background-image: url('/assets/patterns/paper-drift.svg'); background-size: 720px auto; mix-blend-mode: screen; opacity: 0.055; pointer-events: none; }
 	.gallery-stage__crosshair { position: absolute; z-index: 3; top: var(--gallery-pointer-y); left: var(--gallery-pointer-x); width: 1px; height: 1px; opacity: 0; transition: opacity 240ms var(--ease-rain); pointer-events: none; }
