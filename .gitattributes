@@ -1,0 +1,2 @@
+# CSDIY 原文中的两个尾随空格用于 Markdown 强制换行，必须随上游快照原样保留。
+src/content/tool-guides/*.md whitespace=-trailing-space

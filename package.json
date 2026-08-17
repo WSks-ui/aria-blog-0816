@@ -10,7 +10,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",
-    "astro": "astro"
+    "astro": "astro",
+    "sync:csdiy-tools": "node scripts/sync-csdiy-tool-guides.mjs"
   },
   "dependencies": {
     "@astrojs/mdx": "^7.0.5",

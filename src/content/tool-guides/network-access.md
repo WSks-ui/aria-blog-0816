@@ -1,0 +1,11 @@
+---
+toolId: "network-access"
+title: "网络访问"
+sourceUrl: "https://github.com/PKUFlyingPig/cs-self-learning/blob/adce8e13789dc16aa6d1fbe163e9541736defae4/docs/%E5%BF%85%E5%AD%A6%E5%B7%A5%E5%85%B7/%E7%BF%BB%E5%A2%99.md"
+sourceRevision: "adce8e13789dc16aa6d1fbe163e9541736defae4"
+license: "MIT"
+sourceRepository: "https://github.com/PKUFlyingPig/cs-self-learning/"
+---
+# 翻墙
+
+[此链接](https://wallesspku.space/)出现在这里纯属二进制 bit 的随意组合，与本人毫无关系。
