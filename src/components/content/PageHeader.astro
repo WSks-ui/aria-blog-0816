@@ -4,12 +4,14 @@ interface Props {
 	title: string;
 	description?: string;
 	count?: number;
+	/** 由页面语义决定标题区密度，避免页面组件依赖跨作用域 CSS 覆盖。 */
+	variant?: 'default' | 'photo' | 'tutorial';
 }
 
-const { eyebrow, title, description, count } = Astro.props;
+const { eyebrow, title, description, count, variant = 'default' } = Astro.props;
 ---
 
-<header class="page-header">
+<header class:list={['page-header', variant !== 'default' && `page-header--${variant}`]}>
 	<div class="page-header__rail">
 		<span>{eyebrow}</span>
 		{count !== undefined && <strong>{String(count).padStart(2, '0')}</strong>}
@@ -78,6 +80,13 @@ const { eyebrow, title, description, count } = Astro.props;
 		align-self: center;
 		opacity: 0.56;
 	}
+
+	/* 收藏底片与工具导航不是文章导读，需要更紧凑的起始节奏。
+	   这些变体留在 PageHeader 内部，保证标题字号与组件作用域一起生效。 */
+	.page-header--photo { min-height: 210px; padding-block: 44px 30px; }
+	.page-header--photo h1 { font-size: 56px; }
+	.page-header--tutorial { min-height: 222px; padding-block: 54px 30px; }
+	.page-header--tutorial h1 { font-size: 58px; }
 
 	@media (max-width: 1000px) {
 		/* 通用页头在平板宽度收一级字号，区间内保持固定。 */

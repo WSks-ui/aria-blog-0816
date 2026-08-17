@@ -1,0 +1,399 @@
+---
+import { ArrowUpRight } from '@lucide/astro';
+import {
+	TUTORIAL_TOOL_STAGES,
+	type TutorialTool,
+} from '@/data/tutorial-tools';
+
+interface Props {
+	tools: readonly TutorialTool[];
+}
+
+const { tools } = Astro.props;
+const firstTool = tools[0];
+const stageCounts = new Map(
+	TUTORIAL_TOOL_STAGES.map((stage) => [
+		stage.id,
+		tools.filter((tool) => tool.stage === stage.id).length,
+	]),
+);
+const stageById = new Map(TUTORIAL_TOOL_STAGES.map((stage) => [stage.id, stage]));
+---
+
+<section class="tutorial-toolkit" aria-labelledby="tutorial-toolkit-title" data-tutorial-toolkit>
+	<header class="tutorial-toolkit__header">
+		<div class="tutorial-toolkit__title">
+			<p>TOOLCHAIN / {String(tools.length).padStart(2, '0')}</p>
+			<h2 id="tutorial-toolkit-title">必学工具</h2>
+		</div>
+		<div class="tutorial-toolkit__reference">
+			<span>SELECT A STAGE / HOVER A RECORD</span>
+			<a href="https://csdiy.wiki/%E5%BF%85%E5%AD%A6%E5%B7%A5%E5%85%B7/" target="_blank" rel="noreferrer">
+				<span>REFERENCE / CSDIY</span>
+				<ArrowUpRight size={16} stroke-width={1.5} aria-hidden="true" />
+			</a>
+		</div>
+	</header>
+
+	<div class="tutorial-toolkit__body">
+		<aside class="tutorial-toolkit__rail" aria-label="学习阶段">
+			<div class="tutorial-toolkit__rail-inner">
+				<p class="tutorial-toolkit__rail-label">LEARNING PATH / 06</p>
+				<div class="tutorial-toolkit__stages" role="toolbar" aria-label="工具学习阶段筛选">
+					<button type="button" data-tool-stage-button data-tool-stage="all" aria-pressed="true">
+						<span>00</span>
+						<strong>全部工具</strong>
+						<small>{String(tools.length).padStart(2, '0')}</small>
+					</button>
+					{TUTORIAL_TOOL_STAGES.map((stage) => (
+						<button type="button" data-tool-stage-button data-tool-stage={stage.id} aria-pressed="false" style={`--stage-accent: ${stage.accent};`}>
+							<span>{stage.index}</span>
+							<strong>{stage.label}</strong>
+							<small>{String(stageCounts.get(stage.id) ?? 0).padStart(2, '0')}</small>
+						</button>
+					))}
+				</div>
+			</div>
+		</aside>
+
+		<div class="tutorial-toolkit__directory">
+			<div class="tutorial-toolkit__status" aria-live="polite" data-tool-status>
+				<div>
+					<p>ACTIVE RECORD</p>
+					<strong data-tool-status-name>{firstTool?.name ?? '工具导航'}</strong>
+				</div>
+				<div>
+					<p data-tool-status-stage>{firstTool ? stageById.get(firstTool.stage)?.code : 'TOOLCHAIN'}</p>
+					<span data-tool-status-summary>{firstTool?.summary}</span>
+				</div>
+			</div>
+
+			<div class="tutorial-toolkit__grid" data-tool-grid>
+				{tools.map((tool, index) => {
+					const stage = stageById.get(tool.stage);
+					return (
+						<article
+							class="tutorial-tool"
+							data-tool-card
+							data-tool-stage={tool.stage}
+							data-tool-name={tool.name}
+							data-tool-stage-code={stage?.code ?? 'TOOLCHAIN'}
+							data-tool-summary={tool.summary}
+							style={`--tool-accent: ${stage?.accent ?? 'var(--accent-strong)'}; --tool-delay: ${index * 38}ms;`}
+						>
+							<header>
+								<span class="tutorial-tool__index">{String(index + 1).padStart(2, '0')}</span>
+								<span class="tutorial-tool__code">{tool.code}</span>
+								<span class="tutorial-tool__status">{tool.status}</span>
+							</header>
+							<div class="tutorial-tool__body">
+								<p>{stage?.label}</p>
+								<h3>{tool.name}</h3>
+								<span>{tool.summary}</span>
+							</div>
+							<footer>
+								<a href={tool.href} target="_blank" rel="noreferrer">
+									<span>{tool.actionLabel}</span>
+									<ArrowUpRight size={16} stroke-width={1.5} aria-hidden="true" />
+								</a>
+								<a class="tutorial-tool__source" href={tool.csdiyHref} target="_blank" rel="noreferrer">CSDIY</a>
+							</footer>
+						</article>
+					);
+				})}
+			</div>
+		</div>
+	</div>
+</section>
+
+<script>
+	function initTutorialToolkit() {
+		document.querySelectorAll<HTMLElement>('[data-tutorial-toolkit]').forEach((root) => {
+			if (root.dataset.interactiveReady === 'true') return;
+			root.dataset.interactiveReady = 'true';
+
+			const cards = [...root.querySelectorAll<HTMLElement>('[data-tool-card]')];
+			const stageButtons = [...root.querySelectorAll<HTMLButtonElement>('[data-tool-stage-button]')];
+			const statusName = root.querySelector<HTMLElement>('[data-tool-status-name]');
+			const statusStage = root.querySelector<HTMLElement>('[data-tool-status-stage]');
+			const statusSummary = root.querySelector<HTMLElement>('[data-tool-status-summary]');
+			let activeStage = 'all';
+
+			const setActiveRecord = (card: HTMLElement | undefined) => {
+				if (!card) return;
+				cards.forEach((item) => item.classList.toggle('is-active', item === card));
+				statusName && (statusName.textContent = card.dataset.toolName ?? '工具导航');
+				statusStage && (statusStage.textContent = card.dataset.toolStageCode ?? 'TOOLCHAIN');
+				statusSummary && (statusSummary.textContent = card.dataset.toolSummary ?? '');
+			};
+
+			const applyStage = (stage: string) => {
+				activeStage = stage;
+				root.dataset.activeStage = stage;
+				stageButtons.forEach((button) => {
+					button.setAttribute('aria-pressed', String(button.dataset.toolStage === stage));
+				});
+
+				const visibleCards = cards.filter((card) => stage === 'all' || card.dataset.toolStage === stage);
+				cards.forEach((card) => {
+					const visible = visibleCards.includes(card);
+					card.dataset.filteredOut = String(!visible);
+					card.setAttribute('aria-hidden', String(!visible));
+					card.querySelectorAll<HTMLAnchorElement>('a').forEach((link) => {
+						link.tabIndex = visible ? 0 : -1;
+					});
+				});
+				setActiveRecord(visibleCards[0]);
+			};
+
+			stageButtons.forEach((button) => {
+				button.addEventListener('click', () => applyStage(button.dataset.toolStage ?? 'all'));
+				button.addEventListener('keydown', (event) => {
+					if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+					event.preventDefault();
+					const current = stageButtons.indexOf(button);
+					const direction = event.key === 'ArrowDown' ? 1 : -1;
+					stageButtons[(current + direction + stageButtons.length) % stageButtons.length]?.focus();
+				});
+			});
+
+			cards.forEach((card) => {
+				card.addEventListener('pointerenter', () => {
+					if (activeStage === 'all' || card.dataset.toolStage === activeStage) setActiveRecord(card);
+				});
+				card.addEventListener('focusin', () => {
+					if (activeStage === 'all' || card.dataset.toolStage === activeStage) setActiveRecord(card);
+				});
+			});
+
+			applyStage('all');
+		});
+	}
+
+	initTutorialToolkit();
+	document.addEventListener('astro:page-load', initTutorialToolkit);
+</script>
+
+<style>
+	.tutorial-toolkit {
+		position: relative;
+		margin-top: 42px;
+		border-block: 1px solid var(--line);
+		isolation: isolate;
+	}
+
+	.tutorial-toolkit::before {
+		position: absolute;
+		z-index: -1;
+		inset: 0;
+		background-image: linear-gradient(to bottom, transparent 0 42px, color-mix(in srgb, var(--line) 44%, transparent) 42px 43px, transparent 43px 100%);
+		background-size: 100% 126px;
+		opacity: 0.48;
+		content: '';
+		pointer-events: none;
+	}
+
+	.tutorial-toolkit__header {
+		display: flex;
+		justify-content: space-between;
+		gap: 32px;
+		align-items: end;
+		padding: 38px 0 28px;
+		border-bottom: 1px solid var(--line);
+	}
+
+	.tutorial-toolkit__title > p,
+	.tutorial-toolkit__reference > span,
+	.tutorial-toolkit__rail-label,
+	.tutorial-toolkit__status p,
+	.tutorial-tool__index,
+	.tutorial-tool__code,
+	.tutorial-tool__status,
+	.tutorial-tool__body > p,
+	.tutorial-tool__source {
+		margin: 0;
+		font-family: var(--font-ui);
+		font-size: 9px;
+		letter-spacing: 0.08em;
+	}
+
+	.tutorial-toolkit__title > p { color: var(--accent-strong); }
+	.tutorial-toolkit__title h2 {
+		margin: 8px 0 0;
+		font-family: var(--font-display);
+		font-size: 44px;
+		font-weight: 500;
+		line-height: 1.12;
+	}
+
+	.tutorial-toolkit__reference {
+		display: grid;
+		justify-items: end;
+		gap: 12px;
+		padding-bottom: 4px;
+		color: var(--ink-muted);
+	}
+
+	.tutorial-toolkit__reference > a,
+	.tutorial-tool footer > a {
+		display: inline-flex;
+		gap: 8px;
+		align-items: center;
+		color: var(--ink);
+		font-family: var(--font-ui);
+		font-size: 11px;
+		text-decoration: none;
+	}
+
+	.tutorial-toolkit__reference > a:hover,
+	.tutorial-tool footer > a:hover { color: var(--accent-strong); }
+	.tutorial-toolkit__reference > a svg,
+	.tutorial-tool footer > a svg { transition: transform var(--duration-base) var(--ease-rain); }
+	.tutorial-toolkit__reference > a:hover svg,
+	.tutorial-tool footer > a:hover svg { transform: translate(3px, -3px); }
+
+	.tutorial-toolkit__body {
+		display: grid;
+		grid-template-columns: minmax(220px, 0.58fr) minmax(0, 2fr);
+		gap: clamp(30px, 4vw, 64px);
+		padding-block: 34px 72px;
+	}
+
+	.tutorial-toolkit__rail { min-width: 0; }
+	.tutorial-toolkit__rail-inner { position: sticky; top: 112px; }
+	.tutorial-toolkit__rail-label { padding-bottom: 14px; color: var(--ink-muted); border-bottom: 1px solid var(--line); }
+	.tutorial-toolkit__stages { display: grid; }
+	.tutorial-toolkit__stages button {
+		display: grid;
+		grid-template-columns: 32px minmax(0, 1fr) auto;
+		gap: 10px;
+		align-items: center;
+		width: 100%;
+		min-height: 48px;
+		padding: 0;
+		border: 0;
+		border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+		background: transparent;
+		color: var(--ink-muted);
+		font-family: var(--font-ui);
+		text-align: left;
+		cursor: pointer;
+		transition: color var(--duration-base) var(--ease-rain), padding-inline var(--duration-base) var(--ease-drift), background-color var(--duration-base) var(--ease-rain);
+	}
+	.tutorial-toolkit__stages button > span,
+	.tutorial-toolkit__stages button > small { font-size: 9px; }
+	.tutorial-toolkit__stages button > strong { font-size: 12px; font-weight: 500; }
+	.tutorial-toolkit__stages button[aria-pressed='true'] {
+		padding-inline: 10px;
+		background: color-mix(in srgb, var(--stage-accent, var(--accent-strong)) 12%, transparent);
+		color: var(--ink);
+	}
+	.tutorial-toolkit__stages button[aria-pressed='true'] > span { color: var(--stage-accent, var(--accent-strong)); }
+	.tutorial-toolkit__stages button:hover { padding-inline: 8px; color: var(--ink); }
+
+	.tutorial-toolkit__directory { min-width: 0; }
+	.tutorial-toolkit__status {
+		display: grid;
+		grid-template-columns: minmax(180px, 0.75fr) minmax(0, 1.7fr);
+		gap: 24px;
+		align-items: start;
+		min-height: 92px;
+		padding: 16px 18px;
+		border: 1px solid var(--line);
+		border-left: 3px solid var(--accent-strong);
+		background: color-mix(in srgb, var(--paper-0) 86%, transparent);
+	}
+	.tutorial-toolkit__status p { color: var(--ink-muted); }
+	.tutorial-toolkit__status strong {
+		display: block;
+		margin-top: 5px;
+		font-family: var(--font-display);
+		font-size: 25px;
+		font-weight: 500;
+	}
+	.tutorial-toolkit__status span { display: block; margin-top: 6px; font-size: 12px; line-height: 1.65; color: var(--ink-muted); }
+
+	.tutorial-toolkit__grid {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 10px;
+		margin-top: 10px;
+	}
+
+	.tutorial-tool {
+		display: grid;
+		grid-template-rows: auto minmax(132px, 1fr) auto;
+		min-height: 244px;
+		overflow: hidden;
+		border: 1px solid var(--line);
+		background: color-mix(in srgb, var(--paper-0) 92%, transparent);
+		box-shadow: 0 14px 30px rgb(23 48 55 / 0%);
+		transition: min-height 420ms var(--ease-drift), opacity 280ms var(--ease-rain), transform 420ms var(--ease-drift), border-color var(--duration-base) var(--ease-rain), box-shadow 420ms var(--ease-rain), margin 420ms var(--ease-drift);
+	}
+
+	.tutorial-tool[data-filtered-out='true'] {
+		min-height: 0;
+		max-height: 0;
+		opacity: 0;
+		margin-block: -5px;
+		border-color: transparent;
+		pointer-events: none;
+		transform: scale(0.96);
+	}
+
+	.tutorial-tool:hover,
+	.tutorial-tool:focus-within,
+	.tutorial-tool.is-active {
+		border-color: var(--tool-accent);
+		box-shadow: 0 16px 34px color-mix(in srgb, var(--tool-accent) 18%, transparent);
+		transform: translateY(-4px);
+	}
+
+	.tutorial-tool > header,
+	.tutorial-tool > footer {
+		display: flex;
+		gap: 8px;
+		align-items: center;
+		padding: 13px 14px;
+	}
+	.tutorial-tool > header { border-bottom: 1px solid color-mix(in srgb, var(--line) 76%, transparent); }
+	.tutorial-tool__index { color: var(--tool-accent); }
+	.tutorial-tool__code { color: var(--ink-muted); }
+	.tutorial-tool__status { margin-left: auto; color: var(--ink-muted); }
+
+	.tutorial-tool__body { padding: 18px 14px; }
+	.tutorial-tool__body > p { color: var(--tool-accent); }
+	.tutorial-tool__body h3 {
+		margin: 7px 0 8px;
+		font-family: var(--font-display);
+		font-size: 26px;
+		font-weight: 500;
+		line-height: 1.2;
+	}
+	.tutorial-tool__body > span { display: block; font-size: 12px; line-height: 1.7; color: var(--ink-muted); }
+	.tutorial-tool > footer { justify-content: space-between; border-top: 1px solid color-mix(in srgb, var(--line) 76%, transparent); }
+	.tutorial-tool__source { color: var(--ink-muted); text-decoration: none; }
+	.tutorial-tool__source:hover { color: var(--tool-accent) !important; }
+
+	@media (max-width: 1050px) {
+		.tutorial-toolkit__body { grid-template-columns: 1fr; }
+		.tutorial-toolkit__rail-inner { position: static; }
+		.tutorial-toolkit__stages { grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
+		.tutorial-toolkit__stages button { min-height: 56px; }
+		.tutorial-toolkit__stages button > strong { font-size: 11px; }
+	}
+
+	@media (max-width: 760px) {
+		.tutorial-toolkit__header { align-items: start; flex-direction: column; }
+		.tutorial-toolkit__reference { justify-items: start; }
+		.tutorial-toolkit__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+		.tutorial-toolkit__stages { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.tutorial-tool,
+		.tutorial-toolkit__stages button,
+		.tutorial-toolkit__reference > a svg,
+		.tutorial-tool footer > a svg { transition: none; }
+	}
+</style>

@@ -4,9 +4,11 @@ import ImageCollection from '@/components/content/ImageCollection.astro';
 import PageHeader from '@/components/content/PageHeader.astro';
 import ContentCoverScene from '@/components/visual/ContentCoverScene.astro';
 import { IMAGE_COLLECTION } from '@/data/image-collection';
+import { TUTORIAL_TOOLS } from '@/data/tutorial-tools';
 import { POST_KIND_LABELS, POST_KINDS, type PostKind } from '@/data/site';
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import { getPostsByKind, type PostEntry } from '@/lib/content';
+import TutorialToolkit from '@/components/content/TutorialToolkit.astro';
 
 const descriptions: Record<PostKind, string> = {
 	essay: '较完整的思考、观察与叙事，允许一件事被慢慢说清楚。',
@@ -26,12 +28,20 @@ export async function getStaticPaths() {
 
 interface Props { kind: PostKind; posts: PostEntry[] }
 const { kind, posts } = Astro.props;
+const isPhoto = kind === 'photo';
+const isTutorial = kind === 'tutorial';
+const pageCount = isPhoto ? posts.length + IMAGE_COLLECTION.length : isTutorial ? TUTORIAL_TOOLS.length : posts.length;
 ---
 
-<BaseLayout title={POST_KIND_LABELS[kind]} description={descriptions[kind]} image={kind === 'photo' ? IMAGE_COLLECTION[0]?.src : undefined} className={kind === 'photo' ? 'image-archive-page' : ''}>
-	<div class:list={['page-shell', kind === 'photo' && 'page-shell--photo']}>
-		<PageHeader eyebrow={`TYPE / ${kind.toUpperCase()}`} title={POST_KIND_LABELS[kind]} count={posts.length + (kind === 'photo' ? IMAGE_COLLECTION.length : 0)} />
-		{kind === 'photo' ? (
+<BaseLayout title={POST_KIND_LABELS[kind]} description={descriptions[kind]} image={isPhoto ? IMAGE_COLLECTION[0]?.src : undefined} className={isPhoto ? 'image-archive-page' : isTutorial ? 'tutorial-hub-page' : ''}>
+	<div class:list={['page-shell', isPhoto && 'page-shell--photo', isTutorial && 'page-shell--tutorial']}>
+		<PageHeader
+			eyebrow={isTutorial ? 'GUIDE SYSTEM / TOOLCHAIN' : `TYPE / ${kind.toUpperCase()}`}
+			title={POST_KIND_LABELS[kind]}
+			count={pageCount}
+			variant={isPhoto ? 'photo' : isTutorial ? 'tutorial' : 'default'}
+		/>
+		{isPhoto ? (
 			<>
 				<ImageCollection items={IMAGE_COLLECTION} />
 				{posts.length > 0 && (
@@ -39,6 +49,22 @@ const { kind, posts } = Astro.props;
 						{posts.map((post, index) => <ArticleRow post={post} index={index + 1} />)}
 					</section>
 				)}
+			</>
+		) : isTutorial ? (
+			<>
+				<TutorialToolkit tools={TUTORIAL_TOOLS} />
+				<section class="tutorial-entries" aria-labelledby="tutorial-entries-title">
+					<header class="tutorial-entries__header">
+						<div>
+							<p>FIELD NOTES / {String(posts.length).padStart(2, '0')}</p>
+							<h2 id="tutorial-entries-title">已发布教程</h2>
+						</div>
+						<span>ARIA-7 / GUIDES</span>
+					</header>
+					<div class="page-list page-list--tutorial">
+						{posts.length > 0 ? posts.map((post, index) => <ArticleRow post={post} index={index + 1} />) : <p class="empty">这个分类还没有正式发布的内容。</p>}
+					</div>
+				</section>
 			</>
 		) : (
 			<>
@@ -56,12 +82,18 @@ const { kind, posts } = Astro.props;
 <style>
 	.page-shell { max-width: var(--content-max); margin-inline: auto; padding-inline: var(--page-gutter); }
 	.page-shell--photo { max-width: var(--content-wide); padding-bottom: 132px; }
-	.page-shell--photo :global(.page-header) { min-height: 210px; padding-block: 44px 30px; }
-	.page-shell--photo :global(.page-header h1) { font-size: 56px; }
+	.page-shell--tutorial { max-width: var(--content-wide); padding-bottom: 132px; }
 	.type-stage { height: 320px; margin-top: 42px; overflow: hidden; border-block: 1px solid var(--line); }
 	.type-stage :global(.type-stage__scene) { height: 100%; }
 	.page-list { margin-top: 64px; }
 	.page-list--photo { margin-top: 132px; }
+	.page-list--tutorial { margin-top: 0; }
+	.tutorial-entries { margin-top: 118px; }
+	.tutorial-entries__header { display: flex; justify-content: space-between; gap: 32px; align-items: end; padding-bottom: 22px; border-bottom: 1px solid var(--line); }
+	.tutorial-entries__header p,
+	.tutorial-entries__header > span { margin: 0; font-family: var(--font-ui); font-size: 10px; color: var(--ink-muted); }
+	.tutorial-entries__header p { color: var(--accent-strong); }
+	.tutorial-entries__header h2 { margin: 7px 0 0; font-family: var(--font-display); font-size: 36px; font-weight: 500; }
 	.empty { padding-block: 72px; border-block: 1px solid var(--line); color: var(--ink-muted); }
 	@media (max-width: 760px) { .page-shell { padding-inline: 20px; } }
 </style>
