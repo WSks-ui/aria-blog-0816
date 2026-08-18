@@ -9,7 +9,6 @@ export const TUTORIAL_TOOL_STAGES = [
 	{ id: 'engineering', index: '03', code: 'ENGINEERING', label: '构建与运行', accent: '#84a56d' },
 	{ id: 'research', index: '04', code: 'RESEARCH', label: '写作与研究', accent: '#9b8ec1' },
 	{ id: 'workflow', index: '05', code: 'WORKFLOW', label: '工作方法', accent: '#b9829f' },
-	{ id: 'access', index: '06', code: 'ACCESS', label: '资料访问', accent: '#b89358' },
 ] as const;
 
 export type TutorialToolStage = (typeof TUTORIAL_TOOL_STAGES)[number]['id'];
@@ -169,17 +168,6 @@ export const TUTORIAL_TOOLS: readonly TutorialTool[] = [
 		actionLabel: '打开工具箱',
 		href: 'https://csdiy.wiki/%E5%BF%85%E5%AD%A6%E5%B7%A5%E5%85%B7/%E5%B7%A5%E5%85%B7%E7%AE%B1/',
 		csdiyHref: 'https://csdiy.wiki/%E5%BF%85%E5%AD%A6%E5%B7%A5%E5%85%B7/%E5%B7%A5%E5%85%B7%E7%AE%B1/',
-	},
-	{
-		id: 'network-access',
-		code: 'NET',
-		name: '网络访问',
-		stage: 'access',
-		summary: '为资料访问建立稳定、合规且能验证来源与安全性的网络使用习惯。',
-		status: 'PRACTICE',
-		actionLabel: '查看来源',
-		href: 'https://csdiy.wiki/%E5%BF%85%E5%AD%A6%E5%B7%A5%E5%85%B7/%E7%BF%BB%E5%A2%99/',
-		csdiyHref: 'https://csdiy.wiki/%E5%BF%85%E5%AD%A6%E5%B7%A5%E5%85%B7/%E7%BF%BB%E5%A2%99/',
 	},
 ];
 
