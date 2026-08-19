@@ -44,7 +44,6 @@ const TOOL_SOURCES = [
 	{ id: 'thesis', title: '毕业论文', file: 'thesis.md' },
 	{ id: 'toolbox', title: '实用工具箱', file: 'tools.md' },
 	{ id: 'daily-workflow', title: '日常学习工作流', file: 'workflow.md' },
-	{ id: 'network-access', title: '网络访问', file: '翻墙.md' },
 ];
 
 const REQUEST_HEADERS = {
@@ -337,6 +336,30 @@ function transformMarkdownLinks(markdown, sourcePath, revision) {
 		.join('\n');
 }
 
+/**
+ * 上游历史 Markdown 中有一条脚注定义把标签写成了 `[^ 1]`，并把一个失效的
+ * GitHub 路径和知乎链接拼成了嵌套链接。这个形态不会被 Markdown 解析器识别为
+ * 脚注，最终会以普通文本和错误嵌套的 `<a>` 标签输出。同步时统一修正标签空格，
+ * 并在检测到该类嵌套链接时保留真正可访问的目标链接，避免手工修改快照后再次复发。
+ */
+function normalizeFootnoteDefinitions(markdown) {
+	return markdown
+		.split('\n')
+		.map((line) => {
+			const label = line.match(/^(\s*)\[\^\s+(\d+)\]:\s*(.*)$/);
+			if (!label) {
+				return line;
+			}
+
+			const [, indentation, number, definition] = label;
+			const nestedLink = definition.match(/^https?:\/\/[^\s]+\]\((https?:\/\/[^)]+)\)$/);
+			return nestedLink
+				? `${indentation}[^${number}]: ${nestedLink[1]}`
+				: `${indentation}[^${number}]: ${definition}`;
+		})
+		.join('\n');
+}
+
 function yamlString(value) {
 	return JSON.stringify(value);
 }
@@ -369,7 +392,9 @@ async function sync() {
 		if (typeof upstreamMarkdown !== 'string') {
 			throw new Error(`上游快照缺少工具正文：${sourcePath}`);
 		}
-		const body = transformMarkdownLinks(stripExistingFrontmatter(upstreamMarkdown), sourcePath, revision);
+		const body = normalizeFootnoteDefinitions(
+			transformMarkdownLinks(stripExistingFrontmatter(upstreamMarkdown), sourcePath, revision),
+		);
 		return { tool, sourcePath, output: makeDocument(tool, revision, body) };
 	});
 	const upstreamLicense = upstream.license;

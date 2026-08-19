@@ -127,4 +127,4 @@ sourceRepository: "https://github.com/PKUFlyingPig/cs-self-learning/"
 
 
 
-[^ 1]: https://github.com/PKUFlyingPig/cs-self-learning/blob/adce8e13789dc16aa6d1fbe163e9541736defae4/docs/%E5%BF%85%E5%AD%A6%E5%B7%A5%E5%85%B7/%5B%E6%90%9C%E7%B4%A2%E5%BC%95%E6%93%8E%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86%E7%AE%80%E4%BB%8B - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/301641935)
+[^1]: https://zhuanlan.zhihu.com/p/301641935
