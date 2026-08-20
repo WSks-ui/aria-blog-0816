@@ -131,6 +131,8 @@ function onMouseUp(e) {
 }
 ```
 
+> 注：当前站点实际实现已不再全局屏蔽右键菜单，只保留自定义光标本身。
+
 效果激活时同步屏蔽右键菜单和文本选中，避免原生光标残留导致体验割裂：
 
 ```js
@@ -144,7 +146,7 @@ function onSelectStart(e) { e.preventDefault(); }
 - **涟漪定位**：`left/top` 用 `e.clientX - 半径` 使元素中心对准鼠标位置，再用 `animationend`事件确保动画结束后移除DOM节点
 - **离线/重连处理**：PJAX或SPA导航后需要重新激活效果，监听 `astro:page-load` 或 `swup` 的 `content:replace`事件，执行 `deactivate()` + `activate()`重新绑定
 - **移动端降级**：`< 1024px`时完全禁用，恢复系统光标，解绑所有事件，不留副作用
-- **跨域iframe限制**：Giscus等评论区通过跨域iframe加载，浏览器出于安全隔离不允许父页面的CSS规则穿透到iframe内部，因此鼠标移入评论区后会恢复系统光标。这个问题无法从父页面修复，属于浏览器安全策略限制
+- **跨域iframe限制**：Giscus等评论区通过跨域iframe加载，浏览器出于安全隔离不允许父页面的CSS规则穿透到iframe内部，因此鼠标移入评论区后会恢复系统光标。父页面至少可以在移入 iframe 时隐藏自定义光标，避免双光标；但无法在 iframe 内部继续显示自定义光标，这属于浏览器安全策略限制
 
 ## 可调整参数
 
@@ -158,17 +160,17 @@ function onSelectStart(e) { e.preventDefault(); }
 
 ## 完整代码
 
-完整实现在两个文件中：
+当前站点实际实现已演进为单 DOM 光标 + 三态样式，完整代码在：
 
-- `src/styles/custom-cursor.css` — 所有样式和keyframe动画
-- `src/components/features/CustomCursor.astro` — JS逻辑和Astro组件封装
+- `src/styles/interactive.css` — 自定义光标样式（`.archive-cursor` 相关段落）
+- `src/components/interactive/InteractionSurface.astro` — JS逻辑和Astro组件封装
 
-在 `Layout.astro` 中引入组件即可全局生效
+在 `BaseLayout.astro` 中已经全局引入；如果要在其他布局中使用：
 
 ```astro
-import CustomCursor from "@components/features/CustomCursor.astro";
+import { InteractionSurface } from "@/components/interactive";
 
-<CustomCursor />
+<InteractionSurface />
 ```
 
 实现时建议直接从 `transform` 方案开始。SVG光标和div元素走的是两套渲染坐标系，直接对齐很难，需要在JS里加一个偏移量来手动校正
