@@ -1,8 +1,33 @@
+import type { ImageMetadata } from 'astro';
+
+import skylineFull from '../assets/images/collection/skyline-full.webp';
+import skylineThumb from '../assets/images/collection/skyline-thumb.webp';
+import rainUmbrellaFull from '../assets/images/collection/rain-umbrella-full.webp';
+import rainUmbrellaThumb from '../assets/images/collection/rain-umbrella-thumb.webp';
+import butterfliesFull from '../assets/images/collection/butterflies-full.webp';
+import butterfliesThumb from '../assets/images/collection/butterflies-thumb.webp';
+import forestFireFull from '../assets/images/collection/forest-fire-full.webp';
+import forestFireThumb from '../assets/images/collection/forest-fire-thumb.webp';
+import gardenFull from '../assets/images/collection/garden-full.webp';
+import gardenThumb from '../assets/images/collection/garden-thumb.webp';
+import rainTrainFull from '../assets/images/collection/rain-train-full.webp';
+import rainTrainThumb from '../assets/images/collection/rain-train-thumb.webp';
+import purpleLetterFull from '../assets/images/collection/purple-letter-full.webp';
+import purpleLetterThumb from '../assets/images/collection/purple-letter-thumb.webp';
+import missSilverFull from '../assets/images/collection/miss-silver-full.webp';
+import missSilverThumb from '../assets/images/collection/miss-silver-thumb.webp';
+import missVioletFull from '../assets/images/collection/miss-violet-full.webp';
+import missVioletThumb from '../assets/images/collection/miss-violet-thumb.webp';
+import missBlueFull from '../assets/images/collection/miss-blue-full.webp';
+import missBlueThumb from '../assets/images/collection/miss-blue-thumb.webp';
+import missSepiaFull from '../assets/images/collection/miss-sepia-full.webp';
+import missSepiaThumb from '../assets/images/collection/miss-sepia-thumb.webp';
+
 export interface ImageCollectionItem {
 	id: string;
 	title: string;
-	src: string;
-	thumbnail: string;
+	src: ImageMetadata;
+	thumbnail: ImageMetadata;
 	alt: string;
 	description: string;
 	credit: string;
@@ -22,8 +47,8 @@ export const IMAGE_COLLECTION: readonly ImageCollectionItem[] = [
 	{
 		id: 'skyline-white-dress',
 		title: '云层与天台',
-		src: '/assets/images/collection/skyline-full.webp',
-		thumbnail: '/assets/images/collection/skyline-thumb.webp',
+		src: skylineFull,
+		thumbnail: skylineThumb,
 		alt: '蓝天下的城市天台，一位穿白裙的黑发少女倚在栏杆旁',
 		description: '高亮云层、深蓝建筑与白色衣裙形成安静而开阔的夏日画面。',
 		credit: ONLINE_SOURCE_NOTICE,
@@ -35,8 +60,8 @@ export const IMAGE_COLLECTION: readonly ImageCollectionItem[] = [
 	{
 		id: 'rain-umbrella',
 		title: '透明伞下',
-		src: '/assets/images/collection/rain-umbrella-full.webp',
-		thumbnail: '/assets/images/collection/rain-umbrella-thumb.webp',
+		src: rainUmbrellaFull,
+		thumbnail: rainUmbrellaThumb,
 		alt: '雨天透明伞下的黑发少女，背景叠合灰紫色城市街景',
 		description: '颗粒、重影和雨伞骨架叠在一起，像一张受潮的旧底片。',
 		credit: ONLINE_SOURCE_NOTICE,
@@ -48,8 +73,8 @@ export const IMAGE_COLLECTION: readonly ImageCollectionItem[] = [
 	{
 		id: 'frieren-butterflies',
 		title: '蝶群入夜',
-		src: '/assets/images/collection/butterflies-full.webp',
-		thumbnail: '/assets/images/collection/butterflies-thumb.webp',
+		src: butterfliesFull,
+		thumbnail: butterfliesThumb,
 		alt: '深蓝暮色与橙色蝶群中，花束旁的人物倒映在水面上',
 		description: '冷色长夜被橙色蝶群切开，倒影让画面形成上下两层叙事。',
 		credit: ONLINE_SOURCE_NOTICE,
@@ -61,8 +86,8 @@ export const IMAGE_COLLECTION: readonly ImageCollectionItem[] = [
 	{
 		id: 'frieren-fire',
 		title: '林间火光',
-		src: '/assets/images/collection/forest-fire-full.webp',
-		thumbnail: '/assets/images/collection/forest-fire-thumb.webp',
+		src: forestFireFull,
+		thumbnail: forestFireThumb,
 		alt: '深蓝森林中，两位人物并肩坐在明亮的篝火旁',
 		description: '近黑森林包围暖色火焰，视觉焦点压在画面右下区域。',
 		credit: ONLINE_SOURCE_NOTICE,
@@ -74,8 +99,8 @@ export const IMAGE_COLLECTION: readonly ImageCollectionItem[] = [
 	{
 		id: 'kita-garden',
 		title: '花园午后',
-		src: '/assets/images/collection/garden-full.webp',
-		thumbnail: '/assets/images/collection/garden-thumb.webp',
+		src: gardenFull,
+		thumbnail: gardenThumb,
 		alt: '明暗交界的繁茂花园和旧建筑旁，一位红发人物坐在窗边',
 		description: '荧亮植物与深色建筑形成强烈明暗分区，红色花叶贯穿中心。',
 		credit: ONLINE_SOURCE_NOTICE,
@@ -87,8 +112,8 @@ export const IMAGE_COLLECTION: readonly ImageCollectionItem[] = [
 	{
 		id: 'mygo-train',
 		title: '雨色列车',
-		src: '/assets/images/collection/rain-train-full.webp',
-		thumbnail: '/assets/images/collection/rain-train-thumb.webp',
+		src: rainTrainFull,
+		thumbnail: rainTrainThumb,
 		alt: '雨色列车内并坐的少女们，车窗覆盖彩色涂鸦与水滴',
 		description: '低饱和青绿色车厢、玻璃反射和水滴共同构成潮湿的群像。',
 		credit: ONLINE_SOURCE_NOTICE,
@@ -100,8 +125,8 @@ export const IMAGE_COLLECTION: readonly ImageCollectionItem[] = [
 	{
 		id: 'purple-letter',
 		title: '紫藤来信',
-		src: '/assets/images/collection/purple-letter-full.webp',
-		thumbnail: '/assets/images/collection/purple-letter-thumb.webp',
+		src: purpleLetterFull,
+		thumbnail: purpleLetterThumb,
 		alt: '紫色长发的少女微笑着拿起一封带有心形封口的信',
 		description: '铅笔般的紫色线稿与大片留白，让画面保留轻柔的纸张感。',
 		credit: ONLINE_SOURCE_NOTICE,
@@ -113,8 +138,8 @@ export const IMAGE_COLLECTION: readonly ImageCollectionItem[] = [
 	{
 		id: 'miss-silver',
 		title: 'Miss You / Silver',
-		src: '/assets/images/collection/miss-silver-full.webp',
-		thumbnail: '/assets/images/collection/miss-silver-thumb.webp',
+		src: missSilverFull,
+		thumbnail: missSilverThumb,
 		alt: '银白长发少女的灰色调半身插画，左侧写有 I miss you',
 		description: '近单色背景和轻微肤色把视线集中到眼睛与手写文字。',
 		credit: ONLINE_SOURCE_NOTICE,
@@ -126,8 +151,8 @@ export const IMAGE_COLLECTION: readonly ImageCollectionItem[] = [
 	{
 		id: 'miss-violet',
 		title: 'Miss You / Violet',
-		src: '/assets/images/collection/miss-violet-full.webp',
-		thumbnail: '/assets/images/collection/miss-violet-thumb.webp',
+		src: missVioletFull,
+		thumbnail: missVioletThumb,
 		alt: '紫色短发少女穿着粉色外套，左侧写有 I miss you',
 		description: '柔和粉紫渐变和右侧人物构成一张简洁的情绪海报。',
 		credit: ONLINE_SOURCE_NOTICE,
@@ -139,8 +164,8 @@ export const IMAGE_COLLECTION: readonly ImageCollectionItem[] = [
 	{
 		id: 'miss-blue',
 		title: 'Miss You / Blue',
-		src: '/assets/images/collection/miss-blue-full.webp',
-		thumbnail: '/assets/images/collection/miss-blue-thumb.webp',
+		src: missBlueFull,
+		thumbnail: missBlueThumb,
 		alt: '蓝灰色短发少女把发梢捧在脸前，左侧写有 I miss you',
 		description: '平涂蓝色背景把人物轮廓和白色手写字衬得格外清楚。',
 		credit: ONLINE_SOURCE_NOTICE,
@@ -152,8 +177,8 @@ export const IMAGE_COLLECTION: readonly ImageCollectionItem[] = [
 	{
 		id: 'miss-sepia',
 		title: 'Miss You / Sepia',
-		src: '/assets/images/collection/miss-sepia-full.webp',
-		thumbnail: '/assets/images/collection/miss-sepia-thumb.webp',
+		src: missSepiaFull,
+		thumbnail: missSepiaThumb,
 		alt: '棕色长发少女双手靠近脸侧，左侧写有 I miss you',
 		description: '白底与浅棕线条形成克制、接近旧信纸的低对比画面。',
 		credit: ONLINE_SOURCE_NOTICE,
@@ -163,3 +188,4 @@ export const IMAGE_COLLECTION: readonly ImageCollectionItem[] = [
 		size: 'standard',
 	},
 ];
+

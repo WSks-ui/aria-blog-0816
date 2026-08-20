@@ -1,6 +1,8 @@
 ---
-import { ChevronLeft, ChevronRight, Maximize2, Plus } from '@lucide/astro';
+import { Image, getImage } from 'astro:assets';
+import { ChevronLeft, ChevronRight, Download, Maximize2, Plus } from '@lucide/astro';
 import type { ImageCollectionItem } from '@/data/image-collection';
+import '@/styles/interactive.css';
 
 interface Props {
 	items: readonly ImageCollectionItem[];
@@ -11,8 +13,48 @@ const firstItem = items[0];
 // 底片墙按固定批次渐进展开；以后收藏数量增加时只需调整这一处。
 const CONTACT_SHEET_BATCH_SIZE = 10;
 const galleryId = `gallery-${Math.random().toString(36).slice(2, 10)}`;
+
+const fullImageWidths = (item: ImageCollectionItem) => {
+	const widths = [640, 960, 1280];
+	if (item.width >= 1920) widths.push(1920);
+	if (!widths.includes(item.width)) widths.push(item.width);
+	return [...new Set(widths)].filter((width) => width <= item.width).sort((a, b) => a - b);
+};
+
+const thumbnailWidths = (item: ImageCollectionItem) => {
+	const widths = [160, 320, 640];
+	if (!widths.includes(item.thumbnail.width)) widths.push(item.thumbnail.width);
+	return [...new Set(widths)].filter((width) => width <= item.thumbnail.width).sort((a, b) => a - b);
+};
+
+const stageSizes = '(min-width: 1000px) 820px, 92vw';
+const thumbnailSizes = '(min-width: 1000px) 96px, (min-width: 760px) 72px, 64px';
+const contactSizes = '(min-width: 1000px) 400px, 90vw';
+
 // JSON 进入内联 script 前先转义小于号，避免标题或说明里的 `</script>` 提前截断脚本节点。
-const serializedItems = JSON.stringify(items).replace(/</g, '\\u003c');
+const serializableItems = await Promise.all(items.map(async (item) => {
+	const full = await getImage({
+		src: item.src,
+		widths: fullImageWidths(item),
+		sizes: stageSizes,
+		format: 'webp',
+	});
+	const thumb = await getImage({
+		src: item.thumbnail,
+		widths: thumbnailWidths(item),
+		sizes: thumbnailSizes,
+		format: 'webp',
+	});
+	return {
+		...item,
+		originalSrc: item.src.src,
+		src: full.src,
+		srcSet: full.srcSet.attribute,
+		thumbnail: thumb.src,
+		thumbnailSrcSet: thumb.srcSet.attribute,
+	};
+}));
+const serializedItems = JSON.stringify(serializableItems).replace(/</g, '\\u003c');
 ---
 
 {firstItem && (
@@ -40,13 +82,17 @@ const serializedItems = JSON.stringify(items).replace(/</g, '\\u003c');
 			aria-labelledby={`${galleryId}-tab-0`}
 		>
 			<div class="gallery-stage__image-wrap">
-				<img
+				<Image
 					data-gallery-image
 					src={firstItem.src}
 					alt={firstItem.alt}
 					width={firstItem.width}
 					height={firstItem.height}
+					widths={fullImageWidths(firstItem)}
+					sizes={stageSizes}
+					format="webp"
 					fetchpriority="high"
+					loading="eager"
 					decoding="async"
 				/>
 				<div class="gallery-stage__crosshair" aria-hidden="true"></div>
@@ -75,6 +121,9 @@ const serializedItems = JSON.stringify(items).replace(/</g, '\\u003c');
 					<button type="button" aria-label="全屏查看" data-tooltip="全屏查看" data-gallery-fullscreen>
 						<Maximize2 size={18} stroke-width={1.5} aria-hidden="true" />
 					</button>
+					<button type="button" aria-label="下载图片" data-tooltip="下载图片" data-gallery-download>
+						<Download size={18} stroke-width={1.5} aria-hidden="true" />
+					</button>
 				</div>
 			</div>
 		</div>
@@ -93,7 +142,7 @@ const serializedItems = JSON.stringify(items).replace(/</g, '\\u003c');
 					style={`--item-accent: ${item.accent};`}
 				>
 					<span>{String(index + 1).padStart(2, '0')}</span>
-					<img src={item.thumbnail} alt="" width={item.width} height={item.height} loading="lazy" decoding="async" />
+					<Image src={item.thumbnail} alt="" width={item.thumbnail.width} height={item.thumbnail.height} widths={thumbnailWidths(item)} sizes={thumbnailSizes} loading="lazy" decoding="async" />
 				</button>
 			))}
 		</div>
@@ -117,7 +166,7 @@ const serializedItems = JSON.stringify(items).replace(/</g, '\\u003c');
 						data-contact-frame
 						style={`--item-accent: ${item.accent};`}
 					>
-						<img src={item.thumbnail} alt="" width={item.width} height={item.height} loading="lazy" decoding="async" />
+						<Image src={item.thumbnail} alt="" width={item.thumbnail.width} height={item.thumbnail.height} widths={thumbnailWidths(item)} sizes={contactSizes} loading="lazy" decoding="async" />
 						<span class="contact-frame__scrim" aria-hidden="true"></span>
 						<span class="contact-frame__caption">
 							<small>{String(index + 1).padStart(2, '0')} / FRAME</small>
@@ -144,6 +193,8 @@ const serializedItems = JSON.stringify(items).replace(/</g, '\\u003c');
 		id: string;
 		title: string;
 		src: string;
+		srcSet?: string;
+		originalSrc?: string;
 		alt: string;
 		description: string;
 		credit: string;
@@ -163,6 +214,7 @@ const serializedItems = JSON.stringify(items).replace(/</g, '\\u003c');
 			const titleNode = root.querySelector<HTMLElement>('[data-gallery-title]');
 			const dimensionsNode = root.querySelector<HTMLElement>('[data-gallery-dimensions]');
 			const creditNode = root.querySelector<HTMLElement>('[data-gallery-credit]');
+			const downloadButton = root.querySelector<HTMLButtonElement>("[data-gallery-download]");
 			const selectors = [...root.querySelectorAll<HTMLButtonElement>('[data-gallery-select]')];
 			const contactSelectors = [...root.querySelectorAll<HTMLButtonElement>('[data-contact-select]')];
 			const contactFrames = [...root.querySelectorAll<HTMLButtonElement>('[data-contact-frame]')];
@@ -185,6 +237,7 @@ const serializedItems = JSON.stringify(items).replace(/</g, '\\u003c');
 
 			const commitItem = (item: GalleryItem, index: number) => {
 				stageImage.src = item.src;
+				stageImage.srcset = item.srcSet ?? '';
 				stageImage.alt = item.alt;
 				stageImage.width = item.width;
 				stageImage.height = item.height;
@@ -260,6 +313,16 @@ const serializedItems = JSON.stringify(items).replace(/</g, '\\u003c');
 					// 浏览器策略可能禁止非直接手势触发的全屏，失败时保留当前画幅即可。
 				}
 			});
+			downloadButton?.addEventListener("click", () => {
+				const item = items[activeIndex];
+				if (!item) return;
+				const link = document.createElement("a");
+				link.href = item.originalSrc ?? item.src;
+				link.download = `aria7-${item.id}.webp`;
+				document.body.append(link);
+				link.click();
+				link.remove();
+			});
 
 			root.addEventListener('keydown', (event) => {
 				if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
@@ -298,12 +361,12 @@ const serializedItems = JSON.stringify(items).replace(/</g, '\\u003c');
 	.gallery-stage::after { right: 18px; bottom: 106px; border-right: 1px solid; border-bottom: 1px solid; }
 	.gallery-stage__image-wrap { position: relative; display: grid; min-height: 0; place-items: center; overflow: hidden; background: #071014; }
 	/*
-	 * 主画幅必须同时受容器宽高约束。仅使用 width/height: 100% 时，
-	 * CSS Grid 可能依据图片固有比例把图片框撑出图像区，导致底部或两侧被
-	 * .gallery-stage__image-wrap 裁掉。auto + max-* 让横图、竖图都在稳定的
-	 * 舞台内完整缩放，切换图片时也不会改变舞台本身的高度。
+	 * 主画幅使用 srcset 后，浏览器可能选中较小分辨率图片；如果仍用 width/height: auto，
+	 * 图片会按所选资源的固有尺寸显示，在容器里变成“小图 + 黑边”。
+	 * 这里让 <img> 元素始终填满整个舞台，再交给 object-fit: contain 按比例缩放，
+	 * 这样无论浏览器选中 640w 还是 1920w，图片都能自适应容器。
 	 */
-	.gallery-stage__image-wrap > img { display: block; width: auto; height: auto; min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; object-fit: contain; opacity: 1; transform: scale(1); transition: opacity 380ms var(--ease-rain), transform 760ms var(--ease-drift); }
+	.gallery-stage__image-wrap > img { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: contain; opacity: 1; transform: scale(1); transition: opacity 380ms var(--ease-rain), transform 760ms var(--ease-drift); }
 	.gallery-stage.is-switching .gallery-stage__image-wrap > img { opacity: 0; transform: scale(0.992); }
 	.gallery-stage__grain { position: absolute; inset: 0; background-image: url('/assets/patterns/paper-drift.svg'); background-size: 720px auto; mix-blend-mode: screen; opacity: 0.055; pointer-events: none; }
 	.gallery-stage__crosshair { position: absolute; z-index: 3; top: var(--gallery-pointer-y); left: var(--gallery-pointer-x); width: 1px; height: 1px; opacity: 0; transition: opacity 240ms var(--ease-rain); pointer-events: none; }

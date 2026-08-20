@@ -33,7 +33,7 @@ const isTutorial = kind === 'tutorial';
 const pageCount = isPhoto ? posts.length + IMAGE_COLLECTION.length : isTutorial ? TUTORIAL_TOOLS.length : posts.length;
 ---
 
-<BaseLayout title={POST_KIND_LABELS[kind]} description={descriptions[kind]} image={isPhoto ? IMAGE_COLLECTION[0]?.src : undefined} className={isPhoto ? 'image-archive-page' : isTutorial ? 'tutorial-hub-page' : ''}>
+<BaseLayout title={POST_KIND_LABELS[kind]} description={descriptions[kind]} image={isPhoto ? IMAGE_COLLECTION[0]?.src.src : undefined} className={isPhoto ? 'image-archive-page' : isTutorial ? 'tutorial-hub-page' : ''}>
 	<div class:list={['page-shell', isPhoto && 'page-shell--photo', isTutorial && 'page-shell--tutorial']}>
 		<PageHeader
 			eyebrow={isTutorial ? 'GUIDE SYSTEM / TOOLCHAIN' : `TYPE / ${kind.toUpperCase()}`}
