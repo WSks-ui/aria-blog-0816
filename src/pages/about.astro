@@ -28,7 +28,7 @@ const contactEmail = import.meta.env.PUBLIC_CONTACT_EMAIL?.trim() || '';
 				</ul>
 				<h2>联系</h2>
 				<div class="about-links">
-					{githubUrl && <a href={githubUrl} rel="noreferrer"><GitBranch size={18} stroke-width={1.5} aria-hidden="true" /> GitHub</a>}
+					{githubUrl && <a href={githubUrl} rel="noopener noreferrer"><GitBranch size={18} stroke-width={1.5} aria-hidden="true" /> GitHub</a>}
 					{contactEmail && <a href={`mailto:${contactEmail}`}><Mail size={18} stroke-width={1.5} aria-hidden="true" /> 邮箱</a>}
 					<a href="/rss.xml"><Rss size={18} stroke-width={1.5} aria-hidden="true" /> RSS</a>
 				</div>
