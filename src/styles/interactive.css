@@ -6,7 +6,7 @@
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 100;
+  z-index: 2147483647;
   width: 30px;
   height: 32px;
   pointer-events: none;
@@ -58,15 +58,18 @@
 .archive-cursor[data-visible='true'] { opacity: 1; }
 
 /*
- * 只给形态本身做短促反馈，容器的位置 transform 始终由 pointermove 直接写入。
- * 因此状态切换有生命力，但箭头不会因动画追赶真实鼠标位置。
+ * 为保证光标跟手，形态切换不做位移动画；容器位置 transform 始终由 pointermove 直接写入。
  */
 .archive-cursor[data-mode='default'] .archive-cursor__ring {
-  animation: archive-cursor-pointer-enter 150ms var(--ease-rain) both;
+  animation: none;
 }
 
 .archive-cursor[data-mode='default'] .archive-cursor__dot {
-  animation: archive-cursor-signal-enter 180ms var(--ease-rain) both;
+  animation: none;
+}
+
+.archive-cursor[data-mode='action'] {
+  transform: translate3d(calc(var(--archive-cursor-x, -80px) - 12px), calc(var(--archive-cursor-y, -80px) - 12px), 0);
 }
 
 .archive-cursor[data-mode='action'] .archive-cursor__ring {
@@ -84,7 +87,7 @@
   filter: drop-shadow(2px 3px 0 color-mix(in srgb, var(--cursor-ink) 30%, transparent));
   opacity: 1;
   transform: rotate(0deg);
-  animation: archive-cursor-action-enter 170ms var(--ease-rain) both;
+  animation: none;
 }
 
 .archive-cursor[data-mode='action'] .archive-cursor__dot {
@@ -110,7 +113,7 @@
   filter: drop-shadow(1px 1px 0 color-mix(in srgb, var(--cursor-ink) 38%, transparent));
   opacity: 1;
   transform: none;
-  animation: archive-cursor-text-enter 150ms var(--ease-rain) both;
+  animation: none;
 }
 
 .archive-cursor[data-mode='text'] .archive-cursor__dot { opacity: 0; }
