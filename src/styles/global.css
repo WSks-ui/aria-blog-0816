@@ -3,7 +3,6 @@
 @import "./typography.css";
 @import "./themes.css";
 @import "./motion.css";
-@import "./interactive.css";
 
 body {
   position: relative;

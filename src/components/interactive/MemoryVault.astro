@@ -1,5 +1,6 @@
 ---
 import { BookOpen, BookmarkPlus, Download, Trash2, X } from '@lucide/astro';
+import '@/styles/interactive.css';
 
 interface Props {
   class?: string;
@@ -178,6 +179,7 @@ const variantClass = `memory-vault--${variant}`;
       const storageKey = root.dataset.storageKey || 'aria7-memory-vault';
       const maxLength = Math.max(20, Number(root.dataset.maxLength) || 500);
       let records: MemoryRecord[] = [];
+      let lastWriteTrimmed = false;
       let cachedSelection: CachedSelection | null = null;
       let scope: HTMLElement | null = null;
       let pendingDeleteId: string | null = null;
@@ -249,6 +251,7 @@ const variantClass = `memory-vault--${variant}`;
       };
 
       const writeRecords = () => {
+        lastWriteTrimmed = false;
         try {
           localStorage.setItem(storageKey, JSON.stringify(records));
           syncCountDisplays();
@@ -257,6 +260,23 @@ const variantClass = `memory-vault--${variant}`;
           );
           return true;
         } catch {
+          // 容量超限时优先丢弃最旧的收藏，尽量保住最近写入的内容。
+          const originalRecords = records;
+          while (records.length > 0) {
+            records = records.slice(0, -1);
+            try {
+              localStorage.setItem(storageKey, JSON.stringify(records));
+              lastWriteTrimmed = true;
+              syncCountDisplays();
+              document.dispatchEvent(
+                new CustomEvent('memory-vault-change', { detail: { count: records.length } }),
+              );
+              return true;
+            } catch {
+              // 仍超限则继续裁剪，直到空列表也无法写入为止。
+            }
+          }
+          records = originalRecords;
           status.textContent = '浏览器未允许本地存储，暂时无法保存。';
           return false;
         }
@@ -554,7 +574,7 @@ const variantClass = `memory-vault--${variant}`;
         }
 		animatePaperCapture(selection);
 		clearSelectionFeedback();
-        status.textContent = '已收藏到本机记忆库。';
+        status.textContent = lastWriteTrimmed ? '本地存储空间不足，已自动清理最旧的收藏。' : '已收藏到本机记忆库。';
 		render(record.id);
         setPanelOpen(true);
         window.getSelection()?.removeAllRanges();
