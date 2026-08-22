@@ -28,6 +28,7 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 	year: 'numeric',
 	month: '2-digit',
 	day: '2-digit',
+	timeZone: 'UTC',
 }).format(date);
 ---
 
@@ -99,36 +100,31 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 								tabindex="0"
 							>
 								<div class="recent-stage__track">
-									{[false, true].map((isDuplicate) => (
-										<div
-											class="recent-stage__group"
-											data-recent-scroll-group={isDuplicate ? 'duplicate' : 'primary'}
-											aria-hidden={isDuplicate ? 'true' : undefined}
-											inert={isDuplicate ? true : undefined}
-										>
-											{recent.map((post, index) => (
-												<a
-													class="recent-preview"
-													href={getPostPath(post)}
-													data-recent-preview
-													data-recent-preview-index={index}
-													data-article-transition-link
-													tabindex={isDuplicate ? -1 : undefined}
-													>
-														<ContentCoverScene kind={post.data.kind} compact class="recent-preview__cover" />
-														<span class="recent-preview__shade" aria-hidden="true"></span>
-														<span class="recent-preview__copy">
-															<span class="recent-preview__meta">
-																<b>{String(index + 1).padStart(2, '0')}</b>
-																<small>FRAME / {formatDate(post.data.publishedAt)}</small>
-															</span>
-															<span class="recent-preview__signal">VISUAL TRACE / {String(index + 1).padStart(2, '0')}</span>
-														</span>
-													<ArrowRight class="recent-preview__arrow" size={16} stroke-width={1.4} aria-hidden="true" />
-												</a>
-											))}
-										</div>
-									))}
+									{/* 回环复制组由脚本在桌面端克隆补齐：每组封面是带滤镜的大段内联 SVG，
+									    服务端渲染两份会让首页 HTML 体积翻倍，而复制组只服务于脚本驱动的
+									    无限滚动，对无脚本访客没有意义。 */}
+									<div class="recent-stage__group" data-recent-scroll-group="primary">
+										{recent.map((post, index) => (
+											<a
+												class="recent-preview"
+												href={getPostPath(post)}
+												data-recent-preview
+												data-recent-preview-index={index}
+												data-article-transition-link
+											>
+												<ContentCoverScene kind={post.data.kind} compact class="recent-preview__cover" />
+												<span class="recent-preview__shade" aria-hidden="true"></span>
+												<span class="recent-preview__copy">
+													<span class="recent-preview__meta">
+														<b>{String(index + 1).padStart(2, '0')}</b>
+														<small>FRAME / {formatDate(post.data.publishedAt)}</small>
+													</span>
+													<span class="recent-preview__signal">VISUAL TRACE / {String(index + 1).padStart(2, '0')}</span>
+												</span>
+												<ArrowRight class="recent-preview__arrow" size={16} stroke-width={1.4} aria-hidden="true" />
+											</a>
+										))}
+									</div>
 								</div>
 							</div>
 						)}
@@ -380,7 +376,43 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 		// 移动端已经隐藏预览窗口，继续维持无限 RAF 只会白白占用电量；
 		// 记录列表本身仍然保留，因此窄屏不需要这条桌面滚动舞台。
 		const compactViewport = window.matchMedia('(max-width: 760px)').matches;
+		const ensureDuplicateRecentGroup = () => {
+			const track = recentViewport?.querySelector<HTMLElement>('.recent-stage__track');
+			const primary = recentGroups[0];
+			if (!track || !primary) return;
+			// 重复初始化时先丢弃上一轮克隆，保证 recentGroups 与 DOM 一一对应。
+			while (recentGroups.length > 1) recentGroups.pop()?.remove();
+
+			const duplicate = primary.cloneNode(true) as HTMLElement;
+			// 封面 SVG 的滤镜与裁剪都依赖 id；克隆副本统一加后缀并同步改写
+			// url(#id) 引用，避免页面出现重复 id。
+			const idRenames = new Map<string, string>();
+			duplicate.querySelectorAll<Element>('[id]').forEach((node) => {
+				idRenames.set(node.id, `${node.id}-dup`);
+				node.id = `${node.id}-dup`;
+			});
+			if (idRenames.size > 0) {
+				duplicate.querySelectorAll<Element>('[filter], [clip-path], [mask], [fill], [stroke], [style]').forEach((node) => {
+					for (const attribute of Array.from(node.attributes)) {
+						if (!attribute.value.includes('url(#')) continue;
+						node.setAttribute(attribute.name, attribute.value.replace(
+							/url\(#([^)\s]+)\)/g,
+							(reference, id: string) => (idRenames.has(id) ? `url(#${idRenames.get(id)})` : reference),
+						));
+					}
+				});
+			}
+			duplicate.dataset.recentScrollGroup = 'duplicate';
+			duplicate.setAttribute('aria-hidden', 'true');
+			duplicate.inert = true;
+			duplicate.querySelectorAll<HTMLAnchorElement>('a').forEach((link) => {
+				link.tabIndex = -1;
+			});
+			track.append(duplicate);
+			recentGroups.push(duplicate);
+		};
 		if (recentViewport && !compactViewport) {
+			ensureDuplicateRecentGroup();
 			measureRecentStream();
 			streamPosition = normalizeRecentScroll();
 			syncRecentHighlight();
