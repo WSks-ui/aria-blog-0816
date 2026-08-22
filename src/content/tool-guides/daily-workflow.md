@@ -104,11 +104,11 @@ Obsidian 的插件使其可以支持 pdf 格式，而其本身又支持 Markdown
 
 但阅读文本对于一些抽象的知识点来说并不是效率最高的学习方式。俗话说，一图胜千言，能不能将某一段知识点的文本和对应的图片甚至视频画面操作联系起来呢？我在浏览 `Obsidian` 的插件市场时，发现了一个叫 `Media Extended` 的插件，这个插件可以在你的笔记里添加跳转到视频指定时间进度的链接，相当于把你的笔记和视频连接起来了！这刚好可以和我上文提到的生成视频中英文字幕搭配起来，即每一句字幕对应一个时间，并且能根据时间点跳转到视频的指定进度，如此一来如果需要在文章中展示记录了操作过程的视频的话，就不需要自己去截取对应的视频片段，而是直接在文章内就能跳转！
 
-![](/assets/images/tool-guides/daily-workflow/13-media-extended.gif)
+![](/assets/images/tool-guides/daily-workflow/13-media-extended.webp)
 
 `Obsidian` 里还有一个很强大的插件，叫 `Annotator`，它可以实现笔记内跳转到 pdf 原文
 
-![](/assets/images/tool-guides/daily-workflow/14-annotator.gif)
+![](/assets/images/tool-guides/daily-workflow/14-annotator.webp)
 
 现在，使用 `Obsidian` 自带的双链功能，可以实现笔记间相互跳转，结合上述两个插件，可以实现笔记到多媒体的跳转，信息的处理过程已经完备。一般我们学习的过程相当于上山和下山，刚学的时候就好像上山，很陌生、吃力，所谓学而时习之，复习或练习的过程就像下山，没有陌生感，不见得轻松，但非走不可。那么如何把复习这一过程纳入工作流的环节里呢？
 
@@ -116,7 +116,7 @@ Obsidian 的插件使其可以支持 pdf 格式，而其本身又支持 Markdown
 
 `Obsidian` 内已经有一个连接 `Anki` 的插件，`Anki` 就是大名鼎鼎的、基于间隔重复的记忆软件。使用该插件可以截取笔记的片段导出到 `Anki` 并变成一张卡片，卡片内也有跳转回笔记原文的链接
 
-![](/assets/images/tool-guides/daily-workflow/15-anki.gif)
+![](/assets/images/tool-guides/daily-workflow/15-anki.webp)
 
 ## 总结
 

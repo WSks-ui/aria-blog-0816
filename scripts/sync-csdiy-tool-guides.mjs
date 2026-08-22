@@ -342,6 +342,39 @@ function transformMarkdownLinks(markdown, sourcePath, revision) {
  * 脚注，最终会以普通文本和错误嵌套的 `<a>` 标签输出。同步时统一修正标签空格，
  * 并在检测到该类嵌套链接时保留真正可访问的目标链接，避免手工修改快照后再次复发。
  */
+/**
+ * daily-workflow 讲义的上游配图托管在第三方图床（s2.loli.net 等），可用性与
+ * 隐私都不受控，因此本站把 15 张配图下载到 public/assets/images/tool-guides/
+ * 并在同步时统一改写为站内路径；其中三张演示动图已转码为 animated WebP
+ * （最大 GIF 原图超过 1.7MB）。上游若更换配图地址，映射不命中时同步结果
+ * 会退回外链并在 diff 中直接可见，提醒维护者重新本地化并更新此表。
+ */
+const LOCAL_MEDIA_URL_MAP = new Map([
+	['https://raw.githubusercontent.com/HardwayLinka/image/master/Drawing 2022-10-20 11.23.41.excalidraw.png', '/assets/images/tool-guides/daily-workflow/01-information-workflow.png'],
+	['https://s2.loli.net/2024/10/18/diZGmFHz8162u4I.png', '/assets/images/tool-guides/daily-workflow/02-information-loss.png'],
+	['https://s2.loli.net/2024/10/18/JhDUR5tgNdO94mo.png', '/assets/images/tool-guides/daily-workflow/03-document-processing.png'],
+	['https://s2.loli.net/2024/10/18/TycU8l71s9BJSVI.png', '/assets/images/tool-guides/daily-workflow/04-information-sources.png'],
+	['https://s2.loli.net/2024/10/18/S5hcofUlv1x9dX3.png', '/assets/images/tool-guides/daily-workflow/05-web-clipping.png'],
+	['https://s2.loli.net/2024/10/18/OwrYoqxCjRgFJpZ.png', '/assets/images/tool-guides/daily-workflow/06-pdf-conversion.png'],
+	['https://s2.loli.net/2024/10/18/7eEWwftYC3KIjik.png', '/assets/images/tool-guides/daily-workflow/07-obsidian-pdf-notes.png'],
+	['https://s2.loli.net/2024/10/18/HU4kO6ofexS2lQM.png', '/assets/images/tool-guides/daily-workflow/08-cross-device-collection.png'],
+	['https://s2.loli.net/2024/10/18/5qAKwzYEgmb821F.png', '/assets/images/tool-guides/daily-workflow/09-rss-reading.png'],
+	['https://s2.loli.net/2024/10/18/odmKinLV3hybCOa.png', '/assets/images/tool-guides/daily-workflow/10-word-translation.png'],
+	['https://s2.loli.net/2024/10/18/ZtG9XsoPde5HQBn.png', '/assets/images/tool-guides/daily-workflow/11-english-dictionary.png'],
+	['https://s2.loli.net/2024/10/18/osDmqFvLtPVcidh.png', '/assets/images/tool-guides/daily-workflow/12-language-reactor.png'],
+	['https://s2.loli.net/2024/10/18/LPwz8AKEfxuIMYS.gif', '/assets/images/tool-guides/daily-workflow/13-media-extended.webp'],
+	['https://s2.loli.net/2024/10/18/dokCZEzrjl7AcI9.gif', '/assets/images/tool-guides/daily-workflow/14-annotator.webp'],
+	['https://s2.loli.net/2024/10/18/ivexghT64HIYPJq.gif', '/assets/images/tool-guides/daily-workflow/15-anki.webp'],
+]);
+
+function applyLocalMediaSubstitutions(markdown) {
+	let result = markdown;
+	for (const [source, replacement] of LOCAL_MEDIA_URL_MAP) {
+		result = result.split(source).join(replacement);
+	}
+	return result;
+}
+
 function normalizeFootnoteDefinitions(markdown) {
 	return markdown
 		.split('\n')
@@ -352,7 +385,9 @@ function normalizeFootnoteDefinitions(markdown) {
 			}
 
 			const [, indentation, number, definition] = label;
-			const nestedLink = definition.match(/^https?:\/\/[^\s]+\]\((https?:\/\/[^)]+)\)$/);
+			// 嵌套链接中 GitHub 路径与描述文字之间带有空格（“... - 知乎 (zhihu.com)](…)”），
+			// 因此中段必须允许空白字符，不能写成 [^\s]+。
+			const nestedLink = definition.match(/^https?:\/\/.+\]\((https?:\/\/[^)]+)\)$/);
 			return nestedLink
 				? `${indentation}[^${number}]: ${nestedLink[1]}`
 				: `${indentation}[^${number}]: ${definition}`;
@@ -392,9 +427,9 @@ async function sync() {
 		if (typeof upstreamMarkdown !== 'string') {
 			throw new Error(`上游快照缺少工具正文：${sourcePath}`);
 		}
-		const body = normalizeFootnoteDefinitions(
+		const body = applyLocalMediaSubstitutions(normalizeFootnoteDefinitions(
 			transformMarkdownLinks(stripExistingFrontmatter(upstreamMarkdown), sourcePath, revision),
-		);
+		));
 		return { tool, sourcePath, output: makeDocument(tool, revision, body) };
 	});
 	const upstreamLicense = upstream.license;
