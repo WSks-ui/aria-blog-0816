@@ -15,10 +15,15 @@ import '@/styles/interactive.css';
 
     const cursor = document.querySelector<HTMLElement>('[data-archive-cursor]');
     const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
+    /*
+     * 高对比度与强制色彩模式依赖系统光标的原生渲染（放大跟随、高反差描边），
+     * 自定义光标在这些环境下会降低可视性，因此直接回退到系统光标。
+     */
+    const highContrast = window.matchMedia('(prefers-contrast: more), (forced-colors: active)');
     let lastModeTarget: Element | null = null;
 
     const setCursorAvailability = () => {
-      const enabled = finePointer.matches && Boolean(cursor);
+      const enabled = finePointer.matches && !highContrast.matches && Boolean(cursor);
       root.dataset.archiveCursor = enabled ? 'enabled' : 'disabled';
       if (cursor) {
         cursor.hidden = !enabled;
@@ -35,16 +40,6 @@ import '@/styles/interactive.css';
       const isTextSurface = Boolean(isTextInput && !isAction) || Boolean(isProse && !isAction);
       cursor.dataset.mode = isTextSurface ? 'text' : (isAction ? 'action' : 'default');
     };
-
-    // 常见开发者工具快捷键只能在页面层拦截，浏览器仍可由用户自行绕过。
-    document.addEventListener('keydown', (event) => {
-      const key = event.key.toUpperCase();
-      const isInspectorShortcut = event.key === 'F12'
-        || (event.ctrlKey && event.shiftKey && ['I', 'J', 'C'].includes(key));
-      if (!isInspectorShortcut) return;
-      event.preventDefault();
-      event.stopPropagation();
-    }, { capture: true });
 
     document.addEventListener('pointermove', (event) => {
       if (!finePointer.matches || !cursor) return;
@@ -91,6 +86,7 @@ import '@/styles/interactive.css';
       }
     });
     finePointer.addEventListener('change', setCursorAvailability);
+    highContrast.addEventListener('change', setCursorAvailability);
     setCursorAvailability();
   }
 
