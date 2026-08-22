@@ -73,6 +73,8 @@ const {
 
       root.dataset.interactiveReady = 'true';
       const storageKey = root.dataset.storageKey || 'aria7-reading-progress';
+      // 记录按路径永久累积会无限占用本地存储；只保留最近访问的页面。
+      const MAX_RECORDS = 50;
       const pageKey = window.location.pathname + window.location.search;
       const controller = new AbortController();
       const { signal } = controller;
@@ -92,6 +94,20 @@ const {
         }
       };
 
+      /** 淘汰最久未更新的记录，保证长期使用时存储占用有上界。 */
+      const pruneRecords = (records: Record<string, ReadingRecord>) => {
+        const keys = Object.keys(records);
+        if (keys.length <= MAX_RECORDS) return records;
+        keys
+          .map((key) => [Date.parse(records[key].updatedAt ?? '') || 0, key] as const)
+          .sort(([left], [right]) => left - right)
+          .slice(0, keys.length - MAX_RECORDS)
+          .forEach(([, key]) => {
+            delete records[key];
+          });
+        return records;
+      };
+
       const persistProgress = (force = false) => {
         const now = Date.now();
         if (!force && Math.abs(latestProgress - lastSavedProgress) < 0.01 && now - lastSavedAt < 5000) return;
@@ -102,7 +118,7 @@ const {
             title: root.dataset.postTitle || document.title,
             updatedAt: new Date(now).toISOString(),
           };
-          localStorage.setItem(storageKey, JSON.stringify(records));
+          localStorage.setItem(storageKey, JSON.stringify(pruneRecords(records)));
           lastSavedProgress = latestProgress;
           lastSavedAt = now;
         } catch {
