@@ -12,10 +12,13 @@ interface Props {
 }
 
 const { post, index, showSummary = true } = Astro.props;
+// Frontmatter 日期为纯日期字符串（UTC 午夜）。格式化固定 UTC，
+// 构建结果才不依赖构建机器的时区。
 const dateText = new Intl.DateTimeFormat('zh-CN', {
 	year: 'numeric',
 	month: '2-digit',
 	day: '2-digit',
+	timeZone: 'UTC',
 }).format(post.data.publishedAt);
 ---
 

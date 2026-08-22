@@ -13,10 +13,12 @@ interface Props {
 }
 
 const { date, minutes, weather, compact = false } = Astro.props;
+// 与 ArticleRow 一致：日期只按 UTC 解释，避免不同时区的构建机输出相差一天。
 const dateText = new Intl.DateTimeFormat('zh-CN', {
 	year: 'numeric',
 	month: '2-digit',
 	day: '2-digit',
+	timeZone: 'UTC',
 }).format(date);
 ---
 
