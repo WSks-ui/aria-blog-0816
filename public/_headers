@@ -1,0 +1,11 @@
+/*
+ * Cloudflare Workers 静态资产在部署时会读取该文件并应用响应头
+ * （https://developers.cloudflare.com/workers/static-assets/headers/）。
+ * X-Frame-Options 与 nosniff 让站点无法被 iframe 嵌套或被 MIME 嗅探；
+ * Referrer-Policy 只放行同源与跨源完整来源，兼顾归档页的来源统计。
+ */
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
