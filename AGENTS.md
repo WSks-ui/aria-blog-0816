@@ -1,5 +1,7 @@
 ## Development
 
+项目统一使用 pnpm：安装依赖用 `pnpm install`，运行脚本用 `pnpm <script>`（如 `pnpm build`）。不要使用 npm 或 yarn，避免生成第二套锁文件。
+
 When starting the dev server, use background mode:
 
 ```
