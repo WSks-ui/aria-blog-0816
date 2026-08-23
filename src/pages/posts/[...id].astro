@@ -3,7 +3,7 @@ import { render } from 'astro:content';
 import RainFootnote from '@/components/content/RainFootnote.astro';
 import WeatherFront from '@/components/content/WeatherFront.astro';
 import ArticleLayout from '@/layouts/ArticleLayout.astro';
-import { getPostSlug, getPosts, getRelatedPosts, type PostEntry } from '@/lib/content';
+import { getPostSlug, getPosts, getRelatedPosts, estimateReadingMinutes, type PostEntry } from '@/lib/content';
 
 export async function getStaticPaths() {
 	const posts = await getPosts();
@@ -15,8 +15,7 @@ interface Props { post: PostEntry }
 const { post } = Astro.props;
 const { Content, headings } = await render(post);
 const related = await getRelatedPosts(post, 3);
-const plainLength = (post.body ?? '').replace(/```[\s\S]*?```/g, '').replace(/[#>*_`\-[\]]/g, '').length;
-const minutes = Math.max(1, Math.ceil(plainLength / 500));
+const minutes = estimateReadingMinutes(post.body ?? '');
 ---
 
 <ArticleLayout post={post} headings={headings} related={related} minutes={minutes}>

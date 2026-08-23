@@ -1,5 +1,5 @@
 ---
-import { GitBranch, MoveLeft } from '@lucide/astro';
+import { GitBranch, MoveLeft, BookmarkCheck, ListTree } from '@lucide/astro';
 import type { MarkdownHeading } from 'astro';
 import type { PostEntry } from '@/lib/content';
 import { getPostPath } from '@/lib/content';
@@ -8,6 +8,7 @@ import KindLabel from '@/components/content/KindLabel.astro';
 import NightEcho from '@/components/content/NightEcho.astro';
 import PostMeta from '@/components/content/PostMeta.astro';
 import { MemoryVault, ReadingSession, SceneGuide } from '@/components/interactive';
+import CommentPanel from '@/components/interactive/CommentPanel.astro';
 import ContentCoverScene from '@/components/visual/ContentCoverScene.astro';
 import '@/styles/interactive.css';
 
@@ -19,6 +20,7 @@ interface Props {
 }
 
 const { post, headings, related, minutes } = Astro.props;
+const tocHeadings = headings.filter((heading) => heading.depth === 2 || heading.depth === 3);
 const defaultDayCover = '/assets/covers/default-day.webp';
 const defaultNightCover = '/assets/covers/default-night.webp';
 const cover = post.data.cover ?? (post.data.kind === 'code' ? defaultNightCover : defaultDayCover);
@@ -30,11 +32,12 @@ const relatedLinks = related.map((entry) => ({
 ---
 
 <BaseLayout title={post.data.title} description={post.data.summary} image={cover} type="article" className="article-page">
+	<div class="article-topline" aria-hidden="true"><span data-article-topline></span></div>
 	<div class="article-shell">
 		<header class="article-hero">
 			<div class="article-hero__cover" data-default-cover={!post.data.cover ? '' : undefined}>
 				{post.data.cover ? (
-					<img src={post.data.cover} alt="" width="1600" height="900" />
+					<img src={post.data.cover} alt="" width="1600" height="900" loading="eager" fetchpriority="high" decoding="async" />
 				) : (
 					<ContentCoverScene kind={post.data.kind} class="article-hero__cover-scene" />
 				)}
@@ -61,9 +64,39 @@ const relatedLinks = related.map((entry) => ({
 			<PostMeta date={post.data.publishedAt} minutes={minutes} weather={post.data.readingWeather} />
 		</header>
 
+		<!--
+			继续阅读：读取 ReadingSession 持久化的进度，只在确实读到中途时出现。
+			按钮出现与否不依赖 JS 以外的任何状态；无记录时保持隐藏，不占版面。
+		-->
+		<div class="article-resume-bar">
+			<button class="article-resume" type="button" data-article-resume hidden>
+				<BookmarkCheck size={16} stroke-width={1.5} aria-hidden="true" />
+				<span>上次读到 <strong data-article-resume-value>0%</strong>，从这里继续</span>
+			</button>
+		</div>
+
 		<div class="article-layout">
+			<!--
+				≤1240px 时侧栏整体退场，这份零 JS 折叠目录与顶部进度线一起接管
+				章节导航；更宽的视口中侧栏目录已经完整，这里保持隐藏避免重复。
+			-->
+			{tocHeadings.length > 0 && (
+				<details class="article-toc-compact">
+					<summary>
+						<ListTree size={16} stroke-width={1.5} aria-hidden="true" />
+						<span>本文目录</span>
+					</summary>
+					<ol>
+						{tocHeadings.map((heading) => (
+							<li class={heading.depth === 2 ? 'is-chapter' : 'is-section'}>
+								<a href={`#${heading.slug}`}>{heading.text}</a>
+							</li>
+						))}
+					</ol>
+				</details>
+			)}
 			<div class="article-layout__guide">
-				<SceneGuide contentSelector=".prose" headingSelector="h2, h3" />
+				<SceneGuide contentSelector=".prose" headingSelector="h2, h3" totalMinutes={minutes} />
 				<div class="article-layout__tools">
 					<!--
 						阅读记录仅保存在当前浏览器；退出入口固定在阅读轨内，长文滚动到
@@ -88,9 +121,71 @@ const relatedLinks = related.map((entry) => ({
 			</article>
 		</div>
 
-		<NightEcho minutes={minutes} scenes={Math.max(1, headings.filter((heading) => heading.depth === 2).length)} related={relatedLinks} />
-	</div>
-</BaseLayout>
+			<NightEcho minutes={minutes} scenes={Math.max(1, headings.filter((heading) => heading.depth === 2).length)} related={relatedLinks} />
+			<!--
+				评论区固定在文末档案区之后；Giscus 未配置时组件自身会渲染安静的占位说明，
+				不会注入任何第三方脚本。
+			-->
+			<CommentPanel class="article-comments" title="留言" />
+		</div>
+	</BaseLayout>
+
+	<script>
+		interface ReadingRecord {
+			progress: number;
+			title: string;
+			updatedAt: string;
+		}
+
+		function initArticleReaderHelpers() {
+			const resume = document.querySelector<HTMLButtonElement>('[data-article-resume]');
+			const resumeValue = document.querySelector<HTMLElement>('[data-article-resume-value]');
+			const topline = document.querySelector<HTMLElement>('[data-article-topline]');
+
+			if (resume && resumeValue) {
+				const pageKey = window.location.pathname + window.location.search;
+				let stored: ReadingRecord | undefined;
+				try {
+					const records = JSON.parse(localStorage.getItem('aria7-reading-progress') || '{}') as Record<string, ReadingRecord>;
+					stored = records[pageKey];
+				} catch {
+					// 存储不可用时继续阅读不出现，阅读本身不受影响。
+				}
+
+				if (stored && typeof stored.progress === 'number' && stored.progress >= 0.04 && stored.progress <= 0.96) {
+					const percent = Math.round(stored.progress * 100);
+					resumeValue.textContent = `${percent}%`;
+					resume.hidden = false;
+					resume.addEventListener('click', () => {
+						const content = document.querySelector<HTMLElement>('.reading-prose');
+						if (!content) return;
+						const rect = content.getBoundingClientRect();
+						const contentTop = rect.top + window.scrollY;
+						const scrollableDistance = Math.max(1, content.offsetHeight - window.innerHeight);
+						const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+						window.scrollTo({
+							top: contentTop + stored!.progress * scrollableDistance,
+							behavior: reduceMotion ? 'auto' : 'smooth',
+						});
+					}, { once: true });
+				}
+			}
+
+			if (topline) {
+				// SceneGuide 滚动时已经算好正文比例并广播；这里只把结果接到进度线上，
+				// 不再启动第二套滚动监听。侧栏在窄视口隐藏不影响事件继续派发。
+				document.addEventListener('aria7-reading-progress', (event) => {
+					const detail = (event as CustomEvent).detail as { ratio?: number } | null;
+					if (detail && typeof detail.ratio === 'number') {
+						topline.style.setProperty('--article-progress', String(detail.ratio));
+					}
+				});
+			}
+		}
+
+		initArticleReaderHelpers();
+		document.addEventListener('astro:page-load', initArticleReaderHelpers);
+	</script>
 
 <style>
 	.article-shell {
@@ -288,6 +383,65 @@ const relatedLinks = related.map((entry) => ({
 		gap: 9px;
 	}
 
+	.article-comments {
+		margin-top: 84px;
+	}
+
+	.article-topline {
+		position: fixed;
+		top: 0;
+		left: 0;
+		z-index: var(--z-topline);
+		width: 100%;
+		height: 2px;
+		pointer-events: none;
+	}
+
+	.article-topline span {
+		display: block;
+		height: 100%;
+		background: var(--accent-strong);
+		transform: scaleX(var(--article-progress, 0));
+		transform-origin: left center;
+	}
+
+	.article-resume-bar {
+		display: flex;
+		justify-content: center;
+		padding-top: 18px;
+	}
+
+	.article-resume {
+		display: inline-flex;
+		min-height: 36px;
+		align-items: center;
+		gap: 8px;
+		padding-inline: 2px;
+		border: none;
+		border-bottom: 1px solid transparent;
+		background: none;
+		font-family: var(--font-ui);
+		font-size: 11px;
+		color: var(--ink-muted);
+		cursor: pointer;
+		transition: color var(--duration-fast) ease, border-color var(--duration-fast) ease;
+	}
+
+	.article-resume strong {
+		color: var(--accent-strong);
+		font-weight: 500;
+	}
+
+	.article-resume:hover,
+	.article-resume:focus-visible {
+		color: var(--ink);
+		border-bottom-color: var(--accent-strong);
+	}
+
+	.article-toc-compact {
+		display: none;
+	}
+
 	.prose {
 		grid-column: 2;
 		min-width: 0;
@@ -303,7 +457,7 @@ const relatedLinks = related.map((entry) => ({
 	}
 
 	@media (max-width: 1240px) {
-		/* 侧栏、正文和双倍间距在中等桌面宽度下放不下，提前收成单栏避免全局裁切。 */
+		/* 侧栏、正文和双倍间距在中等桌面宽度下放不下，提前收成单列避免全局裁切。 */
 		.article-layout {
 			grid-template-columns: minmax(0, 760px);
 			justify-content: center;
@@ -315,6 +469,72 @@ const relatedLinks = related.map((entry) => ({
 
 		.prose {
 			grid-column: 1;
+		}
+
+		/* 侧栏退场后由折叠目录与顶部进度线接管章节导航与阅读进度。 */
+		.article-toc-compact {
+			display: block;
+			padding-block: 14px 20px;
+			border-top: 1px solid var(--line);
+		}
+
+		.article-toc-compact summary {
+			display: flex;
+			min-height: 44px;
+			align-items: center;
+			gap: 8px;
+			font-family: var(--font-ui);
+			font-size: 11px;
+			color: var(--ink-muted);
+			cursor: pointer;
+			list-style: none;
+			user-select: none;
+		}
+
+		.article-toc-compact summary::-webkit-details-marker {
+			display: none;
+		}
+
+		.article-toc-compact summary::after {
+			width: 7px;
+			height: 7px;
+			border-right: 1px solid var(--ink-muted);
+			border-bottom: 1px solid var(--ink-muted);
+			content: '';
+			transform: rotate(45deg);
+			transition: transform var(--duration-fast) var(--ease-drift);
+		}
+
+		.article-toc-compact[open] summary::after {
+			transform: rotate(225deg);
+		}
+
+		.article-toc-compact ol {
+			display: grid;
+			gap: 2px;
+			margin: 0;
+			padding: 6px 0 0;
+			list-style: none;
+		}
+
+		.article-toc-compact a {
+			display: block;
+			padding-block: 6px;
+			color: var(--ink);
+			font-family: var(--font-display);
+			font-size: 14px;
+			text-decoration: none;
+		}
+
+		.article-toc-compact .is-section a {
+			padding-left: 20px;
+			font-size: 13px;
+			color: var(--ink-muted);
+		}
+
+		.article-toc-compact a:hover,
+		.article-toc-compact a:focus-visible {
+			color: var(--accent-strong);
 		}
 	}
 

@@ -79,7 +79,23 @@ export async function getPosts(filters: PostFilters = {}): Promise<PostEntry[]> 
 }
 
 export function getPostSlug(post: PostEntry): string {
-	return post.id.replace(/\.(?:md|mdx)$/i, '').replaceAll('\\', '/');
+  return post.id.replace(/\.(?:md|mdx)$/i, '').replaceAll('\\', '/');
+}
+
+/**
+ * 全站统一的阅读时长估算：中文按单字、拉丁按词计数（与 SceneGuide 的运行时
+ * 算法一致），围栏与行内代码不计入。列表页与正文侧栏显示同一篇文章的分钟数
+ * 必须一致，因此构建侧与运行时都以此为唯一口径。
+ */
+export function estimateReadingMinutes(body: string, unitsPerMinute = 300): number {
+  const plain = body
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`[^`]*`/g, ' ');
+  const cjkUnits = (plain.match(/[\u3400-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]/g) ?? []).length;
+  const latinUnits = (plain
+    .replace(/[\u3400-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]/g, ' ')
+    .match(/[\p{Letter}\p{Number}]+/gu) ?? []).length;
+  return Math.max(1, Math.ceil((cjkUnits + latinUnits) / Math.max(100, unitsPerMinute)));
 }
 
 export function getPostPath(post: PostEntry): string {

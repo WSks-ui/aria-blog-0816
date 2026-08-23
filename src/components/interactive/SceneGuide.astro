@@ -8,6 +8,7 @@ interface Props {
   headingSelector?: string;
   title?: string;
   wordsPerMinute?: number;
+  totalMinutes?: number;
 }
 
 const {
@@ -16,6 +17,7 @@ const {
   headingSelector = 'h2, h3',
   title = '场景导览',
   wordsPerMinute = 300,
+  totalMinutes,
 } = Astro.props;
 
 const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
@@ -28,6 +30,7 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
   data-content-selector={contentSelector}
   data-heading-selector={headingSelector}
   data-words-per-minute={wordsPerMinute}
+  data-total-minutes={totalMinutes}
   aria-labelledby={titleId}
 >
   <header class="scene-guide__header">
@@ -292,12 +295,19 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
       if (headings[0]) setActiveHeading(headings[0].id);
 
       // 中文按单字、拉丁文本按词计数，避免直接用空格统计而严重低估中文阅读量。
-      const text = content.innerText.replace(/\s+/g, ' ').trim();
-      const cjkUnits = (text.match(/[\u3400-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]/g) ?? []).length;
-      const latinUnits = (text.replace(/[\u3400-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]/g, ' ').match(/[\p{Letter}\p{Number}]+/gu) ?? []).length;
-      const totalUnits = Math.max(1, cjkUnits + latinUnits);
-      const readingSpeed = Math.max(100, Number(root.dataset.wordsPerMinute) || 300);
-      const totalMinutes = totalUnits / readingSpeed;
+      // 页面传入构建时算好的分钟数时优先使用，保证与列表页显示的时长一致。
+      const providedMinutes = Number(root.dataset.totalMinutes);
+      let totalMinutes: number;
+      if (Number.isFinite(providedMinutes) && providedMinutes > 0) {
+        totalMinutes = providedMinutes;
+      } else {
+        const text = content.innerText.replace(/\s+/g, ' ').trim();
+        const cjkUnits = (text.match(/[\u3400-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]/g) ?? []).length;
+        const latinUnits = (text.replace(/[\u3400-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]/g, ' ').match(/[\p{Letter}\p{Number}]+/gu) ?? []).length;
+        const totalUnits = Math.max(1, cjkUnits + latinUnits);
+        const readingSpeed = Math.max(100, Number(root.dataset.wordsPerMinute) || 300);
+        totalMinutes = totalUnits / readingSpeed;
+      }
       const controller = new AbortController();
       let resizeObserver: ResizeObserver | undefined;
 
