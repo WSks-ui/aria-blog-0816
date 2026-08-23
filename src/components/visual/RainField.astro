@@ -244,11 +244,17 @@ const paperMarks = [
 		transform: translate3d(.7px, 1px, 0) scale(1.025);
 	}
 
+	/*
+	 * 夜场纪律（对齐视觉规范“夜场只允许局部柔光”）：整体背景在夜间做减法——
+	 * 纹理降透去滤镜、制图集发光减半、玻璃回落到白天档、底渐变收敛，
+	 * 把夜间的存在感留给正文与局部的 HUD/粒子高光。
+	 */
 	:global(html[data-weather-mode='clear']) .rain-field__mural { background-image: url('/assets/patterns/atmosphere-clear.svg'); }
-	:global(html[data-weather-mode='night']) .rain-field__mural { background-image: url('/assets/patterns/atmosphere-night.svg'); }
-	:global(html[data-weather-mode='night']) .rain-field__mural { filter: saturate(1.08) contrast(1.1); }
-	:global(html[data-weather-mode='night']) .rain-field__atlas { mix-blend-mode: screen; }
-	:global(html[data-weather-mode='night']) .rain-field__glass--a { backdrop-filter: blur(7px) contrast(1.16) saturate(1.22); }
+	:global(html[data-weather-mode='night']) .rain-field__mural { background-image: url('/assets/patterns/atmosphere-night.svg'); opacity: 0.5; }
+	:global(html[data-weather-mode='night']) .rain-field__atlas { mix-blend-mode: screen; opacity: 0.1; }
+	:global(html[data-weather-mode='night']) .rain-field__glass--a { backdrop-filter: blur(5px); }
+	:global(html[data-weather-mode='night']) .rain-field__glass { opacity: 0.18; }
+	:global(html[data-weather-mode='night']) .rain-field__ground { opacity: 0.6; }
 
 	@keyframes atmosphere-mural-drift {
 		from { transform: scale(1.035) translate3d(-0.8%, -0.5%, 0); }

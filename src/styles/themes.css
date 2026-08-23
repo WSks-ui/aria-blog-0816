@@ -130,7 +130,8 @@
   --weather-atlas-opacity: 0.24;
   --weather-glass-opacity: 0.26;
   --weather-rain-opacity: 0.18;
-  --weather-particle-opacity: 0.62;
+  /* 夜间底色与亮纸片反差远大于白天的同色系，粒子必须比白天更收敛。 */
+  --weather-particle-opacity: 0.3;
   --weather-mural-blend: screen;
   --weather-fiber-blend: screen;
 }
