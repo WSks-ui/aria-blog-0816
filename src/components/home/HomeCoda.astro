@@ -1,0 +1,52 @@
+---
+import { ArrowRight, CalendarRange, Network, Search } from '@lucide/astro';
+---
+
+<section class="home-scene home-scene--coda stage-dark" aria-labelledby="explore-title" data-home-reveal>
+	<div class="scene-inner coda-layout">
+		<header>
+			<p>04 / TRACE TOOLS</p>
+			<h2 id="explore-title">继续寻找</h2>
+			<span>ARCHIVE / CONNECTION / SEARCH</span>
+		</header>
+		<div class="explore-band">
+			<a href="/archive/">
+				<CalendarRange size={24} stroke-width={1.4} aria-hidden="true" />
+				<span><small>按时间寻找</small><strong>雨日历</strong></span>
+				<ArrowRight size={19} stroke-width={1.4} aria-hidden="true" />
+			</a>
+			<a href="/connections/">
+				<Network size={24} stroke-width={1.4} aria-hidden="true" />
+				<span><small>按关联寻找</small><strong>伞骨关系图</strong></span>
+				<ArrowRight size={19} stroke-width={1.4} aria-hidden="true" />
+			</a>
+			<button type="button" data-search-trigger>
+				<Search size={24} stroke-width={1.4} aria-hidden="true" />
+				<span><small>按词语寻找</small><strong>搜索档案</strong></span>
+				<ArrowRight size={19} stroke-width={1.4} aria-hidden="true" />
+			</button>
+		</div>
+	</div>
+</section>
+
+<style>
+	.home-scene--coda { margin-top: 120px; padding-block: 96px; background: #0b181c; color: #edf1ef; }
+	.coda-layout { display: grid; grid-template-columns: minmax(250px, 0.72fr) minmax(0, 1.6fr); gap: clamp(64px, 9vw, 140px); align-items: start; }
+	.coda-layout header p,
+	.coda-layout header > span { color: #a8b8bb; }
+	.coda-layout header > span { display: block; margin-top: 28px; font-family: var(--font-ui); font-size: 9px; }
+	.explore-band { border-top: 1px solid #47616a; }
+	.explore-band > * { display: grid; grid-template-columns: 34px minmax(0, 1fr) 24px; gap: 18px; width: 100%; min-height: 92px; align-items: center; padding: 18px 4px; border: 0; border-bottom: 1px solid #47616a; background: transparent; color: #edf1ef; text-align: left; text-decoration: none; cursor: pointer; }
+	.explore-band > * > span { display: grid; gap: 4px; }
+	.explore-band small { font-family: var(--font-ui); font-size: 9px; color: #a8b8bb; }
+	.explore-band strong { font-family: var(--font-display); font-size: 20px; font-weight: 500; }
+	.explore-band > * > svg:first-child { color: #96d9e7; }
+	.explore-band > * > svg:last-child { justify-self: end; transition: transform var(--duration-base) var(--ease-rain); }
+	.explore-band > *:hover > svg:last-child { transform: translateX(5px); }
+
+	:global(html[data-weather-mode='night']) .home-scene--coda { background: #050b0d; }
+
+	@media (max-width: 760px) {
+		.coda-layout { grid-template-columns: 1fr; }
+	}
+</style>

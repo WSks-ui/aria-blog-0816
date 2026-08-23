@@ -1,0 +1,83 @@
+---
+import KindLabel from '@/components/content/KindLabel.astro';
+import PostMeta from '@/components/content/PostMeta.astro';
+import ContentCoverScene from '@/components/visual/ContentCoverScene.astro';
+import { getPostPath, type PostEntry } from '@/lib/content';
+
+interface Props {
+	featured: PostEntry;
+	featuredCover: string | null;
+	featuredCoverFit: 'cover' | 'contain';
+}
+
+const { featured, featuredCover, featuredCoverFit } = Astro.props;
+---
+
+<section class="home-scene home-scene--featured stage-dark" aria-labelledby="featured-title" data-home-reveal>
+	<div class="scene-inner">
+		<div class="featured-band">
+			<div class="section-index">
+				<span>01</span>
+				<p>FEATURED RECORD</p>
+			</div>
+			<div class="featured-band__copy">
+				<KindLabel kind={featured.data.kind} />
+				<h2 id="featured-title"><a href={getPostPath(featured)} data-article-transition-link>{featured.data.title}</a></h2>
+				<p>{featured.data.summary}</p>
+				<PostMeta date={featured.data.publishedAt} weather={featured.data.readingWeather} compact />
+			</div>
+			<a class="featured-band__visual" href={getPostPath(featured)} aria-label={`阅读《${featured.data.title}》`} data-article-transition-link>
+				<ContentCoverScene kind={featured.data.kind} class="featured-band__cover-scene" />
+				{featuredCover && (
+					<span class:list={['featured-band__media', `featured-band__media--${featuredCoverFit}`]}>
+						<img src={featuredCover} alt="" width="760" height="430" />
+					</span>
+				)}
+				<span class="featured-band__open">OPEN / RECORD</span>
+			</a>
+		</div>
+	</div>
+</section>
+
+<style>
+	/* 精选内容的深色舞台与其它场景共用同一个 scene-inner 内边界，避免整块底色向外溢出。 */
+	.home-scene--featured { z-index: 2; margin-top: -46px; padding-block: 82px 68px; background: transparent; color: #edf1ef; }
+	.featured-band { display: grid; grid-template-columns: minmax(74px, 1fr) repeat(11, minmax(0, 1fr)); min-height: 500px; border-block: 1px solid var(--line); background: #10242a; }
+	.section-index { grid-column: 1 / 2; display: flex; flex-direction: column; justify-content: space-between; padding: 28px 18px 28px 0; border-right: 1px solid var(--line); font-family: var(--font-ui); color: var(--ink-muted); }
+	.section-index span { font-size: 34px; color: var(--color-warm); }
+	.section-index p { margin: 0; font-size: 9px; writing-mode: vertical-rl; }
+	.featured-band__copy { grid-column: 2 / 7; display: flex; flex-direction: column; justify-content: center; padding: 48px clamp(30px, 4vw, 62px); }
+	.featured-band h2 { margin: 18px 0; font-family: var(--font-display); font-size: 50px; font-weight: 500; line-height: 1.26; overflow-wrap: anywhere; }
+	.featured-band h2 a { color: var(--ink); text-decoration: none; }
+	.featured-band__copy > p { margin: 0 0 28px; font-size: 14px; line-height: 1.85; color: var(--ink-muted); }
+	.featured-band__visual { position: relative; grid-column: 7 / -1; display: block; min-height: 500px; overflow: hidden; border-left: 1px solid var(--line); }
+	.featured-band__visual :global(.featured-band__cover-scene) { width: 100%; height: 100%; transition: transform 900ms var(--ease-drift), filter 900ms var(--ease-drift); }
+	.featured-band__visual:hover :global(.featured-band__cover-scene) { transform: scale(1.018); filter: contrast(1.06); }
+	.featured-band__media { position: absolute; z-index: 2; top: 22%; left: 18%; display: grid; width: 62%; height: 52%; place-items: center; overflow: hidden; border: 1px solid rgb(237 241 239 / 46%); background: rgb(237 241 239 / 88%); box-shadow: 0 22px 54px rgb(0 0 0 / 22%); transition: transform 760ms var(--ease-drift); }
+	.featured-band__visual:hover .featured-band__media { transform: translate3d(8px, -6px, 0); }
+	.featured-band__media img { width: 100%; height: 100%; }
+	.featured-band__media--contain img { object-fit: contain; padding: 10%; }
+	.featured-band__media--cover img { object-fit: cover; }
+	.featured-band__open { position: absolute; right: 18px; bottom: 16px; z-index: 3; font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
+
+	/* 夜间精选区沿用深海底色，避免主题切换时突然出现一整块浅色孤岛。 */
+	:global(html[data-weather-mode='night']) .featured-band { background: #0b181c; }
+	:global(html[data-weather-mode='night']) .featured-band__media { border-color: rgb(237 241 239 / 28%); box-shadow: 0 22px 54px rgb(0 0 0 / 30%); }
+
+	@media (max-width: 1000px) {
+		.featured-band { grid-template-columns: 82px repeat(7, minmax(0, 1fr)); }
+		.featured-band__copy { grid-column: 2 / 9; }
+		.featured-band__visual { grid-column: 1 / -1; min-height: 460px; border-top: 1px solid var(--line); border-left: 0; }
+	}
+
+	@media (max-width: 760px) {
+		.home-scene--featured { margin-top: -24px; padding-top: 60px; }
+		.featured-band { grid-template-columns: 1fr; }
+		.section-index { grid-column: auto; flex-direction: row; padding: 18px 0; border-right: 0; border-bottom: 1px solid var(--line); }
+		.section-index p { writing-mode: horizontal-tb; }
+		.featured-band__copy,
+		.featured-band__visual { grid-column: auto; }
+		.featured-band__copy { padding: 36px 24px; }
+		.featured-band h2 { font-size: 36px; }
+	}
+</style>

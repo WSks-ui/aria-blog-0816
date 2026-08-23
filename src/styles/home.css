@@ -1,0 +1,112 @@
+/*
+ * 首页跨区块的共享样式：区块骨架、深色舞台调色板、章节显现体系与页脚衔接。
+ * 各区块自身的样式留在 components/home/ 的组件里，这里只放必须跨组件生效的部分。
+ * 设计令牌由 global.css 全站注入，这里不再重复引用。
+ */
+
+.home-page-scenes {
+	margin-inline: var(--frame-inset);
+	overflow: clip;
+}
+
+.scene-inner {
+	width: min(100%, calc(var(--content-wide) + var(--page-gutter) + var(--page-gutter)));
+	margin-inline: auto;
+	padding-inline: var(--page-gutter);
+}
+
+.home-scene {
+	position: relative;
+}
+
+/* 精选舞台与收束区共用的深色作用域：一次定义，两种场景按需微调底色。 */
+.stage-dark {
+	--ink: #edf1ef;
+	--ink-muted: #a8b8bb;
+	--line: #47616a;
+	--line-strong: #87a2aa;
+	--accent-strong: #96d9e7;
+	--paper-0: #101d22;
+	--color-surface: #101d22;
+	--color-ink: #edf1ef;
+	--color-ink-muted: #a8b8bb;
+	--color-line: #47616a;
+	--color-line-strong: #87a2aa;
+	--color-rain: #75c5d8;
+	--color-rain-deep: #96d9e7;
+}
+
+/* 区块眉题统一档案索引语气；分属不同组件，因此放在共享层。 */
+.section-kicker,
+.section-heading p,
+.coda-layout header p {
+	margin: 0 0 10px;
+	font-family: var(--font-ui);
+	font-size: 9px;
+	color: var(--ink-muted);
+}
+
+.recent-stage h2,
+.section-heading h2,
+.coda-layout h2 {
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: 38px;
+	font-weight: 500;
+}
+
+/* 章节显现：IntersectionObserver 加 is-in-view，此处只负责状态呈现。 */
+html.home-motion-ready .home-scene[data-home-reveal]:not(.is-in-view) {
+	opacity: 0;
+	transform: translateY(24px);
+}
+
+html.home-motion-ready .home-scene[data-home-reveal] {
+	transition:
+		opacity 900ms var(--ease-rain),
+		transform 1100ms var(--ease-drift),
+		clip-path 1100ms var(--ease-drift);
+}
+
+html.home-motion-ready .home-scene--index:not(.is-in-view) .kind-index a {
+	opacity: 0;
+	transform: translateY(38px) scaleY(0.86);
+	transition-delay: var(--track-delay);
+}
+
+html.home-motion-ready .home-scene--index.is-in-view .kind-index a {
+	transition-delay: 0ms;
+}
+
+html.home-motion-ready .home-scene--coda:not(.is-in-view) {
+	clip-path: inset(12% 0 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.home-scene[data-home-reveal],
+	.kind-index a,
+	.recent-entry {
+		opacity: 1 !important;
+		transform: none !important;
+		clip-path: none !important;
+		transition: none !important;
+	}
+
+	.recent-preview,
+	.recent-preview .recent-preview__cover {
+		animation: none !important;
+		transition: none !important;
+	}
+}
+
+/* 首页页脚对齐场景内边界，与全站页脚的满宽铺法区分。 */
+body.home-page .site-footer {
+	width: min(
+		calc(100% - var(--frame-inset) - var(--frame-inset)),
+		calc(var(--content-wide) + var(--page-gutter) + var(--page-gutter))
+	);
+	max-width: none;
+	min-height: 220px;
+	margin: 0 auto;
+	padding: var(--space-6) var(--page-gutter);
+}

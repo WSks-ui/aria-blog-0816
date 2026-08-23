@@ -1,0 +1,406 @@
+---
+import { ArrowRight } from '@lucide/astro';
+import ArticleRow from '@/components/content/ArticleRow.astro';
+import ContentCoverScene from '@/components/visual/ContentCoverScene.astro';
+import { getPostPath, type PostEntry } from '@/lib/content';
+
+interface Props {
+	recent: PostEntry[];
+}
+
+const { recent } = Astro.props;
+const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
+	year: 'numeric',
+	month: '2-digit',
+	day: '2-digit',
+	timeZone: 'UTC',
+}).format(date);
+---
+
+<section class="home-scene home-scene--recent" aria-labelledby="recent-title" data-home-reveal data-home-recent>
+	<div class="scene-inner recent-layout">
+		<aside class="recent-stage">
+			<div class="recent-stage__sticky">
+				<p class="section-kicker">02 / LATEST ENTRIES</p>
+				<h2 id="recent-title">最近记录</h2>
+				{recent.length > 0 && (
+					<div
+						class="recent-stage__visual"
+						data-recent-scroll-viewport
+						role="region"
+						aria-label="最近记录预览滚动"
+						tabindex="0"
+					>
+						<div class="recent-stage__track">
+							{/* 回环复制组由脚本在桌面端克隆补齐：每组封面是带滤镜的大段内联 SVG，
+							    服务端渲染两份会让首页 HTML 体积翻倍，而复制组只服务于脚本驱动的
+							    无限滚动，对无脚本访客没有意义。 */}
+							<div class="recent-stage__group" data-recent-scroll-group="primary">
+								{recent.map((post, index) => (
+									<a
+										class="recent-preview"
+										href={getPostPath(post)}
+										data-recent-preview
+										data-recent-preview-index={index}
+										data-article-transition-link
+									>
+										<ContentCoverScene kind={post.data.kind} compact class="recent-preview__cover" />
+										<span class="recent-preview__shade" aria-hidden="true"></span>
+										<span class="recent-preview__copy">
+											<span class="recent-preview__meta">
+												<b>{String(index + 1).padStart(2, '0')}</b>
+												<small>FRAME / {formatDate(post.data.publishedAt)}</small>
+											</span>
+											<span class="recent-preview__signal">VISUAL TRACE / {String(index + 1).padStart(2, '0')}</span>
+										</span>
+										<ArrowRight class="recent-preview__arrow" size={16} stroke-width={1.4} aria-hidden="true" />
+									</a>
+								))}
+							</div>
+						</div>
+					</div>
+				)}
+				<a class="recent-stage__all" href="/posts/">查看全部 <ArrowRight size={17} stroke-width={1.5} aria-hidden="true" /></a>
+			</div>
+		</aside>
+
+		<div class="recent-stream">
+			<div class="recent-stream__axis" aria-hidden="true"><span>LIVE / {String(recent.length).padStart(2, '0')}</span><i></i></div>
+			<div class="article-list">
+				{recent.map((post, index) => (
+					<div
+						class="recent-entry"
+						data-home-row
+						data-recent-index={String(index + 1).padStart(2, '0')}
+					>
+						<ArticleRow post={post} index={index + 1} />
+					</div>
+				))}
+			</div>
+		</div>
+	</div>
+</section>
+
+<script>
+	let disposeRecentStage: (() => void) | undefined;
+
+	function initRecentStage() {
+		// View Transitions 或未来的客户端路由会再次触发 page-load。先回收旧观察器和 RAF，
+		// 让这一区即使被反复进入也只保留一套滚动舞台，避免监听器与动画叠加。
+		disposeRecentStage?.();
+
+		const section = document.querySelector<HTMLElement>('[data-home-recent]');
+		if (!section) return;
+
+		const controller = new AbortController();
+		const { signal } = controller;
+		const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		const supportsIntersectionObserver = typeof window.IntersectionObserver === 'function';
+		const supportsResizeObserver = typeof window.ResizeObserver === 'function';
+
+		const rows = [...section.querySelectorAll<HTMLElement>('[data-home-row]')];
+		const recentViewport = section.querySelector<HTMLElement>('[data-recent-scroll-viewport]');
+		const recentGroups = [...section.querySelectorAll<HTMLElement>('[data-recent-scroll-group]')];
+		const recentPreviews = [...section.querySelectorAll<HTMLElement>('[data-recent-preview]')];
+		// 复制组只负责无限循环的视觉连续性，已 inert 且不应参与焦点或高亮计算。
+		const primaryRecentPreviews = recentPreviews.filter((preview) => !preview.closest('[aria-hidden="true"]'));
+		let loopDistance = 0;
+		let recentCardStep = 0;
+		let firstRecentCardCenter = 0;
+		let activeRecentIndex = -1;
+		let pointerPaused = false;
+		let focusPaused = false;
+		let streamIsVisible = false;
+		let streamPosition = 0;
+		let previousFrameTime = 0;
+		let recentStreamFrame = 0;
+		let recentHighlightFrame = 0;
+		let focusOutFrame = 0;
+		let manualResumeTimer = 0;
+		let recentVisibilityFrame = 0;
+		let recentResizeObserver: ResizeObserver | undefined;
+		let recentVisibilityObserver: IntersectionObserver | undefined;
+
+		const setActiveRecent = (index: number) => {
+			if (index === activeRecentIndex || index < 0) return;
+			activeRecentIndex = index;
+			rows.forEach((row, rowIndex) => row.classList.toggle('is-current', rowIndex === index));
+			primaryRecentPreviews.forEach((preview) => {
+				preview.classList.toggle('is-current', Number(preview.dataset.recentPreviewIndex) === index);
+			});
+		};
+
+		const measureRecentStream = () => {
+			const [primaryGroup, duplicateGroup] = recentGroups;
+			const [firstPreview, secondPreview] = primaryRecentPreviews;
+			if (!primaryGroup || !duplicateGroup || !firstPreview) return;
+
+			loopDistance = duplicateGroup.offsetTop - primaryGroup.offsetTop;
+			recentCardStep = secondPreview
+				? secondPreview.offsetTop - firstPreview.offsetTop
+				: firstPreview.offsetHeight;
+			firstRecentCardCenter = firstPreview.offsetTop + firstPreview.offsetHeight / 2;
+		};
+
+		const normalizeRecentScroll = () => {
+			if (!recentViewport || loopDistance <= 0) return recentViewport?.scrollTop ?? 0;
+			const normalizedPosition = recentViewport.scrollTop % loopDistance;
+			// 从复制组无缝回到原始组。两组内容完全一致，所以这里不会产生视觉跳跃。
+			if (Math.abs(recentViewport.scrollTop - normalizedPosition) > 0.5) recentViewport.scrollTop = normalizedPosition;
+			return normalizedPosition;
+		};
+
+		const syncRecentHighlight = () => {
+			if (!recentViewport || primaryRecentPreviews.length === 0 || recentCardStep <= 0 || loopDistance <= 0) return;
+			// 用测量阶段缓存的首卡中心和固定卡距推导焦点，滚动期间不再逐卡读取布局。
+			const viewportFocus = normalizeRecentScroll() + recentViewport.clientHeight * 0.26;
+			const cycleOffset = ((viewportFocus - firstRecentCardCenter) % loopDistance + loopDistance) % loopDistance;
+			const index = Math.round(cycleOffset / recentCardStep) % primaryRecentPreviews.length;
+			setActiveRecent(index);
+		};
+
+		const queueRecentHighlight = () => {
+			if (recentHighlightFrame) return;
+			recentHighlightFrame = requestAnimationFrame(() => {
+				recentHighlightFrame = 0;
+				syncRecentHighlight();
+			});
+		};
+
+		const stopRecentStream = () => {
+			if (recentStreamFrame) cancelAnimationFrame(recentStreamFrame);
+			recentStreamFrame = 0;
+			previousFrameTime = 0;
+		};
+
+		const canAdvanceRecentStream = () => (
+			!reduceMotion
+			&& streamIsVisible
+			&& !document.hidden
+			&& !pointerPaused
+			&& !focusPaused
+			&& loopDistance > 0
+		);
+
+		const advanceRecentStream = (frameTime: number) => {
+			recentStreamFrame = 0;
+			if (!section.isConnected || !canAdvanceRecentStream()) return;
+
+			const elapsed = previousFrameTime === 0 ? 0 : Math.min(frameTime - previousFrameTime, 48);
+			previousFrameTime = frameTime;
+			streamPosition += elapsed * 0.026;
+			if (loopDistance > 0) streamPosition %= loopDistance;
+			if (recentViewport) recentViewport.scrollTop = streamPosition;
+			// scroll 事件会在下一帧合并高亮；此循环只负责推进 scrollTop，不再读取布局。
+			recentStreamFrame = requestAnimationFrame(advanceRecentStream);
+		};
+
+		const startRecentStream = () => {
+			if (recentStreamFrame || !canAdvanceRecentStream()) return;
+			previousFrameTime = 0;
+			recentStreamFrame = requestAnimationFrame(advanceRecentStream);
+		};
+
+		const refreshRecentStreamVisibility = () => {
+			if (!recentViewport) return;
+			const viewportBounds = recentViewport.getBoundingClientRect();
+			streamIsVisible = viewportBounds.bottom > 0 && viewportBounds.top < window.innerHeight;
+			if (streamIsVisible) startRecentStream();
+			else stopRecentStream();
+		};
+
+		const queueRecentStreamVisibility = () => {
+			if (recentVisibilityFrame) return;
+			recentVisibilityFrame = requestAnimationFrame(() => {
+				recentVisibilityFrame = 0;
+				refreshRecentStreamVisibility();
+			});
+		};
+
+		// 移动端已经隐藏预览窗口，继续维持无限 RAF 只会白白占用电量；
+		// 记录列表本身仍然保留，因此窄屏不需要这条桌面滚动舞台。
+		const compactViewport = window.matchMedia('(max-width: 760px)').matches;
+		const ensureDuplicateRecentGroup = () => {
+			const track = recentViewport?.querySelector<HTMLElement>('.recent-stage__track');
+			const primary = recentGroups[0];
+			if (!track || !primary) return;
+			// 重复初始化时先丢弃上一轮克隆，保证 recentGroups 与 DOM 一一对应。
+			while (recentGroups.length > 1) recentGroups.pop()?.remove();
+
+			const duplicate = primary.cloneNode(true) as HTMLElement;
+			// 封面 SVG 的滤镜与裁剪都依赖 id；克隆副本统一加后缀并同步改写
+			// url(#id) 引用，避免页面出现重复 id。
+			const idRenames = new Map<string, string>();
+			duplicate.querySelectorAll<Element>('[id]').forEach((node) => {
+				idRenames.set(node.id, `${node.id}-dup`);
+				node.id = `${node.id}-dup`;
+			});
+			if (idRenames.size > 0) {
+				duplicate.querySelectorAll<Element>('[filter], [clip-path], [mask], [fill], [stroke], [style]').forEach((node) => {
+					for (const attribute of Array.from(node.attributes)) {
+						if (!attribute.value.includes('url(#')) continue;
+						node.setAttribute(attribute.name, attribute.value.replace(
+							/url\(#([^)\s]+)\)/g,
+							(reference, id: string) => (idRenames.has(id) ? `url(#${idRenames.get(id)})` : reference),
+						));
+					}
+				});
+			}
+			duplicate.dataset.recentScrollGroup = 'duplicate';
+			duplicate.setAttribute('aria-hidden', 'true');
+			duplicate.inert = true;
+			duplicate.querySelectorAll<HTMLAnchorElement>('a').forEach((link) => {
+				link.tabIndex = -1;
+			});
+			track.append(duplicate);
+			recentGroups.push(duplicate);
+		};
+		if (recentViewport && !compactViewport) {
+			ensureDuplicateRecentGroup();
+			measureRecentStream();
+			streamPosition = normalizeRecentScroll();
+			syncRecentHighlight();
+
+			recentViewport.addEventListener('pointerdown', () => {
+				pointerPaused = true;
+				stopRecentStream();
+			}, { signal });
+			window.addEventListener('pointerup', () => {
+				pointerPaused = false;
+				startRecentStream();
+			}, { signal });
+			recentViewport.addEventListener('pointercancel', () => {
+				pointerPaused = false;
+				startRecentStream();
+			}, { signal });
+			recentViewport.addEventListener('wheel', () => {
+				// 滚轮输入优先交给访客。静置 1.4 秒后从当前阅读位置继续推进，
+				// 期间直接停止 RAF，而不是让空循环持续检查时间。
+				stopRecentStream();
+				window.clearTimeout(manualResumeTimer);
+				manualResumeTimer = window.setTimeout(startRecentStream, 1400);
+			}, { passive: true, signal });
+			recentViewport.addEventListener('focusin', () => {
+				focusPaused = true;
+				stopRecentStream();
+			}, { signal });
+			recentViewport.addEventListener('focusout', () => {
+				focusOutFrame = requestAnimationFrame(() => {
+					focusOutFrame = 0;
+					focusPaused = recentViewport.contains(document.activeElement);
+					startRecentStream();
+				});
+			}, { signal });
+			recentViewport.addEventListener('scroll', () => {
+				const normalizedPosition = normalizeRecentScroll();
+				// 自动写入会产生细小的像素量化差；只有明显偏差才视为访客的滚轮或滚动条输入。
+				if (Math.abs(normalizedPosition - streamPosition) > 2) streamPosition = normalizedPosition;
+				queueRecentHighlight();
+			}, { passive: true, signal });
+			primaryRecentPreviews.forEach((preview) => {
+				const selectPreview = () => setActiveRecent(Number(preview.dataset.recentPreviewIndex ?? 0));
+				preview.addEventListener('pointerenter', selectPreview, { signal });
+				preview.addEventListener('focus', selectPreview, { signal });
+			});
+
+			const refreshRecentMeasurements = () => {
+				measureRecentStream();
+				streamPosition = normalizeRecentScroll();
+				queueRecentHighlight();
+				startRecentStream();
+			};
+			if (supportsResizeObserver) {
+				recentResizeObserver = new ResizeObserver(refreshRecentMeasurements);
+				recentResizeObserver.observe(recentViewport);
+				recentGroups.forEach((group) => recentResizeObserver?.observe(group));
+			} else {
+				// 旧内核没有 ResizeObserver 时，尺寸变化只在窗口 resize 时重测一次；
+				// 主流浏览器仍使用上方观察器，不会给动画循环增加任何布局读取。
+				window.addEventListener('resize', refreshRecentMeasurements, { signal });
+			}
+
+			// IntersectionObserver 取代逐帧 getBoundingClientRect：最近记录离开视口后彻底取消动画，
+			// 返回视口时再用真实时间推进，保持原本连续的雨幕节奏而不耗用后台 CPU。
+			if (supportsIntersectionObserver) {
+				recentVisibilityObserver = new IntersectionObserver((entries) => {
+					streamIsVisible = entries.some((entry) => entry.isIntersecting);
+					if (streamIsVisible) startRecentStream();
+					else stopRecentStream();
+				}, { threshold: 0.01 });
+				recentVisibilityObserver.observe(recentViewport);
+			} else {
+				// 仅为旧浏览器提供按滚动合帧的兜底。它每次页面滚动最多读取一次边界，
+				// 不会回退为原先离屏也持续执行的逐帧检测。
+				window.addEventListener('scroll', queueRecentStreamVisibility, { passive: true, signal });
+				window.addEventListener('resize', queueRecentStreamVisibility, { signal });
+				refreshRecentStreamVisibility();
+			}
+			document.addEventListener('visibilitychange', () => {
+				if (document.hidden) stopRecentStream();
+				else startRecentStream();
+			}, { signal });
+		}
+
+		disposeRecentStage = () => {
+			controller.abort();
+			recentVisibilityObserver?.disconnect();
+			recentResizeObserver?.disconnect();
+			if (recentStreamFrame) cancelAnimationFrame(recentStreamFrame);
+			if (recentHighlightFrame) cancelAnimationFrame(recentHighlightFrame);
+			if (focusOutFrame) cancelAnimationFrame(focusOutFrame);
+			if (recentVisibilityFrame) cancelAnimationFrame(recentVisibilityFrame);
+			window.clearTimeout(manualResumeTimer);
+		};
+	}
+
+	initRecentStage();
+	document.addEventListener('astro:page-load', initRecentStage);
+	document.addEventListener('astro:before-swap', () => disposeRecentStage?.());
+</script>
+
+<style>
+	.home-scene--recent { padding-block: 168px 72px; }
+	.recent-layout { display: grid; grid-template-columns: minmax(280px, 0.72fr) minmax(0, 1.72fr); gap: clamp(54px, 7vw, 108px); align-items: start; }
+	.recent-stage__sticky { position: sticky; top: calc(var(--header-height) + 30px); }
+	.recent-stage__visual { position: relative; height: clamp(540px, 62vh, 640px); margin-top: 34px; overflow-x: hidden; overflow-y: auto; border-block: 1px solid var(--line); outline: none; overscroll-behavior: contain; scrollbar-color: color-mix(in srgb, var(--accent-strong) 46%, transparent) transparent; scrollbar-width: thin; }
+	.recent-stage__visual:focus-visible { outline: 1px solid var(--accent-strong); outline-offset: 3px; }
+	.recent-stage__track { display: flex; flex-direction: column; gap: 14px; padding-block: 14px; }
+	.recent-stage__group { display: grid; gap: 14px; }
+	.recent-preview { position: relative; isolation: isolate; display: block; height: 208px; flex: none; overflow: hidden; border: 1px solid var(--line); color: var(--ink); text-decoration: none; transition: border-color 420ms var(--ease-rain), transform 560ms var(--ease-drift), box-shadow 560ms var(--ease-drift); }
+	.recent-preview :global(.recent-preview__cover) { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.72; filter: saturate(0.7) contrast(0.94); transition: opacity 560ms var(--ease-rain), filter 560ms var(--ease-rain), transform 900ms var(--ease-drift); }
+	.recent-preview__shade { position: absolute; z-index: 1; inset: 0; background: linear-gradient(180deg, color-mix(in srgb, var(--paper-0) 8%, transparent), color-mix(in srgb, var(--paper-0) 94%, transparent) 78%); }
+	.recent-preview__copy { position: absolute; z-index: 2; right: 18px; bottom: 16px; left: 18px; display: grid; gap: 7px; }
+	.recent-preview__meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-family: var(--font-ui); color: var(--ink-muted); }
+	.recent-preview__meta b { font-size: 10px; font-weight: 500; color: var(--accent-strong); }
+	.recent-preview__meta small { font-size: 8px; white-space: nowrap; }
+	/* 左栏承担时间序列和画面索引，文章标题与摘要只在右栏出现，减少信息重复。 */
+	.recent-preview__signal { display: inline-flex; align-items: center; gap: 9px; font-family: var(--font-ui); font-size: 9px; letter-spacing: 0.06em; color: var(--accent-strong); }
+	.recent-preview__signal::before { width: 24px; height: 1px; background: currentColor; content: ''; }
+	.recent-preview__arrow { position: absolute; z-index: 3; top: 14px; right: 14px; color: var(--ink-muted); opacity: 0; transform: translate(-6px, 6px); transition: opacity 360ms var(--ease-rain), transform 520ms var(--ease-drift); }
+	.recent-preview:hover,
+	.recent-preview:focus-visible,
+	.recent-preview.is-current { border-color: color-mix(in srgb, var(--accent-strong) 72%, var(--line)); box-shadow: inset 3px 0 0 var(--accent-strong); }
+	.recent-preview:hover,
+	.recent-preview:focus-visible { transform: translateX(5px); }
+	.recent-preview:hover :global(.recent-preview__cover),
+	.recent-preview:focus-visible :global(.recent-preview__cover) { opacity: 0.9; filter: saturate(0.92) contrast(1.02); transform: scale(1.025); }
+	.recent-preview:hover .recent-preview__arrow,
+	.recent-preview:focus-visible .recent-preview__arrow { opacity: 1; transform: translate(0, 0); }
+	.recent-stage__all { display: inline-flex; min-height: 44px; align-items: center; gap: 8px; margin-top: 20px; font-family: var(--font-ui); font-size: 11px; color: var(--accent-strong); text-decoration: none; }
+	.recent-stream__axis { display: flex; align-items: center; gap: 14px; min-height: 28px; margin-bottom: 18px; font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
+	.recent-stream__axis i { height: 1px; flex: 1; background: var(--line); }
+	.recent-entry { position: relative; transition: opacity 500ms var(--ease-rain), transform 500ms var(--ease-rain); }
+	.recent-entry::before { position: absolute; top: 0; left: 0; z-index: 2; width: 42px; height: 1px; background: var(--accent-strong); content: ''; transform: scaleX(0); transform-origin: left; transition: transform 520ms var(--ease-rain); }
+	.recent-entry.is-current::before { transform: scaleX(1); }
+	.recent-entry.is-current { transform: translateX(8px); }
+
+	@media (max-width: 1000px) {
+		.recent-layout { grid-template-columns: minmax(240px, 0.62fr) minmax(0, 1.38fr); gap: 48px; }
+	}
+
+	@media (max-width: 760px) {
+		.recent-layout { grid-template-columns: 1fr; }
+		.recent-stage__sticky { position: static; }
+		.recent-stage__visual { display: none; }
+	}
+</style>

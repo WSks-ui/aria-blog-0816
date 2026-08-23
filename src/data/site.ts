@@ -11,6 +11,16 @@ export const POST_KIND_LABELS = {
 	tutorial: '指南',
 } as const satisfies Record<PostKind, string>;
 
+/** 首页六轨索引的轨道参数：桌面轨道高度百分比与档案场景码。按 kind 键控，避免数组下标错位。 */
+export const POST_KIND_TRACKS = {
+	essay: { height: 58, code: 'ESSAY' },
+	note: { height: 82, code: 'NOTE' },
+	project: { height: 68, code: 'PROJECT' },
+	photo: { height: 94, code: 'FRAME' },
+	code: { height: 74, code: 'CODE' },
+	tutorial: { height: 86, code: 'GUIDE' },
+} as const satisfies Record<PostKind, { height: number; code: string }>;
+
 export const SITE = {
 	name: 'Aria-7',
 	title: 'Aria-7 · 雨线之外',
