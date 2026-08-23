@@ -45,6 +45,7 @@ const dateText = new Intl.DateTimeFormat('zh-CN', {
 
 <style>
 	.article-row {
+		position: relative;
 		display: grid;
 		grid-template-columns: 72px minmax(0, 1fr) minmax(180px, 0.35fr) 44px;
 		gap: 22px;
@@ -52,10 +53,20 @@ const dateText = new Intl.DateTimeFormat('zh-CN', {
 		min-height: 132px;
 		padding-block: 24px;
 		border-top: 1px solid var(--line);
+		transition: background-color var(--duration-fast) ease;
 	}
 
 	.article-row:last-child {
 		border-bottom: 1px solid var(--line);
+	}
+
+	/*
+	 * 整行热区：标题链接的 ::after 铺满整行，行内其余链接（标签、箭头）
+	 * 通过定位层级保持独立可点。hover / 键盘焦点共用同一套行级反馈。
+	 */
+	.article-row:hover,
+	.article-row:has(> .article-row__body h3 a:focus-visible) {
+		background: color-mix(in srgb, var(--accent-soft) 16%, transparent);
 	}
 
 	.article-row__index,
@@ -70,14 +81,42 @@ const dateText = new Intl.DateTimeFormat('zh-CN', {
 		align-self: stretch;
 		padding-top: 3px;
 		border-right: 1px solid var(--line);
+		transition: color var(--duration-fast) ease;
+	}
+
+	.article-row:hover .article-row__index,
+	.article-row:has(> .article-row__body h3 a:focus-visible) .article-row__index {
+		color: var(--accent-strong);
 	}
 
 	.article-row h3 {
+		position: relative;
 		margin: 8px 0 6px;
+		padding-left: 16px;
 		font-family: var(--font-display);
 		font-size: 21px;
 		font-weight: 500;
 		line-height: 1.45;
+	}
+
+	/* 方纸母题：常驻的 7px 章节方块位，hover 时由纸面浮起为雨青实体。 */
+	.article-row h3::before {
+		position: absolute;
+		top: 0.62em;
+		left: 0;
+		width: 7px;
+		height: 7px;
+		content: '';
+		background: var(--accent-strong);
+		opacity: 0;
+		transform: translateX(-4px);
+		transition: opacity var(--duration-fast) ease, transform var(--duration-base) var(--ease-drift);
+	}
+
+	.article-row:hover h3::before,
+	.article-row:has(> .article-row__body h3 a:focus-visible) h3::before {
+		opacity: 1;
+		transform: translateX(0);
 	}
 
 	.article-row h3 a {
@@ -85,7 +124,14 @@ const dateText = new Intl.DateTimeFormat('zh-CN', {
 		text-decoration: none;
 	}
 
-	.article-row h3 a:hover {
+	.article-row h3 a::after {
+		position: absolute;
+		inset: -24px -22px;
+		content: '';
+	}
+
+	.article-row h3 a:hover,
+	.article-row h3 a:focus-visible {
 		color: var(--accent-strong);
 	}
 
@@ -98,6 +144,8 @@ const dateText = new Intl.DateTimeFormat('zh-CN', {
 	}
 
 	.article-row__meta {
+		position: relative;
+		z-index: 1;
 		display: grid;
 		gap: 8px;
 		align-content: center;
@@ -110,27 +158,38 @@ const dateText = new Intl.DateTimeFormat('zh-CN', {
 	}
 
 	.article-row__tags a {
+		position: relative;
+		z-index: 1;
 		color: var(--accent-strong);
 		text-decoration: none;
 	}
 
 	.article-row__go {
+		position: relative;
+		z-index: 1;
 		display: grid;
 		width: 44px;
 		height: 44px;
 		place-items: center;
 		border-left: 1px solid var(--line);
 		color: var(--ink-muted);
+		transition: color var(--duration-fast) ease, transform var(--duration-base) var(--ease-drift);
 	}
 
-	.article-row:hover .article-row__go {
+	.article-row:hover .article-row__go,
+	.article-row:has(> .article-row__body h3 a:focus-visible) .article-row__go {
 		color: var(--accent-strong);
+		transform: translate(2px, -2px);
 	}
 
 	@media (max-width: 760px) {
 		.article-row {
 			grid-template-columns: 36px minmax(0, 1fr) 44px;
 			gap: 14px;
+		}
+
+		.article-row h3 a::after {
+			inset: -24px -14px;
 		}
 
 		.article-row__meta {
