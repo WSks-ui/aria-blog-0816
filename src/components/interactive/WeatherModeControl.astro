@@ -173,13 +173,16 @@ const {
       // 单选组键盘模型：方向键在成员间移动并直接选中，Home/End 跳到两端。
       root.addEventListener('keydown', (event) => {
         const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
-        const jump = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : undefined;
-        if (step === undefined && jump === undefined) return;
+        const isHome = event.key === 'Home';
+        const isEnd = event.key === 'End';
+        if (step === undefined && !isHome && !isEnd) return;
+        if (buttons.length === 0) return;
         event.preventDefault();
         const currentIndex = buttons.findIndex((item) => item.getAttribute('aria-checked') === 'true');
+        // 分支内明确得到数字索引，避免将未处理的键盘输入带入数组访问。
         const nextIndex = step !== undefined
           ? (Math.max(0, currentIndex) + step + buttons.length) % buttons.length
-          : jump;
+          : isHome ? 0 : buttons.length - 1;
         const next = buttons[nextIndex];
         if (!next) return;
         next.focus();

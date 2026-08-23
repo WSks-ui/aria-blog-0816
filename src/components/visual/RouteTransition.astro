@@ -33,7 +33,10 @@
 		const arrivedFromPrefetch = (() => {
 			try {
 				const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
-				return navigation?.deliveryType === 'navigated-prefetch' || navigation?.deliveryType === 'prerender';
+				// 当前TypeScript DOM定义尚未包含deliveryType，但支持Speculation Rules的浏览器
+				// 可能在运行时提供该字段；局部扩展类型可保留运行时加速，同时避免污染全局类型。
+				const deliveryType = (navigation as (PerformanceNavigationTiming & { deliveryType?: string }) | undefined)?.deliveryType;
+				return deliveryType === 'navigated-prefetch' || deliveryType === 'prerender';
 			} catch {
 				return false;
 			}

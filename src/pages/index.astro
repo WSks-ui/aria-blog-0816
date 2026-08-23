@@ -47,7 +47,6 @@ const lastUpdateText = new Intl.DateTimeFormat('zh-CN', {
 		document.documentElement.classList.add('home-motion-ready');
 
 		const controller = new AbortController();
-		const { signal } = controller;
 		const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 		const supportsIntersectionObserver = typeof window.IntersectionObserver === 'function';
 		const revealTargets = page.querySelectorAll<HTMLElement>('[data-home-reveal]');

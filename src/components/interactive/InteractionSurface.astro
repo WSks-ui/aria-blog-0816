@@ -43,8 +43,10 @@ import '@/styles/interactive.css';
     if (root.dataset.interactionSurfaceReady === 'true') return;
     root.dataset.interactionSurfaceReady = 'true';
 
-    const cursor = document.querySelector<HTMLElement>('[data-archive-cursor]');
-    if (!cursor) return;
+    const cursorElement = document.querySelector<HTMLElement>('[data-archive-cursor]');
+    if (!cursorElement) return;
+    // 经过上面的存在性检查后固定为非空引用，供后续事件回调安全复用。
+    const cursor = cursorElement;
     /*
      * 高对比度与强制色彩模式依赖系统光标的原生渲染（放大跟随、高反差描边），
      * 自定义光标在这些环境下会降低可视性，因此直接回退到系统光标。
