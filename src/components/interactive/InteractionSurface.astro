@@ -2,92 +2,210 @@
 import '@/styles/interactive.css';
 ---
 
+<!--
+  档案光标 v2.1：制图风三态精灵（箭头/十字/光标线）。
+  替换模式：rAF 每帧一次直写 transform，pointerrawupdate 采样，位置零过渡。
+  伴随模式（重场景页标记 cursor-companion）：系统光标回归，十字环滞后跟随。
+  替换模式在首次指针移动后才“武装”——武装前系统光标正常显示，避免页面
+  加载完成到第一次移动之间出现两不可见的空窗。
+-->
 <div class="archive-cursor" data-archive-cursor aria-hidden="true" hidden>
-  <span class="archive-cursor__ring"></span>
-  <span class="archive-cursor__dot"></span>
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <g data-cursor-sprite="default">
+      <path class="cursor-halo" d="M2 2 L2 13 M2 2 L10.5 5.5 M2 2 L5.5 10.5" />
+      <path class="cursor-ink" d="M2 2 L2 13 M2 2 L10.5 5.5 M2 2 L5.5 10.5" />
+      <rect class="cursor-fill" x="1.1" y="1.1" width="1.8" height="1.8" />
+    </g>
+    <g data-cursor-sprite="action">
+      <path class="cursor-halo" d="M12 3 V9 M12 15 V21 M3 12 H9 M15 12 H21" />
+      <path class="cursor-ink" d="M12 3 V9 M12 15 V21 M3 12 H9 M15 12 H21" />
+      <rect class="cursor-fill" x="11.1" y="11.1" width="1.8" height="1.8" />
+    </g>
+    <g data-cursor-sprite="text">
+      <path class="cursor-halo" d="M12 4 V20 M8.5 4 H15.5 M8.5 20 H15.5" />
+      <path class="cursor-ink" d="M12 4 V20 M8.5 4 H15.5 M8.5 20 H15.5" />
+    </g>
+  </svg>
 </div>
 
 <script>
+  type CursorMode = 'default' | 'action' | 'text';
+
+  // 每种形态的热点偏移：箭头尖端 (2,2)、十字与光标线以 (12,12) 为中心。
+  const CURSOR_HOTSPOT: Record<CursorMode, [number, number]> = {
+    default: [-2, -2],
+    action: [-12, -12],
+    text: [-12, -12],
+  };
+
   function initInteractionSurface() {
     const root = document.documentElement;
     if (root.dataset.interactionSurfaceReady === 'true') return;
     root.dataset.interactionSurfaceReady = 'true';
 
     const cursor = document.querySelector<HTMLElement>('[data-archive-cursor]');
-    const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
+    if (!cursor) return;
     /*
      * 高对比度与强制色彩模式依赖系统光标的原生渲染（放大跟随、高反差描边），
      * 自定义光标在这些环境下会降低可视性，因此直接回退到系统光标。
      */
+    const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
     const highContrast = window.matchMedia('(prefers-contrast: more), (forced-colors: active)');
-    let lastModeTarget: Element | null = null;
 
-    const setCursorAvailability = () => {
-      const enabled = finePointer.matches && !highContrast.matches && Boolean(cursor);
-      root.dataset.archiveCursor = enabled ? 'enabled' : 'disabled';
-      if (cursor) {
-        cursor.hidden = !enabled;
-        cursor.dataset.visible = 'false';
-        delete cursor.dataset.pressed;
-      }
+    let mode: CursorMode = 'default';
+    let visible = false;
+    let lastModeTarget: Element | null = null;
+    // 武装标记：只有拿到过真实指针位置后才允许隐藏系统光标。
+    let armed = false;
+
+    // 位置状态：target 为指针最新采样，pos 为元素当前落点（伴随模式下两者分离）。
+    let targetX = -100;
+    let targetY = -100;
+    let posX = -100;
+    let posY = -100;
+    let frame = 0;
+    let lastTick = 0;
+
+    const isCompanionPage = () => document.body.classList.contains('cursor-companion');
+
+    const syncAvailability = () => {
+      const usable = armed && finePointer.matches && !highContrast.matches;
+      root.dataset.archiveCursor = usable ? (isCompanionPage() ? 'companion' : 'enabled') : 'disabled';
+      cursor.hidden = !usable;
+      if (!usable) setVisible(false);
     };
 
+    function setVisible(next: boolean) {
+      if (visible === next) return;
+      visible = next;
+      cursor.dataset.visible = String(next);
+    }
+
+    function setMode(next: CursorMode) {
+      if (mode === next) return;
+      mode = next;
+      cursor.dataset.mode = next;
+    }
+
     const setCursorMode = (target: EventTarget | null) => {
-      if (!(target instanceof Element) || !cursor) return;
+      if (!(target instanceof Element)) return;
       const isTextInput = target.closest('input, textarea, [contenteditable]:not([contenteditable="false"])');
       const isAction = target.closest('a, button, select, summary, [role="button"], [data-cursor="action"]');
       const isProse = target.closest('.reading-prose, .prose');
       const isTextSurface = Boolean(isTextInput && !isAction) || Boolean(isProse && !isAction);
-      cursor.dataset.mode = isTextSurface ? 'text' : (isAction ? 'action' : 'default');
+      setMode(isTextSurface ? 'text' : (isAction ? 'action' : 'default'));
     };
 
+    const samplePosition = (event: PointerEvent) => {
+      // 合并采样取最后一个点：高轮询率鼠标在一个帧间隔内上报多次时，用最新位置。
+      const coalesced = typeof event.getCoalescedEvents === 'function' ? event.getCoalescedEvents() : [];
+      const latest = coalesced.length > 0 ? coalesced[coalesced.length - 1] : event;
+      targetX = latest.clientX;
+      targetY = latest.clientY;
+    };
+
+    const tick = (now: number) => {
+      frame = 0;
+      const delta = lastTick > 0 ? Math.min(100, now - lastTick) : 16.7;
+      lastTick = now;
+
+      if (root.dataset.archiveCursor === 'companion') {
+        // 伴随模式：指数平滑滞后跟随（时间常数 80ms），延迟本身成为设计语言。
+        const smoothing = 1 - Math.exp(-delta / 80);
+        posX += (targetX - posX) * smoothing;
+        posY += (targetY - posY) * smoothing;
+      } else {
+        posX = targetX;
+        posY = targetY;
+      }
+
+      const [offsetX, offsetY] = CURSOR_HOTSPOT[mode];
+      cursor.style.transform = `translate3d(${(posX + offsetX).toFixed(2)}px, ${(posY + offsetY).toFixed(2)}px, 0)`;
+
+      // 静止且已贴合目标时停帧；伴随模式保留亚像素缓动直到收敛。
+      const settled = Math.abs(targetX - posX) < 0.4 && Math.abs(targetY - posY) < 0.4;
+      if (!settled) {
+        frame = window.requestAnimationFrame(tick);
+      }
+    };
+
+    const schedule = () => {
+      if (frame === 0) {
+        frame = window.requestAnimationFrame(tick);
+      }
+    };
+
+    const arm = (event: PointerEvent) => {
+      armed = true;
+      // 先定好初始形态再解除 hidden，首帧就是完整箭头，而不是空容器闪一下。
+      cursor.dataset.mode = 'default';
+      samplePosition(event);
+      posX = targetX;
+      posY = targetY;
+      syncAvailability();
+      setVisible(true);
+    };
+
+    // pointerrawupdate 比 pointermove 更早派发（Chromium），只做最轻的采样缓存。
+    document.addEventListener('pointerrawupdate', (event: Event) => {
+      if (root.dataset.archiveCursor === 'disabled') return;
+      if (event instanceof PointerEvent) samplePosition(event);
+      schedule();
+    }, { passive: true });
+
     document.addEventListener('pointermove', (event) => {
-      if (!finePointer.matches || !cursor) return;
-      /*
-       * 指针位置不再进入 requestAnimationFrame 队列。自定义光标本身只改变
-       * 合成层 transform，直接写入能避免“光标追赶鼠标”的一帧拖尾感。
-       */
-      cursor.style.setProperty('--archive-cursor-x', String(event.clientX) + 'px');
-      cursor.style.setProperty('--archive-cursor-y', String(event.clientY) + 'px');
-      cursor.dataset.visible = 'true';
+      if (!armed) {
+        if (finePointer.matches && !highContrast.matches) arm(event);
+        return;
+      }
+      if (root.dataset.archiveCursor === 'disabled') return;
+      samplePosition(event);
+      setVisible(true);
       if (event.target !== lastModeTarget) {
         setCursorMode(event.target);
         lastModeTarget = event.target instanceof Element ? event.target : null;
       }
+      schedule();
     }, { passive: true });
 
     document.addEventListener('pointerdown', (event) => {
-      if (!finePointer.matches || !cursor) return;
+      if (root.dataset.archiveCursor === 'disabled') return;
       cursor.dataset.pressed = 'true';
       setCursorMode(event.target);
       lastModeTarget = event.target instanceof Element ? event.target : null;
     }, { passive: true });
 
     const clearPressed = () => {
-      if (cursor) delete cursor.dataset.pressed;
+      delete cursor.dataset.pressed;
     };
 
     document.addEventListener('pointerup', clearPressed, { passive: true });
     document.addEventListener('pointercancel', clearPressed, { passive: true });
 
+    /*
+     * pointerout 的 relatedTarget 为 null 有两种情况：真正离开窗口，或进入
+     * 跨文档目标（giscus 评论区等 iframe）。用 elementFromPoint 复核命中位置，
+     * 只有指针确实离开文档、或压在 iframe 上（iframe 内是系统光标）才隐藏。
+     */
     document.addEventListener('pointerout', (event) => {
-      if (!cursor) return;
-      const leavingToIframe = event.relatedTarget instanceof Element
-        && event.relatedTarget.closest('iframe, object, embed');
-      if (event.relatedTarget === null || leavingToIframe) {
-        cursor.dataset.visible = 'false';
-      }
+      if (root.dataset.archiveCursor === 'disabled') return;
+      if (!(event instanceof PointerEvent) || event.relatedTarget !== null) return;
+      const under = document.elementFromPoint(event.clientX, event.clientY);
+      if (!under || under.closest('iframe, object, embed')) setVisible(false);
     }, { passive: true });
 
-    window.addEventListener('blur', () => {
-      if (cursor) {
-        cursor.dataset.visible = 'false';
-        delete cursor.dataset.pressed;
-      }
+    document.documentElement.addEventListener('mouseleave', () => {
+      setVisible(false);
     });
-    finePointer.addEventListener('change', setCursorAvailability);
-    highContrast.addEventListener('change', setCursorAvailability);
-    setCursorAvailability();
+
+    window.addEventListener('blur', () => {
+      setVisible(false);
+      clearPressed();
+    });
+
+    finePointer.addEventListener('change', syncAvailability);
+    highContrast.addEventListener('change', syncAvailability);
+    syncAvailability();
   }
 
   initInteractionSurface();

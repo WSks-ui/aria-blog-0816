@@ -97,6 +97,11 @@ html[data-archive-cursor='companion'] .archive-cursor[data-mode='text'] {
   html[data-archive-cursor='enabled'] * {
     cursor: none !important;
   }
+
+  html[data-archive-cursor='companion'],
+  html[data-archive-cursor='companion'] * {
+    cursor: auto !important;
+  }
 }
 
 /* 三态主题控件默认仅保留图标，标签在桌面悬停时沿着当前按钮平滑展开。 */
@@ -1380,7 +1385,9 @@ html[data-archive-cursor='companion'] .archive-cursor[data-mode='text'] {
 
 @media (prefers-reduced-motion: reduce) {
   html[data-archive-cursor='enabled'],
-  html[data-archive-cursor='enabled'] * { cursor: auto !important; }
+  html[data-archive-cursor='enabled'] *,
+  html[data-archive-cursor='companion'],
+  html[data-archive-cursor='companion'] * { cursor: auto !important; }
   .archive-cursor { display: none; }
   [data-tooltip]::after { transition: none; }
   .reading-session__meter::-webkit-progress-value { transition: none; }
