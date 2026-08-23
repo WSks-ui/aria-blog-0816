@@ -41,19 +41,21 @@
 				<rect x="947" y="111" width="63" height="366" style="--column-index: 7" />
 			</g>
 
-			<g class="hero-scene__umbrella">
-				<path class="hero-scene__canopy" d="M596 330c21-116 112-183 218-183s197 67 218 183H596Z" />
-				<path class="hero-scene__scallop" d="M596 330c34-42 70-42 108 0 35-42 72-42 110 0 38-42 75-42 110 0 38-42 74-42 108 0" />
-				<path class="hero-scene__shaft" d="M814 147v292c0 83 98 83 98 8" />
-				<path class="hero-scene__ribs" d="M814 147 596 330m218-183L704 330m110-183v183m0-183 110 183m-110-183 218 183" />
-				<circle cx="814" cy="147" r="8" />
+			<!-- 消失点标记：同心弧、十字刻度与中心方块。伞退场后，首屏焦点交还给抽象制图语言。 -->
+			<g class="hero-scene__apex">
+				<circle cx="814" cy="292" r="16" />
+				<circle cx="814" cy="292" r="38" />
+				<circle cx="814" cy="292" r="66" />
+				<path d="M814 258v-18M814 326v18M780 292h-18M848 292h18" />
+				<rect x="811" y="289" width="6" height="6" />
 			</g>
 
+			<!-- 签名伞：中央大伞退场后，伞以线稿小签名的形式留在右上角——当“章”不当“主角”。 -->
+			<g class="hero-scene__signature" transform="translate(1042 196) scale(.6)">
+				<path d="M-66 24Q0-56 66 24Z" />
+				<path d="M0-36v60M-66 24 0-36 66 24M0 24v58" />
+			</g>
 			<g class="hero-scene__satellites">
-				<g transform="translate(1052 214) scale(.52)">
-					<path d="M-66 24Q0-56 66 24Z" />
-					<path d="M0-36v60M-66 24 0-36 66 24M0 24v58" />
-				</g>
 				<g transform="translate(490 384) scale(.34)">
 					<path d="M-66 24Q0-56 66 24Z" />
 					<path d="M0-36v60M-66 24 0-36 66 24M0 24v58" />
@@ -149,8 +151,8 @@
 			let randomSeed = 0x7a11ce;
 
 			/*
-			 * 四拍不只调节密度，而是“换景”：定位幕近乎无雨、伞面只留线稿；
-			 * 雨幕幕全量落雨抬柱；聚焦幕雨量让位、伞面填充显现实体并轻推镜；
+			 * 四拍不只调节密度，而是“换景”：定位幕近乎无雨、消失点标记登台；
+			 * 雨幕幕全量落雨抬柱；聚焦幕雨量让位、世界组向消失点轻推镜；
 			 * 余辉幕一切褪场，只留制图线与下一轮的留白。
 			 */
 			const beats = [
@@ -267,8 +269,6 @@
 				context.globalCompositeOperation = 'source-over';
 				root.style.setProperty('--hero-draft-x', `${(pointerX - 0.5) * -9}px`);
 				root.style.setProperty('--hero-draft-y', `${(pointerY - 0.5) * -6}px`);
-				root.style.setProperty('--hero-umbrella-x', `${(pointerX - 0.5) * 14}px`);
-				root.style.setProperty('--hero-umbrella-y', `${(pointerY - 0.5) * 8}px`);
 
 				if (visible && !document.hidden && !reduceMotion.matches) {
 					animationFrame = requestAnimationFrame(draw);
@@ -430,14 +430,15 @@
 	/* 世界组承接四拍推镜：视差在 svg 根上逐帧写变量，这里只消费慢速缩放。 */
 	.hero-scene__world {
 		transform-box: view-box;
-		transform-origin: 814px 330px;
+		transform-origin: 814px 292px;
 		transform: scale(var(--hero-beat-zoom, 1));
 		transition: transform 1500ms var(--ease-drift);
 	}
 
 	.hero-scene__frame,
 	.hero-scene__perspective,
-	.hero-scene__umbrella,
+	.hero-scene__apex,
+	.hero-scene__signature,
 	.hero-scene__satellites {
 		fill: none;
 		stroke: currentColor;
@@ -449,11 +450,32 @@
 		opacity: 0.7;
 	}
 
+	/* 透视廊道与消失点共同承担主视觉：伞退场后这里就是画面的“主角”。 */
 	.hero-scene__perspective {
-		opacity: 0.28;
+		opacity: 0.34;
 		transform: scaleY(0.975);
 		transform-origin: 814px 292px;
 		transition: opacity 1100ms var(--ease-rain), transform 1500ms var(--ease-drift);
+	}
+
+	.hero-scene__apex {
+		transform-box: view-box;
+		transform-origin: 814px 292px;
+		transform: scale(var(--hero-apex-scale, 1));
+		transition: opacity 1100ms var(--ease-rain), transform 1500ms var(--ease-drift);
+	}
+
+	.hero-scene__apex rect {
+		fill: var(--accent-strong);
+		stroke: none;
+	}
+
+	/* 签名伞：线稿、小幅、稳定在场，是站标与“伞骨”命名的画面呼应。 */
+	.hero-scene__signature {
+		stroke: var(--accent-strong);
+		stroke-width: 1.4;
+		opacity: 0.44;
+		transition: opacity 900ms var(--ease-rain);
 	}
 
 	.hero-scene__columns {
@@ -468,40 +490,6 @@
 		transform: scaleY(0.08);
 		transition: transform 1500ms var(--ease-rain), opacity 900ms var(--ease-rain);
 		transition-delay: calc(var(--column-index) * 70ms);
-	}
-
-	.hero-scene__umbrella {
-		color: var(--accent-strong);
-		stroke-width: 2;
-		transform-origin: 814px 330px;
-		transform: translate3d(
-			var(--hero-umbrella-x, 0px),
-			calc(var(--hero-umbrella-y, 0px) + var(--hero-beat-shift, 0px)),
-			0
-		) scale(var(--hero-beat-scale, 1));
-		transition: transform 880ms var(--ease-rain), opacity 680ms var(--ease-rain);
-		will-change: transform;
-	}
-
-	.hero-scene__canopy {
-		fill: color-mix(in srgb, var(--color-rain) 68%, transparent);
-		fill-opacity: var(--hero-canopy-ink, 0.55);
-		stroke-width: 3;
-		transition: fill-opacity 900ms var(--ease-rain);
-	}
-
-	.hero-scene__scallop {
-		stroke: var(--paper-0);
-		stroke-width: 2;
-	}
-
-	.hero-scene__shaft {
-		stroke: var(--ink);
-		stroke-width: 7;
-	}
-
-	.hero-scene__ribs {
-		opacity: 0.56;
 	}
 
 	.hero-scene__satellites {
@@ -523,15 +511,14 @@
 	}
 
 		.hero-scene[data-beat='0'] {
-			--hero-beat-scale: 0.97;
-			--hero-beat-shift: 6px;
 			--hero-beat-zoom: 1;
-			--hero-canopy-ink: 0;
+			--hero-apex-scale: 1;
 		}
 
 		.hero-scene[data-beat='0'] .hero-scene__columns { opacity: 0.1; }
 		.hero-scene[data-beat='0'] .hero-scene__columns rect { transform: scaleY(0.08); }
-		.hero-scene[data-beat='0'] .hero-scene__perspective { opacity: 0.42; transform: scaleY(0.975); }
+		.hero-scene[data-beat='0'] .hero-scene__perspective { opacity: 0.5; transform: scaleY(0.975); }
+		.hero-scene[data-beat='0'] .hero-scene__apex { opacity: 0.85; }
 		.hero-scene[data-beat='0'] .hero-scene__satellites { opacity: 0.12; }
 		.hero-scene[data-beat='0'] .hero-scene__papers path {
 			opacity: 0;
@@ -541,14 +528,14 @@
 		}
 
 		.hero-scene[data-beat='1'] {
-			--hero-beat-scale: 0.992;
-			--hero-beat-shift: 1px;
 			--hero-beat-zoom: 1.004;
-			--hero-canopy-ink: 0.3;
+			--hero-apex-scale: 0.92;
 		}
 	.hero-scene[data-beat='1'] .hero-scene__columns { opacity: 0.4; }
 	.hero-scene[data-beat='1'] .hero-scene__columns rect { transform: scaleY(1); }
-	.hero-scene[data-beat='1'] .hero-scene__perspective { opacity: 0.52; transform: scaleY(1.01); }
+	.hero-scene[data-beat='1'] .hero-scene__perspective { opacity: 0.58; transform: scaleY(1.01); }
+	.hero-scene[data-beat='1'] .hero-scene__apex { opacity: 0.3; }
+	.hero-scene[data-beat='1'] .hero-scene__signature { opacity: 0.56; }
 	.hero-scene[data-beat='1'] .hero-scene__papers path {
 		opacity: 0.42;
 		transform: translate3d(2px, 24px, 0) rotate(calc(12deg + var(--paper-index) * 3deg));
@@ -556,14 +543,14 @@
 	.hero-scene[data-beat='1'] .hero-scene__satellites { opacity: 0.46; transform: translateY(3px); }
 
 		.hero-scene[data-beat='2'] {
-			--hero-beat-scale: 1.02;
-			--hero-beat-shift: -4px;
 			--hero-beat-zoom: 1.03;
-			--hero-canopy-ink: 1;
+			--hero-apex-scale: 1.07;
 		}
 	.hero-scene[data-beat='2'] .hero-scene__columns { opacity: 0.48; }
 	.hero-scene[data-beat='2'] .hero-scene__columns rect { transform: scaleY(0.9); }
-	.hero-scene[data-beat='2'] .hero-scene__perspective { opacity: 0.34; transform: scaleY(1.025); }
+	.hero-scene[data-beat='2'] .hero-scene__perspective { opacity: 0.4; transform: scaleY(1.025); }
+	.hero-scene[data-beat='2'] .hero-scene__apex { opacity: 0.72; }
+	.hero-scene[data-beat='2'] .hero-scene__signature { opacity: 0.4; }
 	.hero-scene[data-beat='2'] .hero-scene__papers path {
 		opacity: 0.7;
 		transform: translate3d(11px, 78px, 0) rotate(calc(34deg + var(--paper-index) * 4deg));
@@ -571,10 +558,8 @@
 	.hero-scene[data-beat='2'] .hero-scene__satellites { opacity: 0.28; transform: translateY(8px); }
 
 		.hero-scene[data-beat='3'] {
-			--hero-beat-scale: 0.985;
-			--hero-beat-shift: 3px;
 			--hero-beat-zoom: 1.008;
-			--hero-canopy-ink: 0.15;
+			--hero-apex-scale: 1;
 		}
 		.hero-scene[data-beat='3'] .hero-scene__columns { opacity: 0.05; }
 		.hero-scene[data-beat='3'] .hero-scene__columns rect { transform: scaleY(0.14); }
@@ -585,6 +570,8 @@
 		transform: translate3d(24px, 142px, 0) rotate(calc(72deg + var(--paper-index) * 5deg));
 	}
 	.hero-scene[data-beat='3'] .hero-scene__satellites { opacity: 0.12; transform: translateY(12px); }
+	.hero-scene[data-beat='3'] .hero-scene__apex { opacity: 0.2; }
+	.hero-scene[data-beat='3'] .hero-scene__signature { opacity: 0.3; }
 
 	.hero-scene__telemetry {
 		position: absolute;
@@ -723,10 +710,6 @@
 		opacity: 0.08;
 	}
 
-	:global(html[data-weather-mode='clear']) .hero-scene__canopy {
-		fill: color-mix(in srgb, var(--paper-0) 72%, transparent);
-	}
-
 	:global(html[data-weather-mode='clear']) .hero-scene__material {
 		background-image: url('/assets/patterns/atmosphere-clear.svg'), url('/assets/patterns/archive-fiber.svg');
 		background-position: 57% 44%, center;
@@ -762,19 +745,7 @@
 		fill: color-mix(in srgb, var(--color-rain) 17%, transparent);
 	}
 
-	:global(html[data-weather-mode='night']) .hero-scene__canopy {
-		fill: color-mix(in srgb, var(--night-1) 80%, transparent);
-	}
-
-	:global(html[data-weather-mode='night']) .hero-scene__scallop {
-		stroke: var(--night-text);
-	}
-
-	:global(html[data-weather-mode='night']) .hero-scene__shaft {
-		stroke: var(--night-text);
-	}
-
-	:global(html[data-weather-mode='night']) .hero-scene__night-word,
+		:global(html[data-weather-mode='night']) .hero-scene__night-word,
 	:global(html[data-weather-mode='night']) .hero-scene__wet-glass,
 	:global(html[data-weather-mode='night']) .hero-scene__scanline {
 		display: block;
@@ -800,7 +771,7 @@
 	}
 
 	@media (max-width: 760px) {
-		/* 窄屏只遮住文案所在的左侧，右侧保留伞面和制图网格作为首屏焦点。 */
+		/* 窄屏只遮住文案所在的左侧，右侧保留消失点标记和制图网格作为首屏焦点。 */
 		.hero-scene::before { inset: 0 36% 0 0; background: color-mix(in srgb, var(--paper-0) 88%, transparent); }
 		:global(html[data-weather-mode='night']) .hero-scene::before { background: color-mix(in srgb, var(--night-0) 82%, transparent); }
 		.hero-scene__draft { width: 132%; translate: -18% 0; opacity: 0.9; }
@@ -811,14 +782,14 @@
 		.hero-scene__material { animation: none; }
 		.hero-scene__night-word { animation: none; }
 		.hero-scene__draft,
-		.hero-scene__umbrella,
 		.hero-scene__world {
 			transform: none;
 			transition: none;
 		}
 
 		/* 静态帧固定停在定位幕；伞面与制图线给足实体感，避免线稿过于空旷。 */
-		.hero-scene .hero-scene__canopy { fill-opacity: 0.55; transition: none; }
+		.hero-scene__apex { opacity: 0.7; transform: none; transition: none; }
+		.hero-scene__signature { opacity: 0.5; transition: none; }
 		.hero-scene__grid { opacity: 0.28; }
 		.hero-scene__columns rect { opacity: 0.42; transform: scaleY(1); transition: none; }
 		.hero-scene__papers path,
