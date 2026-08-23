@@ -102,13 +102,13 @@ const kindColors = {
 } as const satisfies Record<PostKind, string>;
 ---
 
-<section class="article-graph">
+<section class="article-graph" data-article-graph>
 	<header class="article-graph__header">
 		<div>
 			<p>CONNECTIONS / SHARED TAGS</p>
 			<h2>{heading}</h2>
 		</div>
-		<p>{visiblePosts.length} 篇文章 / {edges.length} 条联系</p>
+		<p>{visiblePosts.length} 篇文章 / {edges.length} 条联系 · 悬停或聚焦节点可高亮关联</p>
 	</header>
 
 	{visiblePosts.length > 0 ? (
@@ -116,6 +116,7 @@ const kindColors = {
 			<div class="article-graph__canvas">
 				<svg
 					viewBox={`0 0 ${width} ${height}`}
+					data-graph-svg
 					role="img"
 					aria-label="文章关系图，连线表示两篇文章拥有相同标签"
 				>
@@ -147,6 +148,7 @@ const kindColors = {
 								class="article-graph__node"
 								href={getPostPath(node.post)}
 								data-article-transition-link
+								data-node-key={node.post.id}
 								tabindex="0"
 								aria-label={`${node.post.data.title}，${POST_KIND_LABELS[node.kind]}`}
 							>
@@ -205,6 +207,75 @@ const kindColors = {
 		<p class="article-graph__empty">尚无已发布文章。</p>
 	)}
 </section>
+
+<script>
+  function initArticleGraphs() {
+    document.querySelectorAll<HTMLElement>('[data-article-graph]').forEach((root) => {
+      if (root.dataset.interactiveReady === 'true') return;
+      root.dataset.interactiveReady = 'true';
+
+      const svg = root.querySelector<SVGSVGElement>('[data-graph-svg]');
+      if (!svg) return;
+      const nodes = Array.from(svg.querySelectorAll<SVGAElement>('[data-node-key]'));
+      const edges = Array.from(svg.querySelectorAll<SVGPathElement>('[data-edge]'));
+      if (nodes.length === 0 || edges.length === 0) return;
+
+      // 边的 key 形如 `${sourceId}--${targetId}`，据此预计算邻接表，悬停时零查找成本。
+      const neighbors = new Map<string, Set<string>>();
+      const link = (from: string, to: string) => {
+        if (!neighbors.has(from)) neighbors.set(from, new Set());
+        neighbors.get(from)!.add(to);
+      };
+      edges.forEach((edge) => {
+        const key = edge.dataset.edge ?? '';
+        const separator = key.indexOf('--');
+        if (separator < 0) return;
+        const source = key.slice(0, separator);
+        const target = key.slice(separator + 2);
+        link(source, target);
+        link(target, source);
+      });
+
+      const highlight = (key: string | null) => {
+        if (key === null) {
+          delete svg.dataset.focusKey;
+          edges.forEach((edge) => delete edge.dataset.active);
+          nodes.forEach((node) => delete node.dataset.related);
+          return;
+        }
+
+        svg.dataset.focusKey = key;
+        edges.forEach((edge) => {
+          const edgeKey = edge.dataset.edge ?? '';
+          edge.dataset.active = String(edgeKey.startsWith(`${key}--`) || edgeKey.endsWith(`--${key}`));
+        });
+        nodes.forEach((node) => {
+          const nodeKey = node.dataset.nodeKey ?? '';
+          node.dataset.related = String(
+            nodeKey === key || neighbors.get(key)?.has(nodeKey) === true,
+          );
+        });
+      };
+
+      svg.addEventListener('pointerover', (event) => {
+        const node = (event.target as Element | null)?.closest?.('[data-node-key]');
+        highlight(node ? node.getAttribute('data-node-key') : null);
+      });
+      svg.addEventListener('pointerleave', () => highlight(null));
+      // 键盘聚焦节点时给出同样的关系预览；移出后还原。
+      svg.addEventListener('focusin', (event) => {
+        const node = (event.target as Element | null)?.closest?.('[data-node-key]');
+        highlight(node ? node.getAttribute('data-node-key') : null);
+      });
+      svg.addEventListener('focusout', () => window.setTimeout(() => {
+        if (!svg.contains(document.activeElement)) highlight(null);
+      }, 0));
+    });
+  }
+
+  initArticleGraphs();
+  document.addEventListener('astro:page-load', initArticleGraphs);
+</script>
 
 <style>
 	.article-graph {
@@ -267,11 +338,34 @@ const kindColors = {
 		fill: none;
 		stroke: var(--accent-strong);
 		stroke-opacity: 0.34;
+		transition: stroke-opacity var(--duration-fast) ease, stroke-width var(--duration-fast) ease;
+	}
+
+	/*
+	 * 聚焦某个节点时：它的边实体化、相邻节点保留描边，其余节点与边退到纸面
+	 * 之下。全部状态由脚本写 data 属性，这里只做呈现，不承担命中判定。
+	 */
+	.article-graph [data-graph-svg][data-focus-key]:not([data-focus-key='']) .article-graph__edges path {
+		stroke-opacity: 0.08;
+	}
+
+	.article-graph__edges path[data-active='true'] {
+		stroke-opacity: 0.92;
+		stroke-width: 1.7;
 	}
 
 	.article-graph__node {
 		color: var(--ink);
 		outline: none;
+		transition: opacity var(--duration-base) ease;
+	}
+
+	.article-graph__node[data-related='false'] {
+		opacity: 0.24;
+	}
+
+	.article-graph__node[data-related='true'] .article-graph__node-surface {
+		stroke: var(--accent-strong);
 	}
 
 	.article-graph__node-surface {
