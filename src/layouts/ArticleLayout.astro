@@ -29,6 +29,11 @@ const relatedLinks = related.map((entry) => ({
 	title: entry.data.title,
 	kind: entry.data.kind.toUpperCase(),
 }));
+/*
+ * 随笔走独立的文学排版：没有目录轨、阅读仪表和摘录工具，正文收窄居中、
+ * 段落首行缩进，进度只保留顶部细线（脚本里由兜底广播驱动）。
+ */
+const isEssay = post.data.kind === 'essay';
 ---
 
 <BaseLayout title={post.data.title} description={post.data.summary} image={cover} type="article" className="article-page">
@@ -75,12 +80,13 @@ const relatedLinks = related.map((entry) => ({
 			</button>
 		</div>
 
-		<div class="article-layout">
+		<div class:list={['article-layout', { 'article-layout--essay': isEssay }]}>
 			<!--
 				≤1240px 时侧栏整体退场，这份零 JS 折叠目录与顶部进度线一起接管
 				章节导航；更宽的视口中侧栏目录已经完整，这里保持隐藏避免重复。
+				随笔不设目录：文学阅读从头读到尾，章节跳转反而打断叙述。
 			-->
-			{tocHeadings.length > 0 && (
+			{!isEssay && tocHeadings.length > 0 && (
 				<details class="article-toc-compact">
 					<summary>
 						<ListTree size={16} stroke-width={1.5} aria-hidden="true" />
@@ -95,6 +101,7 @@ const relatedLinks = related.map((entry) => ({
 					</ol>
 				</details>
 			)}
+			{!isEssay && (
 			<div class="article-layout__guide">
 				<SceneGuide contentSelector=".prose" headingSelector="h2, h3" totalMinutes={minutes} />
 				<div class="article-layout__tools">
@@ -112,10 +119,11 @@ const relatedLinks = related.map((entry) => ({
 					placement="article-tools"
 					title="摘录本"
 					triggerLabel="摘录"
-					scopeSelector=".reading-prose"
-				/>
+						scopeSelector=".reading-prose"
+					/>
 				</div>
 			</div>
+			)}
 			<article class="prose reading-prose" data-article-title={post.data.title} data-article-path={Astro.url.pathname}>
 				<slot />
 			</article>
@@ -185,7 +193,54 @@ const relatedLinks = related.map((entry) => ({
 				}
 			}
 
-			const focusButton = document.querySelector<HTMLButtonElement>('[data-article-focus]');
+			const proseContent = document.querySelector<HTMLElement>('.reading-prose');
+		if (proseContent && proseContent.dataset.progressReady !== 'true' && !document.querySelector('[data-scene-guide]')) {
+			// 随笔版没有导览轨，滚动比例在这里计算并广播同一名事件，顶部进度线
+			// 与“继续阅读”不必感知两种版式的差异；同时接手 ReadingSession 的
+			// 持久化职责，沿用同一存储格式，让续读跨版式可用。
+			proseContent.dataset.progressReady = 'true';
+			const pageKey = window.location.pathname + window.location.search;
+			let latestRatio = 0;
+			let lastSaved = -1;
+			let persistTimer = 0;
+			const persistProgress = (force = false) => {
+				if (!force && Math.abs(latestRatio - lastSaved) < 0.01) return;
+				try {
+					const records = JSON.parse(localStorage.getItem('aria7-reading-progress') || '{}') as Record<string, unknown>;
+					records[pageKey] = {
+						progress: Number(latestRatio.toFixed(4)),
+						title: proseContent.dataset.articleTitle || document.title,
+						updatedAt: new Date().toISOString(),
+					};
+					localStorage.setItem('aria7-reading-progress', JSON.stringify(records));
+					lastSaved = latestRatio;
+				} catch {
+					// 存储不可用时只丢续读记录，不影响阅读本身。
+				}
+			};
+			let ticking = false;
+			const emitRatio = () => {
+				ticking = false;
+				const rect = proseContent.getBoundingClientRect();
+				const contentTop = rect.top + window.scrollY;
+				const scrollable = Math.max(1, proseContent.offsetHeight - window.innerHeight);
+				latestRatio = Math.min(1, Math.max(0, (window.scrollY - contentTop) / scrollable));
+				document.dispatchEvent(new CustomEvent('aria7-reading-progress', {
+					detail: { content: proseContent, ratio: latestRatio },
+				}));
+				window.clearTimeout(persistTimer);
+				persistTimer = window.setTimeout(() => persistProgress(), 900);
+			};
+			window.addEventListener('scroll', () => {
+				if (ticking) return;
+				ticking = true;
+				window.requestAnimationFrame(emitRatio);
+			}, { passive: true });
+			window.addEventListener('pagehide', () => persistProgress(true));
+			emitRatio();
+		}
+
+		const focusButton = document.querySelector<HTMLButtonElement>('[data-article-focus]');
 		if (focusButton && focusButton.dataset.focusReady !== 'true') {
 			focusButton.dataset.focusReady = 'true';
 			const focusState = document.querySelector<HTMLElement>('[data-article-focus-state]');
@@ -414,6 +469,31 @@ const relatedLinks = related.map((entry) => ({
 		padding-top: 84px;
 	}
 
+	.article-layout--essay {
+		/*
+		 * 随笔：文学排版的单栏阅读。左侧仪表轨（目录、阅读记录、摘录）整组
+		 * 退场，正文收窄居中，右侧只保留沉浸开关——视线沿一条中线流动。
+		 */
+		grid-template-columns: 1fr minmax(0, 42rem) minmax(44px, 1fr);
+		gap: clamp(24px, 4vw, 56px);
+	}
+
+	.article-layout--essay .prose {
+		font-size: 17px;
+		line-height: 2.1;
+		text-align: justify;
+	}
+
+	/* 中文随笔的段落礼仪：每段首行缩进两字，小标题放慢出现节奏。 */
+	.article-layout--essay .prose > p {
+		text-indent: 2em;
+	}
+
+	.article-layout--essay .prose h2 {
+		margin-block-start: 2.4em;
+		font-size: 1.32em;
+	}
+
 	.article-layout__guide {
 		min-width: 0;
 		/*
@@ -592,6 +672,12 @@ const relatedLinks = related.map((entry) => ({
 		/* 侧栏、正文和双倍间距在中等桌面宽度下放不下，提前收成单列避免全局裁切。 */
 		.article-layout {
 			grid-template-columns: minmax(0, 760px);
+			justify-content: center;
+		}
+
+		/* 双类名特异性高于上面的单类规则，随笔的窄栏也要在这里显式收回单列。 */
+		.article-layout--essay {
+			grid-template-columns: minmax(0, 42rem);
 			justify-content: center;
 		}
 
