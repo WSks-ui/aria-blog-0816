@@ -17,64 +17,67 @@
 			</filter>
 		</defs>
 
-		<rect class="hero-scene__grid" x="0" y="0" width="1200" height="620" fill="url(#hero-grid)" />
-		<g class="hero-scene__frame">
-			<path d="M28 92V28H94M1106 28h66v64M28 528v64h66M1106 592h66v-64" />
-			<path d="M28 126h1144M28 494h1144M292 28v564M1012 28v564" />
-		</g>
-
-		<g class="hero-scene__perspective">
-			<path d="M442 592 814 292 1172 592M566 592 814 292M690 592 814 292M938 592 814 292M1062 592 814 292" />
-			<path d="M488 554h650M531 519h565M573 485h480M616 451h394M658 417h309M701 383h224M743 349h139" />
-		</g>
-
-		<g class="hero-scene__columns">
-			<rect x="520" y="133" width="36" height="344" style="--column-index: 0" />
-			<rect x="571" y="99" width="52" height="378" style="--column-index: 1" />
-			<rect x="638" y="167" width="31" height="310" style="--column-index: 2" />
-			<rect x="684" y="72" width="69" height="405" style="--column-index: 3" />
-			<rect x="768" y="124" width="42" height="353" style="--column-index: 4" />
-			<rect x="825" y="87" width="58" height="390" style="--column-index: 5" />
-			<rect x="898" y="152" width="34" height="325" style="--column-index: 6" />
-			<rect x="947" y="111" width="63" height="366" style="--column-index: 7" />
-		</g>
-
-		<g class="hero-scene__umbrella">
-			<path class="hero-scene__canopy" d="M596 330c21-116 112-183 218-183s197 67 218 183H596Z" />
-			<path class="hero-scene__scallop" d="M596 330c34-42 70-42 108 0 35-42 72-42 110 0 38-42 75-42 110 0 38-42 74-42 108 0" />
-			<path class="hero-scene__shaft" d="M814 147v292c0 83 98 83 98 8" />
-			<path class="hero-scene__ribs" d="M814 147 596 330m218-183L704 330m110-183v183m0-183 110 183m-110-183 218 183" />
-			<circle cx="814" cy="147" r="8" />
-		</g>
-
-		<g class="hero-scene__satellites">
-			<g transform="translate(1052 214) scale(.52)">
-				<path d="M-66 24Q0-56 66 24Z" />
-				<path d="M0-36v60M-66 24 0-36 66 24M0 24v58" />
+		<!-- 四拍换景作用在世界组上：视差仍由 svg 根承担，推镜只走这一层的合成 transform。 -->
+		<g class="hero-scene__world">
+			<rect class="hero-scene__grid" x="0" y="0" width="1200" height="620" fill="url(#hero-grid)" />
+			<g class="hero-scene__frame">
+				<path d="M28 92V28H94M1106 28h66v64M28 528v64h66M1106 592h66v-64" />
+				<path d="M28 126h1144M28 494h1144M292 28v564M1012 28v564" />
 			</g>
-			<g transform="translate(490 384) scale(.34)">
-				<path d="M-66 24Q0-56 66 24Z" />
-				<path d="M0-36v60M-66 24 0-36 66 24M0 24v58" />
+
+			<g class="hero-scene__perspective">
+				<path d="M442 592 814 292 1172 592M566 592 814 292M690 592 814 292M938 592 814 292M1062 592 814 292" />
+				<path d="M488 554h650M531 519h565M573 485h480M616 451h394M658 417h309M701 383h224M743 349h139" />
 			</g>
-		</g>
 
-		<g class="hero-scene__papers">
-			<!-- 纸片不再使用标准矩形；每块都保留轻微缺口与不等边，形成手工裁切感。 -->
-			<path d="M542 88 561 87 565 105 553 113 540 104 539 95Z" style="--paper-index: 0" />
-			<path d="M636 214 647 214 650 224 642 229 635 225Z" style="--paper-index: 1" />
-			<path d="M711 64 736 66 744 87 729 101 707 95 705 76Z" style="--paper-index: 2" />
-			<path d="M777 231 790 230 794 244 782 251 774 243Z" style="--paper-index: 3" />
-			<path d="M875 49 891 50 896 64 885 73 871 66Z" style="--paper-index: 4" />
-			<path d="M947 254 978 257 983 280 965 298 941 286 939 267Z" style="--paper-index: 5" />
-			<path d="M1031 127 1044 126 1048 139 1038 146 1027 140Z" style="--paper-index: 6" />
-			<path d="M1104 344 1127 348 1131 368 1112 378 1097 365Z" style="--paper-index: 7" />
-			<path d="M501 475 514 474 519 487 508 496 497 488Z" style="--paper-index: 8" />
-			<path d="M743 505 764 507 769 527 753 537 738 525Z" style="--paper-index: 9" />
-			<path d="M971 468 984 467 988 479 978 486 967 480Z" style="--paper-index: 10" />
-		</g>
+			<g class="hero-scene__columns">
+				<rect x="520" y="133" width="36" height="344" style="--column-index: 0" />
+				<rect x="571" y="99" width="52" height="378" style="--column-index: 1" />
+				<rect x="638" y="167" width="31" height="310" style="--column-index: 2" />
+				<rect x="684" y="72" width="69" height="405" style="--column-index: 3" />
+				<rect x="768" y="124" width="42" height="353" style="--column-index: 4" />
+				<rect x="825" y="87" width="58" height="390" style="--column-index: 5" />
+				<rect x="898" y="152" width="34" height="325" style="--column-index: 6" />
+				<rect x="947" y="111" width="63" height="366" style="--column-index: 7" />
+			</g>
 
-		<g class="hero-scene__night-word" filter="url(#hero-liquid)">
-			<text x="790" y="446">ARCHIVE / 07</text>
+			<g class="hero-scene__umbrella">
+				<path class="hero-scene__canopy" d="M596 330c21-116 112-183 218-183s197 67 218 183H596Z" />
+				<path class="hero-scene__scallop" d="M596 330c34-42 70-42 108 0 35-42 72-42 110 0 38-42 75-42 110 0 38-42 74-42 108 0" />
+				<path class="hero-scene__shaft" d="M814 147v292c0 83 98 83 98 8" />
+				<path class="hero-scene__ribs" d="M814 147 596 330m218-183L704 330m110-183v183m0-183 110 183m-110-183 218 183" />
+				<circle cx="814" cy="147" r="8" />
+			</g>
+
+			<g class="hero-scene__satellites">
+				<g transform="translate(1052 214) scale(.52)">
+					<path d="M-66 24Q0-56 66 24Z" />
+					<path d="M0-36v60M-66 24 0-36 66 24M0 24v58" />
+				</g>
+				<g transform="translate(490 384) scale(.34)">
+					<path d="M-66 24Q0-56 66 24Z" />
+					<path d="M0-36v60M-66 24 0-36 66 24M0 24v58" />
+				</g>
+			</g>
+
+			<g class="hero-scene__papers">
+				<!-- 纸片不再使用标准矩形；每块都保留轻微缺口与不等边，形成手工裁切感。 -->
+				<path d="M542 88 561 87 565 105 553 113 540 104 539 95Z" style="--paper-index: 0" />
+				<path d="M636 214 647 214 650 224 642 229 635 225Z" style="--paper-index: 1" />
+				<path d="M711 64 736 66 744 87 729 101 707 95 705 76Z" style="--paper-index: 2" />
+				<path d="M777 231 790 230 794 244 782 251 774 243Z" style="--paper-index: 3" />
+				<path d="M875 49 891 50 896 64 885 73 871 66Z" style="--paper-index: 4" />
+				<path d="M947 254 978 257 983 280 965 298 941 286 939 267Z" style="--paper-index: 5" />
+				<path d="M1031 127 1044 126 1048 139 1038 146 1027 140Z" style="--paper-index: 6" />
+				<path d="M1104 344 1127 348 1131 368 1112 378 1097 365Z" style="--paper-index: 7" />
+				<path d="M501 475 514 474 519 487 508 496 497 488Z" style="--paper-index: 8" />
+				<path d="M743 505 764 507 769 527 753 537 738 525Z" style="--paper-index: 9" />
+				<path d="M971 468 984 467 988 479 978 486 967 480Z" style="--paper-index: 10" />
+			</g>
+
+			<g class="hero-scene__night-word" filter="url(#hero-liquid)">
+				<text x="790" y="446">ARCHIVE / 07</text>
+			</g>
 		</g>
 	</svg>
 
@@ -145,11 +148,16 @@
 			let drops: RainDrop[] = [];
 			let randomSeed = 0x7a11ce;
 
+			/*
+			 * 四拍不只调节密度，而是“换景”：定位幕近乎无雨、伞面只留线稿；
+			 * 雨幕幕全量落雨抬柱；聚焦幕雨量让位、伞面填充显现实体并轻推镜；
+			 * 余辉幕一切褪场，只留制图线与下一轮的留白。
+			 */
 			const beats = [
-				{ duration: 3600, label: 'PHASE 01 / LOCATE', rain: 0.18 },
+				{ duration: 3600, label: 'PHASE 01 / LOCATE', rain: 0.06 },
 				{ duration: 4200, label: 'PHASE 02 / RAIN', rain: 1 },
-				{ duration: 3800, label: 'PHASE 03 / FOCUS', rain: 0.66 },
-				{ duration: 3200, label: 'PHASE 04 / AFTERGLOW', rain: 0.08 },
+				{ duration: 3800, label: 'PHASE 03 / FOCUS', rain: 0.5 },
+				{ duration: 3200, label: 'PHASE 04 / AFTERGLOW', rain: 0.04 },
 			] as const;
 
 			const mode = (): WeatherMode => {
@@ -416,6 +424,15 @@
 
 	.hero-scene__grid {
 		opacity: 0.28;
+		transition: opacity 1100ms var(--ease-rain);
+	}
+
+	/* 世界组承接四拍推镜：视差在 svg 根上逐帧写变量，这里只消费慢速缩放。 */
+	.hero-scene__world {
+		transform-box: view-box;
+		transform-origin: 814px 330px;
+		transform: scale(var(--hero-beat-zoom, 1));
+		transition: transform 1500ms var(--ease-drift);
 	}
 
 	.hero-scene__frame,
@@ -468,7 +485,9 @@
 
 	.hero-scene__canopy {
 		fill: color-mix(in srgb, var(--color-rain) 68%, transparent);
+		fill-opacity: var(--hero-canopy-ink, 0.55);
 		stroke-width: 3;
+		transition: fill-opacity 900ms var(--ease-rain);
 	}
 
 	.hero-scene__scallop {
@@ -503,25 +522,30 @@
 		transition-delay: calc(var(--paper-index) * 38ms);
 	}
 
-	.hero-scene[data-beat='0'] {
-		--hero-beat-scale: 0.97;
-		--hero-beat-shift: 6px;
-	}
+		.hero-scene[data-beat='0'] {
+			--hero-beat-scale: 0.97;
+			--hero-beat-shift: 6px;
+			--hero-beat-zoom: 1;
+			--hero-canopy-ink: 0;
+		}
 
-	.hero-scene[data-beat='0'] .hero-scene__columns { opacity: 0.1; }
-	.hero-scene[data-beat='0'] .hero-scene__columns rect { transform: scaleY(0.08); }
-	.hero-scene[data-beat='0'] .hero-scene__perspective { opacity: 0.42; transform: scaleY(0.975); }
-	.hero-scene[data-beat='0'] .hero-scene__papers path {
-		opacity: 0;
-		transform: translate3d(-5px, -16px, 0) rotate(calc(var(--paper-index) * 3deg));
-		/* 上一幕已将纸片淡出，此处立即归位，避免逆向飞回顶部。 */
-		transition-duration: 0ms, 700ms;
-	}
+		.hero-scene[data-beat='0'] .hero-scene__columns { opacity: 0.1; }
+		.hero-scene[data-beat='0'] .hero-scene__columns rect { transform: scaleY(0.08); }
+		.hero-scene[data-beat='0'] .hero-scene__perspective { opacity: 0.42; transform: scaleY(0.975); }
+		.hero-scene[data-beat='0'] .hero-scene__satellites { opacity: 0.12; }
+		.hero-scene[data-beat='0'] .hero-scene__papers path {
+			opacity: 0;
+			transform: translate3d(-5px, -16px, 0) rotate(calc(var(--paper-index) * 3deg));
+			/* 上一幕已将纸片淡出，此处立即归位，避免逆向飞回顶部。 */
+			transition-duration: 0ms, 700ms;
+		}
 
-	.hero-scene[data-beat='1'] {
-		--hero-beat-scale: 0.992;
-		--hero-beat-shift: 1px;
-	}
+		.hero-scene[data-beat='1'] {
+			--hero-beat-scale: 0.992;
+			--hero-beat-shift: 1px;
+			--hero-beat-zoom: 1.004;
+			--hero-canopy-ink: 0.3;
+		}
 	.hero-scene[data-beat='1'] .hero-scene__columns { opacity: 0.4; }
 	.hero-scene[data-beat='1'] .hero-scene__columns rect { transform: scaleY(1); }
 	.hero-scene[data-beat='1'] .hero-scene__perspective { opacity: 0.52; transform: scaleY(1.01); }
@@ -531,10 +555,12 @@
 	}
 	.hero-scene[data-beat='1'] .hero-scene__satellites { opacity: 0.46; transform: translateY(3px); }
 
-	.hero-scene[data-beat='2'] {
-		--hero-beat-scale: 1.02;
-		--hero-beat-shift: -4px;
-	}
+		.hero-scene[data-beat='2'] {
+			--hero-beat-scale: 1.02;
+			--hero-beat-shift: -4px;
+			--hero-beat-zoom: 1.03;
+			--hero-canopy-ink: 1;
+		}
 	.hero-scene[data-beat='2'] .hero-scene__columns { opacity: 0.48; }
 	.hero-scene[data-beat='2'] .hero-scene__columns rect { transform: scaleY(0.9); }
 	.hero-scene[data-beat='2'] .hero-scene__perspective { opacity: 0.34; transform: scaleY(1.025); }
@@ -544,13 +570,16 @@
 	}
 	.hero-scene[data-beat='2'] .hero-scene__satellites { opacity: 0.28; transform: translateY(8px); }
 
-	.hero-scene[data-beat='3'] {
-		--hero-beat-scale: 0.985;
-		--hero-beat-shift: 3px;
-	}
-	.hero-scene[data-beat='3'] .hero-scene__columns { opacity: 0.05; }
-	.hero-scene[data-beat='3'] .hero-scene__columns rect { transform: scaleY(0.14); }
-	.hero-scene[data-beat='3'] .hero-scene__perspective { opacity: 0.14; transform: scaleY(0.99); }
+		.hero-scene[data-beat='3'] {
+			--hero-beat-scale: 0.985;
+			--hero-beat-shift: 3px;
+			--hero-beat-zoom: 1.008;
+			--hero-canopy-ink: 0.15;
+		}
+		.hero-scene[data-beat='3'] .hero-scene__columns { opacity: 0.05; }
+		.hero-scene[data-beat='3'] .hero-scene__columns rect { transform: scaleY(0.14); }
+		.hero-scene[data-beat='3'] .hero-scene__perspective { opacity: 0.12; transform: scaleY(0.99); }
+		.hero-scene[data-beat='3'] .hero-scene__grid { opacity: 0.16; }
 	.hero-scene[data-beat='3'] .hero-scene__papers path {
 		opacity: 0;
 		transform: translate3d(24px, 142px, 0) rotate(calc(72deg + var(--paper-index) * 5deg));
@@ -782,10 +811,15 @@
 		.hero-scene__material { animation: none; }
 		.hero-scene__night-word { animation: none; }
 		.hero-scene__draft,
-		.hero-scene__umbrella {
+		.hero-scene__umbrella,
+		.hero-scene__world {
 			transform: none;
+			transition: none;
 		}
 
+		/* 静态帧固定停在定位幕；伞面与制图线给足实体感，避免线稿过于空旷。 */
+		.hero-scene .hero-scene__canopy { fill-opacity: 0.55; transition: none; }
+		.hero-scene__grid { opacity: 0.28; }
 		.hero-scene__columns rect { opacity: 0.42; transform: scaleY(1); transition: none; }
 		.hero-scene__papers path,
 		.hero-scene__perspective,
