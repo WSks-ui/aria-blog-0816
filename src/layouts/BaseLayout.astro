@@ -48,6 +48,13 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 		<meta property="og:image" content={socialImage} />
 		<meta name="twitter:card" content="summary_large_image" />
 		<title>{pageTitle}</title>
+		{/* Chromium 系浏览器对站内链接在悬停/按下时预取目标页（moderate 档），
+		    800ms 的文章转场遮罩正好把加载时间藏进去；不支持的浏览器静默忽略。 */}
+		<script
+			is:inline
+			type="speculationrules"
+			set:html={JSON.stringify({ prefetch: [{ source: 'document', where: { href_matches: '/*' }, eagerness: 'moderate' }] })}
+		/>
 		<style is:inline>
 			/* 外部样式表尚未下载时先建立页面画布，避免完整页面导航暴露浏览器默认白底。 */
 			html { background-color: #ebedec; }

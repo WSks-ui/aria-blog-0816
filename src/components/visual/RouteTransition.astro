@@ -25,6 +25,20 @@
 		root.dataset.interactiveReady = 'true';
 
 		const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+		// 站内链接已由 Speculation Rules 在悬停时预取：目标页通常已在内存里，
+		// 离场遮罩可以整体缩短；不支持的浏览器维持完整 800ms 编排兜底慢加载。
+		const supportsSpeculation = typeof HTMLScriptElement !== 'undefined'
+			&& typeof HTMLScriptElement.supports === 'function'
+			&& HTMLScriptElement.supports('speculationrules');
+		const arrivedFromPrefetch = (() => {
+			try {
+				const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+				return navigation?.deliveryType === 'navigated-prefetch' || navigation?.deliveryType === 'prerender';
+			} catch {
+				return false;
+			}
+		})();
+		const leavingDuration = supportsSpeculation ? 560 : 800;
 		let navigationTimer = 0;
 		let arrivalTimer = 0;
 		let safetyTimer = 0;
@@ -56,17 +70,24 @@
 			// 结束后清理 data 属性，避免浏览器后退或刷新时继承上一次的运动方向。
 			arrivalTimer = window.setTimeout(resetTransition, 260);
 		} else if ((routeArrival === 'scene' || routeArrival === 'true') && !reduceMotion.matches) {
-			// 场景模式先用不透明遮罩接住 HTML 首帧，下一帧才开始退场，
-			// 否则遮罩淡出时下层仍是黑色，末尾会整页突然显现为一次白闪。
-			root.classList.add('is-arrival-ready');
-			arrivalPrimeFrame = window.requestAnimationFrame(() => {
-				arrivalFrame = window.requestAnimationFrame(() => {
-					delete document.documentElement.dataset.routeArrival;
-					root.classList.remove('is-arrival-ready');
-					root.classList.add('is-arriving');
-					arrivalTimer = window.setTimeout(resetTransition, 680);
+			if (arrivedFromPrefetch) {
+				// 预取抵达时页面首帧已经完整，无需不透明遮罩接帧，直接开始退场。
+				root.classList.add('is-arriving');
+				delete document.documentElement.dataset.routeArrival;
+				arrivalTimer = window.setTimeout(resetTransition, 480);
+			} else {
+				// 场景模式先用不透明遮罩接住 HTML 首帧，下一帧才开始退场，
+				// 否则遮罩淡出时下层仍是黑色，末尾会整页突然显现为一次白闪。
+				root.classList.add('is-arrival-ready');
+				arrivalPrimeFrame = window.requestAnimationFrame(() => {
+					arrivalFrame = window.requestAnimationFrame(() => {
+						delete document.documentElement.dataset.routeArrival;
+						root.classList.remove('is-arrival-ready');
+						root.classList.add('is-arriving');
+						arrivalTimer = window.setTimeout(resetTransition, 680);
+					});
 				});
-			});
+			}
 		} else {
 			delete document.documentElement.dataset.routeArrival;
 		}
@@ -149,7 +170,7 @@
 				// 哈希导航、浏览器拦截或异常路由都不应把全屏遮罩永久留在当前页面。
 				safetyTimer = window.setTimeout(resetTransition, 1400);
 				window.location.assign(destination.href);
-			}, 800);
+			}, leavingDuration);
 		});
 
 		// 浏览器从往返缓存恢复旧页面时，离场类可能被完整保存，必须立刻解除遮罩。
