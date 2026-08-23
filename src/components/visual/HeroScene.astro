@@ -741,6 +741,12 @@
 		filter: saturate(1.08) contrast(1.08);
 	}
 
+	/* 夜间材质层不再叠加任何自发光渐变：::after 的右上径向光与斜向雾光
+	   在暗底上同样是发光椭圆，整体关闭，质感全部交给纹理本身。 */
+	:global(html[data-weather-mode='night']) .hero-scene__material::after {
+		background: none;
+	}
+
 	:global(html[data-weather-mode='night']) .hero-scene__columns {
 		fill: color-mix(in srgb, var(--color-rain) 17%, transparent);
 	}

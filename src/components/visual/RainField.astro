@@ -254,13 +254,11 @@ const paperMarks = [
 	:global(html[data-weather-mode='night']) .rain-field__atlas { mix-blend-mode: screen; opacity: 0.1; }
 	:global(html[data-weather-mode='night']) .rain-field__glass--a { backdrop-filter: blur(5px); }
 	:global(html[data-weather-mode='night']) .rain-field__glass { opacity: 0.18; }
-	/* 夜间底部不放光源：径向光斑、对角渐变的亮端（会沉积在右下角）、
-	   玻璃板的 64px 外发光一并移除，夜间底材压平为纯 base 色，
-	   只保留顶部微光。对角过渡的“纸感深度”是白天专属语言。 */
+	/* 夜间不放任何光源：径向微光在暗底上仍是一枚发光椭圆（用户实测），
+	   底材完全压平为纯 base 色。对角过渡与顶部微光是白天的“纸感”语言，
+	   夜间的深度全部交给纹理、制图线与粒子。 */
 	:global(html[data-weather-mode='night']) .rain-field__ground {
-		background:
-			radial-gradient(ellipse at 76% 12%, color-mix(in srgb, var(--weather-glow) 30%, transparent), transparent 32%),
-			var(--weather-base);
+		background: var(--weather-base);
 	}
 	:global(html[data-weather-mode='night']) .rain-field__glass {
 		box-shadow: inset 0 0 20px color-mix(in srgb, var(--weather-glow) 8%, transparent);
