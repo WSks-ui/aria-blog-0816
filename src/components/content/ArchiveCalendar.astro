@@ -207,9 +207,16 @@ const listDateFormatter = new Intl.DateTimeFormat('zh-CN', {
 				panels.length - 1,
 				Math.max(0, Number(root.dataset.initialIndex) || 0),
 			);
+			let monthSwitched = false;
 
 			const showMonth = (nextIndex: number) => {
+				const previousIndex = activeIndex;
 				activeIndex = Math.min(panels.length - 1, Math.max(0, nextIndex));
+				// 方向只在用户切换后写入；首次渲染保持无动画直达当月。
+				if (monthSwitched) {
+					root.dataset.monthDirection = activeIndex >= previousIndex ? 'next' : 'prev';
+				}
+				monthSwitched = true;
 				panels.forEach((panel, index) => {
 					panel.hidden = index !== activeIndex;
 				});
@@ -246,6 +253,26 @@ const listDateFormatter = new Intl.DateTimeFormat('zh-CN', {
 	.archive-calendar {
 		border-block: 1px solid var(--line);
 		color: var(--ink);
+	}
+
+	/* 42 格固定高度已保证切换不跳版；这里只补一层方向感：像翻动档案页一样
+	   沿切换方向滑入。全局 reduced-motion 兜底会把它压成瞬时切换。 */
+	.archive-calendar[data-month-direction] .archive-calendar__month:not([hidden]) {
+		animation: archive-month-in-next var(--duration-base) var(--ease-drift) both;
+	}
+
+	.archive-calendar[data-month-direction='prev'] .archive-calendar__month:not([hidden]) {
+		animation-name: archive-month-in-prev;
+	}
+
+	@keyframes archive-month-in-next {
+		from { opacity: 0; transform: translateX(14px); }
+		to { opacity: 1; transform: translateX(0); }
+	}
+
+	@keyframes archive-month-in-prev {
+		from { opacity: 0; transform: translateX(-14px); }
+		to { opacity: 1; transform: translateX(0); }
 	}
 
 	.archive-calendar__header {
