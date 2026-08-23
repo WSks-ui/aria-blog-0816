@@ -17,7 +17,6 @@
     </filter>
   </defs>
   <ellipse cx="340" cy="390" rx="410" ry="285" fill="url(#glow)" filter="url(#blur)"/>
-  <ellipse cx="1190" cy="660" rx="480" ry="258" fill="url(#glow)" filter="url(#blur)"/>
   <g stroke="#c8f3f7" fill="none" filter="url(#ripple)">
     <path d="M0 180H1600M0 370H1600M0 652H1600M0 842H1600" stroke-opacity=".18"/>
     <path d="M214 0V1000M642 0V1000M1054 0V1000M1452 0V1000" stroke-opacity=".1"/>
