@@ -166,7 +166,7 @@
 	.route-transition {
 		position: fixed;
 		inset: 0;
-		z-index: 70;
+		z-index: var(--z-route);
 		overflow: hidden;
 		visibility: hidden;
 		pointer-events: none;
@@ -318,17 +318,18 @@
 		opacity: 0;
 	}
 
-	.route-transition.is-leaving .route-transition__backdrop { animation: route-backdrop-in 760ms ease-out both; }
-	.route-transition.is-leaving .route-transition__corridor { animation: route-corridor-in 720ms var(--ease-rain) both; }
+/* 阵风拍（620ms 雨线/纸片）与 440ms 标签退场为编排内有意错拍，保留字面值。 */
+	.route-transition.is-leaving .route-transition__backdrop { animation: route-backdrop-in var(--duration-scene) ease-out both; }
+	.route-transition.is-leaving .route-transition__corridor { animation: route-corridor-in var(--duration-scene) var(--ease-rain) both; }
 	.route-transition.is-leaving .route-transition__rain span { animation: route-rain 620ms linear var(--rain-delay) both; }
 	.route-transition.is-leaving .route-transition__papers span { animation: route-paper-in 620ms var(--ease-rain) var(--paper-delay) both; }
-	.route-transition.is-leaving .route-transition__axis { animation: route-axis-in 720ms var(--ease-rain) both; }
-	.route-transition.is-leaving .route-transition__label { animation: route-label-in 700ms ease-out both; }
+	.route-transition.is-leaving .route-transition__axis { animation: route-axis-in var(--duration-scene) var(--ease-rain) both; }
+	.route-transition.is-leaving .route-transition__label { animation: route-label-in var(--duration-scene) ease-out both; }
 
-	.route-transition.is-arriving .route-transition__backdrop { animation: route-backdrop-out 600ms ease-out both; }
-	.route-transition.is-arriving .route-transition__corridor { animation: route-corridor-out 560ms var(--ease-rain) both; }
-	.route-transition.is-arriving .route-transition__papers span { animation: route-paper-out 520ms var(--ease-rain) var(--paper-delay) both; }
-	.route-transition.is-arriving .route-transition__axis { animation: route-axis-out 540ms var(--ease-rain) both; }
+	.route-transition.is-arriving .route-transition__backdrop { animation: route-backdrop-out var(--duration-arrival) ease-out both; }
+	.route-transition.is-arriving .route-transition__corridor { animation: route-corridor-out var(--duration-arrival) var(--ease-rain) both; }
+	.route-transition.is-arriving .route-transition__papers span { animation: route-paper-out var(--duration-slow) var(--ease-rain) var(--paper-delay) both; }
+	.route-transition.is-arriving .route-transition__axis { animation: route-axis-out var(--duration-slow) var(--ease-rain) both; }
 	.route-transition.is-arriving .route-transition__label { animation: route-label-out 440ms ease-out both; }
 
 	@keyframes route-backdrop-in { from { opacity: 0; } 72% { opacity: 0.94; } 90%, to { opacity: 1; } }

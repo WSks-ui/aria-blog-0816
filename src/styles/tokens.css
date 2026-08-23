@@ -62,15 +62,26 @@
   --shadow-paper: 0 1.25rem 3.5rem rgb(31 71 81 / 10%);
   --shadow-night: 0 1.5rem 4rem rgb(0 0 0 / 32%);
 
+  /* 页面级层叠阶梯：组件内部的局部层叠（0–6）不使用令牌，只有跨组件的固定层引用这里。 */
   --z-background: -1;
   --z-base: 0;
   --z-sticky: 20;
   --z-overlay: 40;
+  --z-nav: 50;
+  --z-topline: 55;
+  --z-weather-overlay: 58;
+  --z-memory-capture: 59;
   --z-dialog: 60;
+  --z-route: 70;
+  --z-menu: 72;
+  --z-cursor: 80;
 
+  /* 动效时长分档：微交互 fast / 常规 base / 内容显现 slow / 场景转场 scene、arrival。 */
   --duration-fast: 140ms;
   --duration-base: 260ms;
   --duration-slow: 520ms;
+  --duration-arrival: 560ms;
+  --duration-scene: 720ms;
   --ease-rain: cubic-bezier(0.22, 0.75, 0.28, 1);
   --ease-drift: cubic-bezier(0.33, 0, 0.2, 1);
 
@@ -88,8 +99,6 @@
   --night-text: #edf1ef;
   --night-muted: #a8b8bb;
   --font-ui: var(--font-sans);
-  --space-16: 1rem;
-  --space-32: 2rem;
   --rain-opacity: 0.16;
 
   /*

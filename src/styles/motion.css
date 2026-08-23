@@ -1,3 +1,10 @@
+/*
+ * 全站动效时长分档（tokens.css）：
+ *   fast 140ms 微交互反馈 / base 260ms 常规 UI / slow 520ms 内容显现 /
+ *   arrival 560ms 到场退场 / scene 720ms 场景级编排。
+ * 新动效优先落在这五档；编排序列内部的有意错拍（如转场雨线 620ms、
+ * 天气遮罩 880ms 及其配套 JS 提交延时）允许保留字面值，但必须成组注释。
+ */
 @keyframes rain-drift {
   from {
     transform: translate3d(0, -1.5%, 0);
@@ -53,6 +60,15 @@
   transform: translateY(-2px);
 }
 
+/*
+ * 减少动态采用两级策略：
+ * 1) 本块全局兜底把动画/过渡压到 1ms 而不是 animation:none——许多入场动画
+ *    以 opacity:0 起步、靠 forwards 落到终态，直接禁用会让元素永远不可见；
+ *    1ms 让它们瞬时到达最终状态。
+ * 2) 纯装饰层（路由转场、天气过场、档案光标等）在各自组件里 display:none /
+ *    回退系统光标，因为这些层没有需要保留的终态。
+ * 新组件遵循同一分工：有语义终态的动画依赖第 1 级，纯演出层走第 2 级。
+ */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
