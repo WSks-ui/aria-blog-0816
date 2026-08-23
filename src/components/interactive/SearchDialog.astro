@@ -153,9 +153,23 @@ const resultsId = `${dialogId}-results`;
       let loadPromise: Promise<SearchEntry[]> | null = null;
       let activeKind = '';
       let loadState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
+      // 输入防抖与“显示更多”共用这一组渲染状态；查询词变化时展开档位回到初始值。
+      let renderDebounceTimer: number | undefined;
+      let activeLimit = resultLimit;
+      let lastRenderedQuery: string | null = null;
       const kindLabels = new Map(
         filterButtons.map((button) => [button.dataset.searchKind ?? '', button.dataset.kindLabel ?? '']),
       );
+
+      // 与 ReadingSession 共享同一份本地阅读记录：同分结果里未读的排在前面。
+      const readPaths = (() => {
+        try {
+          const records = JSON.parse(localStorage.getItem('aria7-reading-progress') || '{}') as Record<string, unknown>;
+          return new Set(Object.keys(records && typeof records === 'object' ? records : {}));
+        } catch {
+          return new Set<string>();
+        }
+      })();
 
       allTriggers.forEach((dialogTrigger) => {
         dialogTrigger.setAttribute('aria-haspopup', 'dialog');
@@ -299,6 +313,11 @@ const resultsId = `${dialogId}-results`;
 
       const renderResults = (query: string) => {
         resultList.replaceChildren();
+        if (query !== lastRenderedQuery) {
+          // 新的查询词从初始档位重新计，只有“显示更多”的点击才扩大展示量。
+          lastRenderedQuery = query;
+          activeLimit = resultLimit;
+        }
         const normalizedQuery = normalize(query).trim();
 		if (loadState === 'loading') {
 			status.textContent = '正在载入搜索索引…';
@@ -318,6 +337,13 @@ const resultsId = `${dialogId}-results`;
         }
 
         const tokens = normalizedQuery.split(/\s+/).filter(Boolean);
+        const isReadEntry = (entry: SearchEntry) => {
+          try {
+            return readPaths.has(new URL(entry.url, window.location.href).pathname);
+          } catch {
+            return false;
+          }
+        };
         const rankedMatches = (entries ?? [])
           .filter((entry) => !activeKind || entry.kind === activeKind)
           .filter((entry) => tokens.every((token) => entry.searchable.includes(token)))
@@ -332,9 +358,11 @@ const resultsId = `${dialogId}-results`;
                   : 1;
             return { entry, score };
           })
-          .sort((a, b) => b.score - a.score || a.entry.title.localeCompare(b.entry.title, 'zh-CN'));
+          .sort((a, b) => b.score - a.score
+            || Number(isReadEntry(a.entry)) - Number(isReadEntry(b.entry))
+            || a.entry.title.localeCompare(b.entry.title, 'zh-CN'));
         const totalMatches = rankedMatches.length;
-        const matches = rankedMatches.slice(0, resultLimit);
+        const matches = rankedMatches.slice(0, activeLimit);
 
         matches.forEach(({ entry }, index) => {
           const item = document.createElement('li');
@@ -379,6 +407,21 @@ const resultsId = `${dialogId}-results`;
           item.append(link);
           resultList.append(item);
         });
+
+        if (totalMatches > matches.length) {
+          const moreItem = document.createElement('li');
+          moreItem.className = 'search-dialog__more';
+          const moreButton = document.createElement('button');
+          moreButton.type = 'button';
+          moreButton.dataset.searchMore = '';
+          moreButton.textContent = `显示更多（还有 ${totalMatches - matches.length} 条）`;
+          moreButton.addEventListener('click', () => {
+            activeLimit += 16;
+            renderResults(input.value);
+          });
+          moreItem.append(moreButton);
+          resultList.append(moreItem);
+        }
 
         status.textContent = totalMatches > 0
           ? totalMatches > matches.length
@@ -451,7 +494,14 @@ const resultsId = `${dialogId}-results`;
         );
       });
       closeButton.addEventListener('click', closeDialog);
-      input.addEventListener('input', () => renderResults(input.value));
+      input.addEventListener('input', () => {
+        // 中文输入法组词期间会连续触发 input；短暂防抖避免每次按键都全量过滤索引。
+        window.clearTimeout(renderDebounceTimer);
+        renderDebounceTimer = window.setTimeout(() => {
+          renderDebounceTimer = undefined;
+          renderResults(input.value);
+        }, 90);
+      });
 
       filterButtons.forEach((button, buttonIndex) => {
         button.addEventListener('click', () => setActiveKind(button.dataset.searchKind ?? ''));

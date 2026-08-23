@@ -425,8 +425,32 @@ html[data-archive-cursor='companion'] .archive-cursor[data-mode='text'] {
   list-style: none;
 }
 
+.search-dialog__more {
+  border-top: 1px solid var(--line);
+}
+
+.search-dialog__more button {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: color var(--duration-fast) ease, background-color var(--duration-fast) ease;
+}
+
+.search-dialog__more button:hover,
+.search-dialog__more button:focus-visible {
+  color: var(--accent-strong);
+  background: color-mix(in srgb, var(--accent-soft) 22%, transparent);
+}
+
 .search-dialog__result {
-  --result-index: 0;
   position: relative;
   border-top: 1px solid var(--line);
   opacity: 0;
