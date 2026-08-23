@@ -136,6 +136,21 @@
   --weather-fiber-blend: screen;
 }
 
+/*
+ * 沉浸阅读（文章页右侧 FOCUS 开关）：不动层结构，整组天气透明度同步下调，
+ * 并由 RainField 的 calm 层压上 --weather-calm 纸幕。远景退成隐约纹理，
+ * 雨与纸屑保留极低动势——页面仍有呼吸感，但不再争夺正文注意力。
+ */
+html[data-reading-focus='on'] {
+  --weather-mural-opacity: 0.3;
+  --weather-fiber-opacity: 0.06;
+  --weather-atlas-opacity: 0.08;
+  --weather-glass-opacity: 0.06;
+  --weather-rain-opacity: 0.08;
+  --weather-particle-opacity: 0.14;
+  --weather-calm: 0.52;
+}
+
 body {
   color: var(--theme-ink, var(--color-ink));
   background-color: var(--theme-canvas, var(--color-canvas));

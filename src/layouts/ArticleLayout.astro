@@ -1,5 +1,5 @@
 ---
-import { GitBranch, MoveLeft, BookmarkCheck, ListTree } from '@lucide/astro';
+import { Focus, GitBranch, MoveLeft, BookmarkCheck, ListTree } from '@lucide/astro';
 import type { MarkdownHeading } from 'astro';
 import type { PostEntry } from '@/lib/content';
 import { getPostPath } from '@/lib/content';
@@ -119,6 +119,20 @@ const relatedLinks = related.map((entry) => ({
 			<article class="prose reading-prose" data-article-title={post.data.title} data-article-path={Astro.url.pathname}>
 				<slot />
 			</article>
+
+			<!--
+				沉浸阅读开关挂在右侧空白轨上，与左侧导览轨同一 sticky 几何。开启后
+				天气背景整组降透明度并压上纸幕（themes.css 的 data-reading-focus
+				覆盖 + RainField 的 calm 层），偏好记在本机、跨文章生效。
+			-->
+			<div class="article-layout__focus">
+				<span class="article-focus__telemetry">READING / FOCUS</span>
+				<button class="article-focus" type="button" aria-pressed="false" aria-label="切换沉浸阅读" data-tooltip="沉浸阅读：弱化背景干扰" data-article-focus>
+					<Focus size={18} stroke-width={1.5} aria-hidden="true" />
+				</button>
+				<span class="article-focus__state" data-article-focus-state>OFF</span>
+				<div class="article-focus__scale" aria-hidden="true"></div>
+			</div>
 		</div>
 
 			<NightEcho minutes={minutes} scenes={Math.max(1, headings.filter((heading) => heading.depth === 2).length)} related={relatedLinks} />
@@ -171,7 +185,44 @@ const relatedLinks = related.map((entry) => ({
 				}
 			}
 
-			if (topline) {
+			const focusButton = document.querySelector<HTMLButtonElement>('[data-article-focus]');
+		if (focusButton && focusButton.dataset.focusReady !== 'true') {
+			focusButton.dataset.focusReady = 'true';
+			const focusState = document.querySelector<HTMLElement>('[data-article-focus-state]');
+			const persistFocus = (on: boolean) => {
+				try {
+					localStorage.setItem('aria7-reading-focus', on ? 'on' : 'off');
+				} catch {
+					// 存储不可用时偏好不持久化，本次页面内仍可正常切换。
+				}
+			};
+			let immersive = false;
+			try {
+				immersive = localStorage.getItem('aria7-reading-focus') === 'on';
+			} catch {
+				// 读取失败按普通模式启动。
+			}
+			const applyFocus = (on: boolean) => {
+				immersive = on;
+				document.documentElement.dataset.readingFocus = on ? 'on' : 'off';
+				focusButton.setAttribute('aria-pressed', String(on));
+				if (focusState) focusState.textContent = on ? 'ON' : 'OFF';
+			};
+			applyFocus(immersive);
+			focusButton.addEventListener('click', () => {
+				applyFocus(!immersive);
+				persistFocus(immersive);
+			});
+			// Esc 直接退出沉浸，不必把视线移回右侧开关。
+			document.addEventListener('keydown', (event) => {
+				if (event.key === 'Escape' && immersive) {
+					applyFocus(false);
+					persistFocus(false);
+				}
+			});
+		}
+
+		if (topline) {
 				// SceneGuide 滚动时已经算好正文比例并广播；这里只把结果接到进度线上，
 				// 不再启动第二套滚动监听。侧栏在窄视口隐藏不影响事件继续派发。
 				document.addEventListener('aria7-reading-progress', (event) => {
@@ -383,6 +434,87 @@ const relatedLinks = related.map((entry) => ({
 		gap: 9px;
 	}
 
+	.article-layout__focus {
+		/*
+		 * 右侧空白轨：与左侧导览轨同一 sticky 几何，放沉浸开关和一支竖向
+		 * 制图标尺，给空白一个锚点而不是再堆一栏内容。
+		 */
+		position: sticky;
+		top: 32px;
+		display: grid;
+		grid-template-rows: auto auto auto minmax(24px, 1fr);
+		gap: 12px;
+		justify-items: center;
+		width: 44px;
+		height: calc(100dvh - 64px);
+		align-self: start;
+	}
+
+	.article-focus {
+		display: grid;
+		width: 44px;
+		height: 44px;
+		place-items: center;
+		border: 1px solid var(--line);
+		background: color-mix(in srgb, var(--paper-0) 72%, transparent);
+		backdrop-filter: blur(3px);
+		color: var(--ink-muted);
+		cursor: pointer;
+		transition:
+			color var(--duration-fast) var(--ease-rain),
+			border-color var(--duration-fast) var(--ease-rain),
+			background-color var(--duration-fast) var(--ease-rain);
+	}
+
+	.article-focus:hover,
+	.article-focus:focus-visible {
+		border-color: var(--accent-strong);
+		color: var(--accent-strong);
+	}
+
+	.article-focus[aria-pressed='true'] {
+		border-color: var(--accent-strong);
+		color: var(--accent-strong);
+		background: color-mix(in srgb, var(--accent-strong) 12%, transparent);
+	}
+
+	.article-focus[aria-pressed='true'] + .article-focus__state {
+		color: var(--accent-strong);
+	}
+
+	.article-focus__telemetry,
+	.article-focus__state {
+		font-family: var(--font-ui);
+		font-size: 9px;
+		letter-spacing: 0.08em;
+		color: var(--ink-muted);
+	}
+
+	.article-focus__telemetry {
+		writing-mode: vertical-rl;
+	}
+
+	.article-focus__scale {
+		position: relative;
+		width: 9px;
+		background: repeating-linear-gradient(
+			to bottom,
+			color-mix(in srgb, var(--line) 85%, transparent) 0 1px,
+			transparent 1px 64px
+		);
+		opacity: 0.55;
+	}
+
+	.article-focus__scale::before {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		left: 4px;
+		width: 1px;
+		background: var(--line);
+		content: '';
+	}
+
 	.article-comments {
 		margin-top: 84px;
 	}
@@ -469,6 +601,24 @@ const relatedLinks = related.map((entry) => ({
 
 		.prose {
 			grid-column: 1;
+		}
+
+		/* 空白轨在单列布局里没有位置，退到右下角的固定角落，保留沉浸开关。 */
+		.article-layout__focus {
+			position: fixed;
+			top: auto;
+			right: 18px;
+			bottom: 24px;
+			z-index: var(--z-sticky);
+			grid-template-rows: none;
+			gap: 8px;
+			width: auto;
+			height: auto;
+		}
+
+		.article-focus__telemetry,
+		.article-focus__scale {
+			display: none;
 		}
 
 		/* 侧栏退场后由折叠目录与顶部进度线接管章节导航与阅读进度。 */

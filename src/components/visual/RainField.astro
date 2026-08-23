@@ -70,6 +70,9 @@ const paperMarks = [
 			></span>
 		))}
 	</div>
+
+	<!-- 沉浸阅读的纸幕：盖在全部天气层之上、页面内容之下，把远景压成隐约纹理。 -->
+	<div class="rain-field__calm" aria-hidden="true"></div>
 </div>
 
 <style>
@@ -206,6 +209,17 @@ const paperMarks = [
 	}
 
 	.rain-field__papers { z-index: 6; opacity: var(--weather-particle-opacity); transition: opacity var(--duration-scene) var(--ease-rain); }
+
+	/* 透明度走 --weather-calm，由 html[data-reading-focus='on'] 控制（themes.css）。 */
+	.rain-field__calm {
+		position: absolute;
+		z-index: 7;
+		inset: 0;
+		background: var(--weather-base);
+		opacity: var(--weather-calm, 0);
+		pointer-events: none;
+		transition: opacity 900ms var(--ease-rain);
+	}
 	.rain-field__papers span {
 		position: absolute;
 		top: var(--paper-y);
