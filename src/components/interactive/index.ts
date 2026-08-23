@@ -5,4 +5,5 @@ export { default as MemoryVault } from './MemoryVault.astro';
 export { default as ReadingSession } from './ReadingSession.astro';
 export { default as SceneGuide } from './SceneGuide.astro';
 export { default as SearchDialog } from './SearchDialog.astro';
+export { default as TooltipLayer } from './TooltipLayer.astro';
 export { default as WeatherModeControl } from './WeatherModeControl.astro';

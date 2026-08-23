@@ -1365,6 +1365,47 @@ html[data-archive-cursor='companion'] .archive-cursor[data-mode='text'] {
   transform: translate(-50%, 0);
 }
 
+/*
+ * 提示浮层（TooltipLayer 脚本创建）：固定定位挂在 body 下，不受任何
+ * overflow:hidden 或局部层叠上下文影响。层级取 --z-tooltip，高于导航、
+ * 低于天气转场与对话框。
+ */
+.tooltip-layer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--z-tooltip);
+  pointer-events: none;
+}
+
+.tooltip-layer__bubble {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: 160px;
+  padding: 5px 7px;
+  border: 1px solid var(--line);
+  background: var(--paper-0);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 9px;
+  overflow-wrap: anywhere;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity var(--duration-fast), transform var(--duration-fast);
+}
+
+.tooltip-layer.is-visible .tooltip-layer__bubble {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 脚本提示层接管后关闭 ::after 版本；CSS 版仅作为脚本未就绪时的兜底。 */
+html[data-tooltip-layer='ready'] [data-tooltip]::after {
+  display: none;
+}
+
 @media (max-width: 1240px) {
   .weather-mode-control__label { display: none; }
   .weather-mode-control__button { flex-basis: 44px; padding: 0; }
@@ -1389,7 +1430,8 @@ html[data-archive-cursor='companion'] .archive-cursor[data-mode='text'] {
   html[data-archive-cursor='companion'],
   html[data-archive-cursor='companion'] * { cursor: auto !important; }
   .archive-cursor { display: none; }
-  [data-tooltip]::after { transition: none; }
+  [data-tooltip]::after,
+  .tooltip-layer__bubble { transition: none; }
   .reading-session__meter::-webkit-progress-value { transition: none; }
   .search-dialog__window[open],
   .search-dialog__window[open]::backdrop,

@@ -1,0 +1,95 @@
+<script>
+	/*
+	 * CSS 版 tooltip（::after）无法逃出 overflow:hidden 与独立层叠上下文——
+	 * 相册主画幅的控件提示会被舞台底边裁掉，再被其后的底片条盖住。改为在
+	 * body 下挂一个固定定位的提示层：pointerover / focusin 命中 [data-tooltip]
+	 * 时填充文字并贴到锚点旁，下方空间不足时翻到上方。原 CSS 版保留为脚本
+	 * 未就绪时的兜底，html[data-tooltip-layer] 出现即由本层接管。
+	 */
+	const TOOLTIP_GAP = 8;
+	const VIEWPORT_PADDING = 10;
+
+	function initTooltipLayer() {
+		if (document.querySelector('.tooltip-layer')) return;
+
+		const layer = document.createElement('div');
+		layer.className = 'tooltip-layer';
+		const bubble = document.createElement('span');
+		bubble.className = 'tooltip-layer__bubble';
+		bubble.setAttribute('aria-hidden', 'true');
+		layer.append(bubble);
+		document.body.append(layer);
+		document.documentElement.dataset.tooltipLayer = 'ready';
+
+		let anchor: HTMLElement | null = null;
+		let revealFrame = 0;
+
+		const hide = () => {
+			window.cancelAnimationFrame(revealFrame);
+			anchor = null;
+			layer.classList.remove('is-visible');
+		};
+
+		const show = (next: HTMLElement) => {
+			const text = next.dataset.tooltip;
+			if (!text) return;
+			anchor = next;
+			bubble.textContent = text;
+
+			// opacity:0 不影响布局，直接量尺寸落位；水平方向夹在视口内。
+			const rect = next.getBoundingClientRect();
+			const width = bubble.offsetWidth;
+			const height = bubble.offsetHeight;
+			const left = Math.min(
+				Math.max(rect.left + rect.width / 2 - width / 2, VIEWPORT_PADDING),
+				Math.max(window.innerWidth - width - VIEWPORT_PADDING, VIEWPORT_PADDING),
+			);
+			const needed = height + TOOLTIP_GAP + VIEWPORT_PADDING;
+			const openBelow = window.innerHeight - rect.bottom >= needed || rect.top < needed;
+			layer.style.left = `${Math.round(left)}px`;
+			layer.style.top = `${Math.round(openBelow ? rect.bottom + TOOLTIP_GAP : rect.top - TOOLTIP_GAP - height)}px`;
+
+			// 相邻按钮间移动时保持可见直接跳位，只有首次出现才走显形动画。
+			if (layer.classList.contains('is-visible')) return;
+			revealFrame = window.requestAnimationFrame(() => {
+				if (anchor === next) layer.classList.add('is-visible');
+			});
+		};
+
+		const anchorFrom = (target: EventTarget | null): HTMLElement | null => {
+			if (!(target instanceof Element)) return null;
+			const found = target.closest('[data-tooltip]');
+			return found instanceof HTMLElement && found.dataset.tooltip ? found : null;
+		};
+
+		const handlePointerOver = (event: PointerEvent) => {
+			// 触屏没有悬停语义，提示交给 aria-label，避免点按后粘在屏幕上。
+			if (event.pointerType === 'touch') return;
+			const next = anchorFrom(event.target);
+			if (next === anchor) return;
+			if (next) show(next);
+			else hide();
+		};
+
+		const handleFocusIn = (event: FocusEvent) => {
+			const next = anchorFrom(event.target);
+			if (next) show(next);
+		};
+
+		const handleFocusOut = (event: FocusEvent) => {
+			if (event.relatedTarget instanceof Element && event.relatedTarget.closest('[data-tooltip]')) return;
+			hide();
+		};
+
+		document.addEventListener('pointerover', handlePointerOver);
+		document.addEventListener('focusin', handleFocusIn);
+		document.addEventListener('focusout', handleFocusOut);
+		// 滚动或缩放视口时锚点相对视口移动，固定层会脱靶，收起等待下一次悬停。
+		window.addEventListener('scroll', hide, { passive: true, capture: true });
+		window.addEventListener('resize', hide);
+		document.documentElement.addEventListener('mouseleave', hide);
+	}
+
+	initTooltipLayer();
+	document.addEventListener('astro:page-load', initTooltipLayer);
+</script>
