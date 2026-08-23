@@ -73,6 +73,8 @@ body {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   line-height: var(--leading-ui);
+  letter-spacing: var(--tracking-hud);
+  font-variant-numeric: tabular-nums;
 }
 
 .scene-rule::after {
@@ -92,6 +94,19 @@ body {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   line-height: var(--leading-ui);
+  letter-spacing: var(--tracking-hud);
+  font-variant-numeric: tabular-nums;
+}
+
+/* HUD与档案索引中的数字需要固定宽度，避免日期、百分比和序号更新时发生跳动。 */
+:where(
+  [class*='__telemetry'],
+  [class*='__signal'],
+  [class*='__coordinate'],
+  [class*='__status'],
+  [class*='__index']
+) {
+  font-variant-numeric: tabular-nums;
 }
 
 .weather-meta > * + * {

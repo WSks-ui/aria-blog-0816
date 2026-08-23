@@ -100,11 +100,14 @@ const year = new Date().getFullYear();
 		color: var(--ink);
 		font-family: var(--font-ui);
 		font-size: 12px;
+		font-weight: var(--font-ui-weight);
+		transition: color var(--duration-fast) var(--ease-rain), font-weight var(--duration-fast) var(--ease-rain);
 	}
 
 	.site-footer a:hover,
 	.site-footer a:focus-visible {
 		color: var(--accent-strong);
+		font-weight: var(--font-ui-weight-hover);
 	}
 
 	.site-footer__top {

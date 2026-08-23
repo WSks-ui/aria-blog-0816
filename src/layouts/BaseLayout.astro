@@ -48,6 +48,13 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 		<meta property="og:image" content={socialImage} />
 		<meta name="twitter:card" content="summary_large_image" />
 		<title>{pageTitle}</title>
+		{/*
+			首屏只预载最常出现的三个字形子集：UI拉丁、正文拉丁与中文常用字。
+			其余Noto分片仍由unicode-range按需请求，JetBrains Mono留给代码/HUD按需加载。
+		*/}
+		<link rel="preload" href="/fonts/space-grotesk/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin />
+		<link rel="preload" href="/fonts/source-serif-4/source-serif-4-latin-opsz.woff2" as="font" type="font/woff2" crossorigin />
+		<link rel="preload" href="/fonts/noto-serif-sc/H4chBXePl9DZ0Xe7gG9cyOj7oqP0dTpxZbB9E9gjjmzKvaeKHUTtJDWv3z-us4bxD8F5og.118.woff2" as="font" type="font/woff2" crossorigin />
 		{/* Chromium 系浏览器对站内链接在悬停/按下时预取目标页（moderate 档），
 		    800ms 的文章转场遮罩正好把加载时间藏进去；不支持的浏览器静默忽略。 */}
 		<script

@@ -18,10 +18,11 @@
   --color-selection: #99d8e6;
   --color-danger: #aa4f46;
 
-  --font-sans: "Inter", "Avenir Next", "Segoe UI", "Noto Sans SC", "Microsoft YaHei", sans-serif;
-  --font-serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "SimSun", serif;
-  --font-display: "Noto Serif SC", "Source Han Serif SC", "Songti SC", serif;
-  --font-mono: "IBM Plex Mono", "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  /* 拉丁字形由自托管变体字体承担，中文按字形缺失自动回落到本地/自托管中文字体。 */
+  --font-sans: "Space Grotesk", "Noto Sans SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  --font-serif: "Source Serif 4", "Noto Serif SC", "Source Han Serif SC", "Songti SC", "SimSun", serif;
+  --font-display: "Source Serif 4", "Noto Serif SC", "Source Han Serif SC", "Songti SC", serif;
+  --font-mono: "JetBrains Mono", "Noto Sans Mono", "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
@@ -37,6 +38,13 @@
   --leading-title: 1.28;
   --leading-copy: 1.78;
   --leading-ui: 1.45;
+
+  /* 字距与变字重令牌：显示、UI和HUD各自保持稳定的节奏。 */
+  --tracking-display: -0.015em;
+  --tracking-ui: 0.1em;
+  --tracking-hud: 0.14em;
+  --font-ui-weight: 400;
+  --font-ui-weight-hover: 560;
 
   --space-1: 0.25rem;
   --space-2: 0.5rem;

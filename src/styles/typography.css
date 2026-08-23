@@ -4,6 +4,7 @@ body {
   font-size: var(--text-base);
   line-height: var(--leading-copy);
   letter-spacing: 0;
+  font-optical-sizing: auto;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
@@ -18,7 +19,8 @@ h6 {
   font-family: var(--font-display);
   font-weight: 500;
   line-height: var(--leading-title);
-  letter-spacing: 0;
+  letter-spacing: var(--tracking-display);
+  font-optical-sizing: auto;
   overflow-wrap: anywhere;
   text-wrap: balance;
 }
@@ -68,7 +70,8 @@ small,
   font-size: var(--text-xs);
   font-weight: 500;
   line-height: var(--leading-ui);
-  letter-spacing: 0;
+  letter-spacing: var(--tracking-ui);
+  font-variant-numeric: tabular-nums;
 }
 
 .eyebrow,
@@ -84,7 +87,8 @@ small,
   font-size: var(--text-hero);
   font-weight: 400;
   line-height: var(--leading-tight);
-  letter-spacing: 0;
+  letter-spacing: var(--tracking-display);
+  font-optical-sizing: auto;
   text-wrap: balance;
 }
 
@@ -92,6 +96,9 @@ small,
   width: min(100%, var(--reading-width));
   font-family: var(--font-serif);
   font-size: var(--text-md);
+  font-feature-settings: "palt" 1;
+  font-variant-east-asian: proportional-width;
+  font-optical-sizing: auto;
 }
 
 .reading-prose :where(p, ul, ol, blockquote, pre, table, figure) {
@@ -123,6 +130,8 @@ small,
 .reading-prose :where(code) {
   font-family: var(--font-mono);
   font-size: 0.88em;
+  font-variant-numeric: tabular-nums;
+  font-variant-ligatures: contextual;
 }
 
 .reading-prose :where(:not(pre) > code) {
@@ -137,9 +146,32 @@ small,
   padding: var(--space-5);
   border: var(--border-hairline);
   background: color-mix(in srgb, var(--color-surface), var(--color-rain-pale) 18%);
+  font-variant-numeric: tabular-nums;
+  font-variant-ligatures: contextual;
   line-height: 1.62;
   tab-size: 2;
   transition: background-color var(--duration-base) ease;
+}
+
+/*
+ * 变量字体的轻量交互：没有覆盖组件既有过渡，只给未声明过渡的链接和控件
+ * 增加font-weight动画；正文链接保持衬线字形，不参与UI字重反馈。
+ */
+@media (prefers-reduced-motion: no-preference) {
+  :where(a, button, summary, [role='button']) {
+    transition-property: font-weight;
+    transition-duration: var(--duration-fast);
+    transition-timing-function: var(--ease-rain);
+  }
+
+  :where(a, button, summary, [role='button']):is(:hover, :focus-visible) {
+    font-weight: var(--font-ui-weight-hover);
+  }
+}
+
+.reading-prose :where(a) {
+  font-weight: inherit;
+  font-variation-settings: normal;
 }
 
 /*

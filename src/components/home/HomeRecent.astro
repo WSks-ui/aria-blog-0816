@@ -375,7 +375,7 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 	.recent-preview__meta b { font-size: 10px; font-weight: 500; color: var(--accent-strong); }
 	.recent-preview__meta small { font-size: 8px; white-space: nowrap; }
 	/* 左栏承担时间序列和画面索引，文章标题与摘要只在右栏出现，减少信息重复。 */
-	.recent-preview__signal { display: inline-flex; align-items: center; gap: 9px; font-family: var(--font-ui); font-size: 9px; letter-spacing: 0.06em; color: var(--accent-strong); }
+	.recent-preview__signal { display: inline-flex; align-items: center; gap: 9px; font-family: var(--font-ui); font-size: 9px; letter-spacing: var(--tracking-hud); color: var(--accent-strong); }
 	.recent-preview__signal::before { width: 24px; height: 1px; background: currentColor; content: ''; }
 	.recent-preview__arrow { position: absolute; z-index: 3; top: 14px; right: 14px; color: var(--ink-muted); opacity: 0; transform: translate(-6px, 6px); transition: opacity 360ms var(--ease-rain), transform 520ms var(--ease-drift); }
 	.recent-preview:hover,

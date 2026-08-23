@@ -150,8 +150,8 @@
 |---|---|---|---|
 | 展示明朝体 | 细横粗竖、高对比、长撇捺，放大后常越界裁切；后段假名带更强书法感 | `Shippori Mincho`、`Yu Mincho`、`Noto Serif JP`；中文备选 `Source Han Serif SC` / `Noto Serif SC` | 图01–03、图10–17、图30–36、图46–50 |
 | 正文/歌词明朝体 | 细字重、竖排或阶梯基线，常配极小罗马音 | `Noto Serif JP Light`、`Yu Mincho Light`；中文备选 `Noto Serif SC` | 图13–17、图19、图24–27、图41–45 |
-| 几何无衬线 | 天气、时间、场景号、英文说明和实时歌词条；轻字重、窄体或规则几何 | `Inter`、`Avenir Next`、`Helvetica Neue`、`DIN 2014`；中日文备选 `Noto Sans SC/JP` | 图01–09、图18–26、图37–40、图53–55 |
-| 微型代码/罗马音 | 10–16 px，贴在线段、日期格或歌词旁，像档案索引 | `IBM Plex Mono`、`Roboto Mono`、`Noto Sans Mono` | 图18–26、图36–40、图53–55 |
+| 几何无衬线 | 天气、时间、场景号、英文说明和实时歌词条；轻字重、窄体或规则几何 | `Space Grotesk`、`Avenir Next`、`Helvetica Neue`、`DIN 2014`；中日文备选 `Noto Sans SC/JP` | 图01–09、图18–26、图37–40、图53–55 |
+| 微型代码/罗马音 | 10–16 px，贴在线段、日期格或歌词旁，像档案索引 | `JetBrains Mono`、`Roboto Mono`、`Noto Sans Mono` | 图18–26、图36–40、图53–55 |
 | 夜场发光字 | 明朝体基础上叠加水膜膨胀、横向拖影、发光和 RGB 色散 | 字体用 `Noto Serif JP Medium` / `Source Han Serif SC Medium`，液态外观由局部图像或着色层完成 | 图53–55 |
 
 ### 3.2 原画字号与排版层级
@@ -179,17 +179,17 @@
 | H2 | 36 px | 28 px | 500 / 1.30 | 使用衬线体和细分割线，不加大面积色块（图18–26、图41–43）。 |
 | H3 | 24 px | 22 px | 600 / 1.40 | 保持正常阅读，不做巨字遮挡（源自图24–27的中层文字）。 |
 | 正文 | 18 px | 17 px | 400 / 1.85 | 中文用 `Noto Serif SC`；段宽 680–760 px（源自图01–03、图24–26的留白）。 |
-| UI / 导航 | 14 px | 14 px | 500 / 1.50 | `Inter, Noto Sans SC`，文本命令保持清晰（源自图04–09、图37–40）。 |
+| UI / 导航 | 14 px | 14 px | 500 / 1.50 | `Space Grotesk, Noto Sans SC`，文本命令保持清晰（源自图04–09、图37–40）。 |
 | 元数据 | 12 px | 12 px | 500 / 1.50 | 只用于日期、标签、阅读时间；不能承担关键信息（图18–26、图37–40、图53–55）。 |
 
 建议字体栈：
 
 ```css
 :root {
-  --font-display: "Shippori Mincho", "Noto Serif SC", "Source Han Serif SC", serif;
-  --font-body: "Noto Serif SC", "Source Han Serif SC", serif;
-  --font-ui: Inter, "Noto Sans SC", "Source Han Sans SC", sans-serif;
-  --font-mono: "IBM Plex Mono", "Noto Sans Mono", monospace;
+  --font-display: "Source Serif 4", "Noto Serif SC", "Source Han Serif SC", serif;
+  --font-body: "Source Serif 4", "Noto Serif SC", "Source Han Serif SC", serif;
+  --font-ui: "Space Grotesk", "Noto Sans SC", "Source Han Sans SC", sans-serif;
+  --font-mono: "JetBrains Mono", "Noto Sans Mono", monospace;
 }
 
 /* 字号使用断点切换，不随视口连续缩放；所有层级保持正常字距。 */

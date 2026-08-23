@@ -489,6 +489,17 @@ const isEssay = post.data.kind === 'essay';
 		text-indent: 2em;
 	}
 
+	/* 随笔首段使用三行首字下沉，给文学版式一个明确的开篇锚点。 */
+	.article-layout--essay .prose > p:first-of-type::first-letter {
+		float: left;
+		margin: 0.08em 0.14em 0 -0.04em;
+		font-family: var(--font-display);
+		font-size: 4.2em;
+		font-weight: 500;
+		line-height: 0.78;
+		color: var(--accent-strong);
+	}
+
 	.article-layout--essay .prose h2 {
 		margin-block-start: 2.4em;
 		font-size: 1.32em;
@@ -566,7 +577,7 @@ const isEssay = post.data.kind === 'essay';
 	.article-focus__state {
 		font-family: var(--font-ui);
 		font-size: 9px;
-		letter-spacing: 0.08em;
+		letter-spacing: var(--tracking-hud);
 		color: var(--ink-muted);
 	}
 
