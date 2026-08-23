@@ -258,6 +258,68 @@ html[data-archive-cursor='companion'] .archive-cursor[data-mode='text'] {
   50% { opacity: 0.55; }
 }
 
+/* 正文插图灯箱：原生 dialog 提供焦点陷阱、Esc 与背景滚动锁定。 */
+.lightbox {
+  max-width: min(1200px, calc(100vw - 48px));
+  max-height: calc(100dvh - 48px);
+  padding: 0;
+  border: 1px solid var(--line);
+  background: var(--night-1);
+  overflow: hidden;
+}
+
+.lightbox::backdrop {
+  background: rgb(5 13 16 / 82%);
+}
+
+.lightbox[open] {
+  display: grid;
+}
+
+.lightbox__figure {
+  display: grid;
+  max-height: calc(100dvh - 48px);
+  margin: 0;
+  place-items: center;
+}
+
+.lightbox__image {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100dvh - 108px);
+  object-fit: contain;
+}
+
+.lightbox__caption {
+  padding: 12px 18px;
+  color: var(--night-muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  text-align: center;
+}
+
+.lightbox__close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid rgb(242 245 244 / 32%);
+  background: rgb(9 17 20 / 72%);
+  color: var(--night-text);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+
+.lightbox__close:hover,
+.lightbox__close:focus-visible {
+  border-color: var(--accent-strong);
+  color: var(--accent-strong);
+}
+
 /* 触屏与减少动态偏好仍保留清晰的选中态，避免动画成为必要反馈。 */
 @media (prefers-reduced-motion: reduce) {
   .weather-mode-control__button,

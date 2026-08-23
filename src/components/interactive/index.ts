@@ -1,5 +1,6 @@
 export { default as CommentPanel } from './CommentPanel.astro';
 export { default as InteractionSurface } from './InteractionSurface.astro';
+export { default as Lightbox } from './Lightbox.astro';
 export { default as MemoryVault } from './MemoryVault.astro';
 export { default as ReadingSession } from './ReadingSession.astro';
 export { default as SceneGuide } from './SceneGuide.astro';

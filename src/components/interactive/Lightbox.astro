@@ -1,0 +1,69 @@
+---
+import { X } from '@lucide/astro';
+import '@/styles/interactive.css';
+
+interface Props {
+  class?: string;
+}
+
+const { class: className } = Astro.props;
+---
+
+<dialog class:list={['lightbox', className]} data-lightbox aria-label="图片查看">
+  <figure class="lightbox__figure">
+    <img class="lightbox__image" data-lightbox-image alt="" />
+    <figcaption class="lightbox__caption" data-lightbox-caption></figcaption>
+  </figure>
+  <button class="lightbox__close" type="button" data-lightbox-close aria-label="关闭图片查看">
+    <X size={20} stroke-width={1.5} aria-hidden="true" />
+  </button>
+</dialog>
+
+<script>
+  function initLightboxes() {
+    document.querySelectorAll<HTMLDialogElement>('[data-lightbox]').forEach((dialog) => {
+      if (dialog.dataset.interactiveReady === 'true') return;
+      dialog.dataset.interactiveReady = 'true';
+
+      const image = dialog.querySelector<HTMLImageElement>('[data-lightbox-image]');
+      const caption = dialog.querySelector<HTMLElement>('[data-lightbox-caption]');
+      const closeButton = dialog.querySelector<HTMLButtonElement>('[data-lightbox-close]');
+      if (!image || !caption || !closeButton) return;
+
+      const openFor = (source: HTMLImageElement) => {
+        // 用 currentSrc 尊 Responsive srcset 的实际选择；alt 原样作为图注。
+        image.src = source.currentSrc || source.src;
+        image.alt = source.alt || '';
+        caption.textContent = source.alt || '';
+        caption.hidden = !source.alt;
+        if (!dialog.open) {
+          if (typeof dialog.showModal === 'function') dialog.showModal();
+          else dialog.setAttribute('open', '');
+        }
+        closeButton.focus();
+      };
+
+      // 只接管正文里未被链接包裹的插图：链接内的图片点击应继续跟随链接。
+      document.addEventListener('click', (event) => {
+        if (!(event.target instanceof HTMLImageElement)) return;
+        if (event.target.closest('[data-lightbox]')) return;
+        const prose = event.target.closest('.reading-prose, .article-hero__cover');
+        if (!prose || event.target.closest('a')) return;
+        event.preventDefault();
+        openFor(event.target);
+      });
+
+      closeButton.addEventListener('click', () => {
+        if (typeof dialog.close === 'function') dialog.close();
+        else dialog.removeAttribute('open');
+      });
+
+      dialog.addEventListener('click', (event) => {
+        if (event.target === dialog) dialog.close();
+      });
+    });
+  }
+
+  initLightboxes();
+  document.addEventListener('astro:page-load', initLightboxes);
+</script>
