@@ -359,7 +359,8 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 </script>
 
 <style>
-	.home-scene--recent { padding-block: 168px 72px; }
+	/* 换气节奏：上一区是密集的深色舞台，此处上方留出更长的呼吸，下方收紧。 */
+	.home-scene--recent { padding-block: 128px 96px; }
 	.recent-layout { display: grid; grid-template-columns: minmax(280px, 0.72fr) minmax(0, 1.72fr); gap: clamp(54px, 7vw, 108px); align-items: start; }
 	.recent-stage__sticky { position: sticky; top: calc(var(--header-height) + 30px); }
 	.recent-stage__visual { position: relative; height: clamp(540px, 62vh, 640px); margin-top: 34px; overflow-x: hidden; overflow-y: auto; border-block: 1px solid var(--line); outline: none; overscroll-behavior: contain; scrollbar-color: color-mix(in srgb, var(--accent-strong) 46%, transparent) transparent; scrollbar-width: thin; }

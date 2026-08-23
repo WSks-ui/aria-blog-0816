@@ -144,14 +144,16 @@ const kindCounts = POST_KINDS.map((kind) => ({
 </script>
 
 <style>
-	.home-scene--index { margin-top: 112px; padding-block: 96px 82px; background: color-mix(in srgb, var(--accent-soft) 44%, var(--paper-0)); }
+	.home-scene--index { padding-block: 112px 96px; background: color-mix(in srgb, var(--accent-soft) 44%, var(--paper-0)); }
 	.section-heading { display: flex; align-items: end; justify-content: space-between; gap: 32px; margin-bottom: 42px; }
 	/* 索引标题移除后只保留编号与统计，缩短页眉底距，避免留下不可见的标题占位。 */
 	.index-heading { margin-bottom: 28px; }
 	.index-heading > div { display: grid; gap: 0; }
 	.index-heading > div p { margin: 0; }
 	.index-heading > span { font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
-	.kind-index { --index-pointer-x: 50%; --index-pointer-y: 50%; position: relative; isolation: isolate; display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr; align-items: end; height: 410px; border-bottom: 1px solid var(--line-strong); transition: grid-template-columns 720ms var(--ease-drift); }
+	/* 格宽形变是本区的招牌交互，保留；但并发成本削减：字号改瞬时切换、
+	   非活动轨只降透明度不再位移——每帧重排工作量约减半。 */
+	.kind-index { --index-pointer-x: 50%; --index-pointer-y: 50%; position: relative; isolation: isolate; display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr; align-items: end; height: 410px; border-bottom: 1px solid var(--line-strong); transition: grid-template-columns var(--duration-scene) var(--ease-drift); }
 	.kind-index::before,
 	.kind-index::after { position: absolute; z-index: 3; background: color-mix(in srgb, var(--accent-strong) 48%, transparent); content: ''; opacity: 0; pointer-events: none; transition: opacity 280ms var(--ease-rain); }
 	.kind-index::before { top: 0; bottom: 0; left: var(--index-pointer-x); width: 1px; }
@@ -169,7 +171,7 @@ const kindCounts = POST_KINDS.map((kind) => ({
 	.kind-index a:last-child { border-right: 1px solid var(--line); }
 	.kind-index a::before { position: absolute; top: 0; left: -1px; width: 4px; height: 22%; background: var(--accent-strong); content: ''; transition: height 640ms var(--ease-drift), width 520ms var(--ease-rain); }
 	.kind-index a:nth-child(4)::before { background: var(--color-warm); }
-	.kind-index.has-active a:not(.is-active) { opacity: 0.42; transform: translateY(12px) scaleY(0.96); }
+	.kind-index.has-active a:not(.is-active) { opacity: 0.42; }
 	.kind-index a.is-active { z-index: 2; height: min(100%, calc(var(--track-height) + 54px)); border-color: var(--line-strong); background: color-mix(in srgb, var(--paper-0) 82%, transparent); color: var(--accent-strong); transform: translateY(-18px); }
 	.kind-index a.is-active::before { width: 6px; height: 100%; }
 	.kind-index__number,
@@ -177,9 +179,9 @@ const kindCounts = POST_KINDS.map((kind) => ({
 	.tag-index p,
 	.tag-index small { font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
 	.kind-index__label { display: grid; gap: 5px; }
-	.kind-index strong { font-family: var(--font-display); font-size: 19px; font-weight: 500; transition: font-size 520ms var(--ease-rain), transform 520ms var(--ease-rain); }
+	.kind-index strong { font-family: var(--font-display); font-size: 19px; font-weight: 500; }
 	.kind-index em { font-family: var(--font-ui); font-size: 9px; font-style: normal; color: var(--ink-muted); opacity: 0; transform: translateY(7px); transition: opacity 420ms var(--ease-rain), transform 420ms var(--ease-rain); }
-	.kind-index a.is-active strong { font-size: 26px; transform: translateY(-6px); }
+	.kind-index a.is-active strong { font-size: 26px; }
 	.kind-index a.is-active em { opacity: 1; transform: translateY(0); }
 	.kind-index__arrow { position: absolute; right: 18px; bottom: 18px; opacity: 0; transform: translateX(-8px); transition: opacity 420ms var(--ease-rain), transform 420ms var(--ease-rain); }
 	.kind-index a.is-active .kind-index__arrow { opacity: 1; transform: translateX(0); }

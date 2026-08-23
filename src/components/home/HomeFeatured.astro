@@ -41,8 +41,8 @@ const { featured, featuredCover, featuredCoverFit } = Astro.props;
 
 <style>
 	/* 精选内容的深色舞台与其它场景共用同一个 scene-inner 内边界，避免整块底色向外溢出。 */
-	.home-scene--featured { z-index: 2; margin-top: -46px; padding-block: 82px 68px; background: transparent; color: #edf1ef; }
-	.featured-band { display: grid; grid-template-columns: minmax(74px, 1fr) repeat(11, minmax(0, 1fr)); min-height: 500px; border-block: 1px solid var(--line); background: #10242a; }
+	.home-scene--featured { z-index: 2; margin-top: -46px; padding-block: 96px; background: transparent; color: #edf1ef; }
+	.featured-band { position: relative; display: grid; grid-template-columns: minmax(74px, 1fr) repeat(11, minmax(0, 1fr)); min-height: 500px; border-block: 1px solid var(--line); background: #10242a; }
 	.section-index { grid-column: 1 / 2; display: flex; flex-direction: column; justify-content: space-between; padding: 28px 18px 28px 0; border-right: 1px solid var(--line); font-family: var(--font-ui); color: var(--ink-muted); }
 	.section-index span { font-size: 34px; color: var(--color-warm); }
 	.section-index p { margin: 0; font-size: 9px; writing-mode: vertical-rl; }
@@ -54,14 +54,23 @@ const { featured, featuredCover, featuredCoverFit } = Astro.props;
 	.featured-band__visual :global(.featured-band__cover-scene) { width: 100%; height: 100%; transition: transform 900ms var(--ease-drift), filter 900ms var(--ease-drift); }
 	.featured-band__visual:hover :global(.featured-band__cover-scene) { transform: scale(1.018); filter: contrast(1.06); }
 	.featured-band__media { position: absolute; z-index: 2; top: 22%; left: 18%; display: grid; width: 62%; height: 52%; place-items: center; overflow: hidden; border: 1px solid rgb(237 241 239 / 46%); background: rgb(237 241 239 / 88%); box-shadow: 0 22px 54px rgb(0 0 0 / 22%); transition: transform 760ms var(--ease-drift); }
-	.featured-band__visual:hover .featured-band__media { transform: translate3d(8px, -6px, 0); }
+	/* 前后景分离：底层制图场景同向放大，媒体面板反向轻移，位移差制造景深。 */
+	.featured-band__visual:hover .featured-band__media { transform: translate3d(-6px, 4px, 0); }
 	.featured-band__media img { width: 100%; height: 100%; }
 	.featured-band__media--contain img { object-fit: contain; padding: 10%; }
 	.featured-band__media--cover img { object-fit: cover; }
 	.featured-band__open { position: absolute; right: 18px; bottom: 16px; z-index: 3; font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
 
-	/* 夜间精选区沿用深海底色，避免主题切换时突然出现一整块浅色孤岛。 */
+	/* 夜间精选区沿用深海底色，避免主题切换时突然出现一整块浅色孤岛；
+	   叠加 72px 间隔的扫描横线，让深色舞台在夜场语法下有可感知的层次。 */
 	:global(html[data-weather-mode='night']) .featured-band { background: #0b181c; }
+	:global(html[data-weather-mode='night']) .featured-band::after {
+		position: absolute;
+		inset: 0;
+		content: '';
+		pointer-events: none;
+		background: repeating-linear-gradient(180deg, transparent 0 71px, rgb(237 241 239 / 6%) 71px 72px);
+	}
 	:global(html[data-weather-mode='night']) .featured-band__media { border-color: rgb(237 241 239 / 28%); box-shadow: 0 22px 54px rgb(0 0 0 / 30%); }
 
 	@media (max-width: 1000px) {

@@ -35,15 +35,32 @@ const { recordsCount, lastUpdateText } = Astro.props;
 
 <style>
 	.home-scene--hero { z-index: 1; }
-	.home-hero { position: relative; min-height: clamp(500px, calc(100vh - 290px), 620px); margin-top: 28px; overflow: hidden; background: var(--accent-soft); color: var(--ink); }
-	.home-hero__status { position: absolute; top: 22px; right: 24px; z-index: 6; display: flex; gap: 20px; font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); opacity: 0; animation: home-meta-enter 540ms var(--ease-rain) 180ms forwards; }
-	.home-hero__copy { position: absolute; top: 50%; left: clamp(34px, 7vw, 112px); z-index: 6; width: min(610px, 51%); transform: translateY(-50%); }
+	/* 文案区参与 12 栏栅格占左 6 栏，与 Canvas 场景互不挤压；短视口不再依赖绝对定位的居中近似。 */
+	.home-hero { position: relative; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: center; min-height: clamp(500px, calc(100vh - 290px), 620px); margin-top: 28px; overflow: hidden; background: var(--accent-soft); color: var(--ink); }
+	/* 底缘雨痕带：规范允许水痕做页面边缘局部蒙版，不进入文案可读区。 */
+	.home-hero::after {
+		position: absolute;
+		inset: auto 0 0 0;
+		z-index: 5;
+		height: 80px;
+		content: '';
+		pointer-events: none;
+		background: url('/assets/patterns/atmosphere-rain.svg') bottom center / cover no-repeat;
+		mask-image: linear-gradient(180deg, transparent, rgb(0 0 0 / 100%) 58%);
+		opacity: 0.5;
+		mix-blend-mode: multiply;
+	}
+	/* 入场序列回归动效规范（内容显现 360–480ms）：级联总长压到 ~0.8s，
+	   气势交给 HeroScene 的四拍循环，而不是靠入场拖长。 */
+	.home-hero__status { position: absolute; top: 22px; right: 24px; z-index: 6; display: flex; gap: 20px; font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); opacity: 0; animation: home-meta-enter 380ms var(--ease-rain) 80ms forwards; }
+	.home-hero__copy { grid-column: 1 / 7; grid-row: 1; z-index: 6; max-width: 610px; padding-inline: clamp(34px, 7vw, 112px) 24px; }
 	.home-hero__copy > p,
-	.home-hero__copy > span { font-family: var(--font-ui); font-size: 11px; color: var(--ink-muted); opacity: 0; animation: home-copy-enter 620ms var(--ease-rain) 280ms forwards; }
-	.home-hero h1 { margin: 18px 0 10px; font-family: var(--font-display); font-size: 132px; font-weight: 500; line-height: 0.96; overflow-wrap: anywhere; opacity: 0; animation: home-title-enter 760ms var(--ease-rain) 340ms forwards; }
-	.home-hero__copy > strong { display: block; max-width: 580px; margin-bottom: 14px; font-family: var(--font-display); font-size: 31px; font-weight: 500; line-height: 1.52; overflow-wrap: anywhere; opacity: 0; animation: home-copy-enter 680ms var(--ease-rain) 520ms forwards; }
-	.home-hero__copy > span { display: block; animation-delay: 660ms; }
-	.home-hero__enter { display: inline-flex; min-height: 44px; align-items: center; gap: 18px; margin-top: 30px; padding: 0 14px 0 18px; border: 1px solid var(--ink); background: color-mix(in srgb, var(--paper-0) 86%, transparent); font-family: var(--font-ui); font-size: 11px; color: var(--ink); text-decoration: none; backdrop-filter: blur(10px); opacity: 0; animation: home-action-enter 560ms var(--ease-rain) 780ms forwards; }
+	.home-hero__copy > span { font-family: var(--font-ui); font-size: 11px; color: var(--ink-muted); opacity: 0; animation: home-copy-enter 420ms var(--ease-rain) 120ms forwards; }
+	.home-hero h1 { margin: 18px 0 6px; font-family: var(--font-display); font-size: 132px; font-weight: 500; line-height: 0.96; overflow-wrap: anywhere; opacity: 0; animation: home-title-enter 480ms var(--ease-rain) 160ms forwards; }
+	/* 字号三级跳：巨型标题下直接接常规文案，再落到微型元数据，断层即层级。 */
+	.home-hero__copy > strong { display: block; max-width: 580px; margin-bottom: 20px; font-family: var(--font-display); font-size: 15px; font-weight: 400; line-height: 1.7; overflow-wrap: anywhere; opacity: 0; animation: home-copy-enter 420ms var(--ease-rain) 260ms forwards; }
+	.home-hero__copy > span { display: block; animation-delay: 340ms; }
+	.home-hero__enter { display: inline-flex; min-height: 44px; align-items: center; gap: 18px; margin-top: 30px; padding: 0 14px 0 18px; border: 1px solid var(--ink); background: color-mix(in srgb, var(--paper-0) 86%, transparent); font-family: var(--font-ui); font-size: 11px; color: var(--ink); text-decoration: none; backdrop-filter: blur(10px); opacity: 0; animation: home-action-enter 380ms var(--ease-rain) 420ms forwards; }
 	.home-hero__enter:hover svg { transform: translateX(4px); }
 	.home-hero__enter svg { transition: transform var(--duration-base) var(--ease-rain); }
 
@@ -77,14 +94,29 @@ const { recordsCount, lastUpdateText } = Astro.props;
 		.home-hero__enter { opacity: 1; animation: none; }
 	}
 
+	:global(html[data-weather-mode='clear']) .home-hero::after {
+		background-image: url('/assets/patterns/atmosphere-clear.svg');
+		opacity: 0.36;
+	}
+
+	:global(html[data-weather-mode='night']) .home-hero::after {
+		background-image: url('/assets/patterns/atmosphere-night.svg');
+		mix-blend-mode: screen;
+		opacity: 0.4;
+	}
+
+	@media (max-width: 1000px) {
+		.home-hero__copy { grid-column: 1 / 9; }
+	}
+
 	@media (max-width: 760px) {
 		.home-hero { min-height: 500px; }
-		.home-hero__copy { left: 26px; width: calc(100% - 52px); }
+		.home-hero__copy { grid-column: 1 / -1; padding-inline: 26px 20px; }
 		/* 首屏文案在窄屏上更早显现，避免用户先看到一整块空舞台。 */
 		.home-hero__status { animation-delay: 0ms; animation-duration: 320ms; }
 		.home-hero h1 { font-size: 64px; animation-name: home-title-enter-mobile; animation-delay: 0ms; animation-duration: 420ms; }
 		.home-hero__copy > p { animation-delay: 0ms; animation-duration: 320ms; }
-		.home-hero__copy > strong { font-size: 24px; animation-delay: 80ms; animation-duration: 380ms; }
+		.home-hero__copy > strong { font-size: 14px; animation-delay: 80ms; animation-duration: 380ms; }
 		.home-hero__copy > span { animation-delay: 150ms; animation-duration: 340ms; }
 		.home-hero__enter { margin-top: 22px; animation-delay: 220ms; animation-duration: 340ms; }
 		.home-hero__status { left: 24px; right: auto; flex-wrap: wrap; }
