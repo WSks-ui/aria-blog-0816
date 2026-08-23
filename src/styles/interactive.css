@@ -163,7 +163,7 @@ html[data-archive-cursor='companion'] .archive-cursor[data-mode='text'] {
   z-index: 1;
 }
 
-.weather-mode-control__button[aria-pressed="true"] {
+.weather-mode-control__button[aria-checked="true"] {
   background: var(--accent-soft);
   color: var(--accent-strong);
 }
@@ -204,7 +204,7 @@ html[data-archive-cursor='companion'] .archive-cursor[data-mode='text'] {
 
   .weather-mode-control__button:hover::after,
   .weather-mode-control__button:focus-visible::after,
-  .weather-mode-control__button[aria-pressed="true"]::after {
+  .weather-mode-control__button[aria-checked="true"]::after {
     opacity: 0.82;
     transform: scaleX(1);
   }
@@ -248,6 +248,16 @@ html[data-archive-cursor='companion'] .archive-cursor[data-mode='text'] {
   transform: translateY(0);
 }
 
+/* 遮罩过场进行中，目标模式按钮轻微呼吸，提示请求已被接住、等待换景完成。 */
+.weather-mode-control[data-pending-mode] .weather-mode-control__button:not([aria-checked='true']) {
+  animation: weather-mode-pending 640ms var(--ease-drift) infinite;
+}
+
+@keyframes weather-mode-pending {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
 /* 触屏与减少动态偏好仍保留清晰的选中态，避免动画成为必要反馈。 */
 @media (prefers-reduced-motion: reduce) {
   .weather-mode-control__button,
@@ -255,6 +265,10 @@ html[data-archive-cursor='companion'] .archive-cursor[data-mode='text'] {
   .weather-mode-control__button svg,
   .weather-mode-control__label {
     transition: none;
+  }
+
+  .weather-mode-control[data-pending-mode] .weather-mode-control__button:not([aria-checked='true']) {
+    animation: none;
   }
 }
 

@@ -21,15 +21,16 @@ const {
   class:list={['weather-mode-control', className]}
   data-weather-mode-control
   data-storage-key={storageKey}
-  role="group"
+  role="radiogroup"
   aria-label={label}
 >
   <button
     class="weather-mode-control__button"
     type="button"
+    role="radio"
+    aria-checked="false"
     data-weather-mode-value="clear"
     aria-label="切换到晴朗模式"
-    aria-pressed="false"
   >
     <Sun size={20} stroke-width={1.5} aria-hidden="true" />
     <span class="weather-mode-control__label">Clear</span>
@@ -37,9 +38,10 @@ const {
   <button
     class="weather-mode-control__button"
     type="button"
+    role="radio"
+    aria-checked="false"
     data-weather-mode-value="rain"
     aria-label="切换到雨天模式"
-    aria-pressed="false"
   >
     <CloudRain size={20} stroke-width={1.5} aria-hidden="true" />
     <span class="weather-mode-control__label">Rain</span>
@@ -47,9 +49,10 @@ const {
   <button
     class="weather-mode-control__button"
     type="button"
+    role="radio"
+    aria-checked="false"
     data-weather-mode-value="night"
     aria-label="切换到夜间模式"
-    aria-pressed="false"
   >
     <Moon size={20} stroke-width={1.5} aria-hidden="true" />
     <span class="weather-mode-control__label">Night</span>
@@ -106,7 +109,9 @@ const {
 
         buttons.forEach((button) => {
           const selected = button.dataset.weatherModeValue === mode;
-          button.setAttribute('aria-pressed', String(selected));
+          button.setAttribute('aria-checked', String(selected));
+          // 单选组使用漫游 tabindex：只有选中项保留在 Tab 序，其余靠方向键到达。
+          button.tabIndex = selected ? 0 : -1;
           button.dataset.active = String(selected);
         });
 
@@ -163,6 +168,23 @@ const {
           const mode = button.dataset.weatherModeValue;
           if (mode && isWeatherMode(mode)) requestMode(mode, true);
         });
+      });
+
+      // 单选组键盘模型：方向键在成员间移动并直接选中，Home/End 跳到两端。
+      root.addEventListener('keydown', (event) => {
+        const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+        const jump = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : undefined;
+        if (step === undefined && jump === undefined) return;
+        event.preventDefault();
+        const currentIndex = buttons.findIndex((item) => item.getAttribute('aria-checked') === 'true');
+        const nextIndex = step !== undefined
+          ? (Math.max(0, currentIndex) + step + buttons.length) % buttons.length
+          : jump;
+        const next = buttons[nextIndex];
+        if (!next) return;
+        next.focus();
+        const mode = next.dataset.weatherModeValue;
+        if (mode && isWeatherMode(mode)) requestMode(mode, true);
       });
 
       darkPreference.addEventListener('change', (event) => {
