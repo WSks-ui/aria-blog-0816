@@ -139,6 +139,26 @@ small,
   background: color-mix(in srgb, var(--color-surface), var(--color-rain-pale) 18%);
   line-height: 1.62;
   tab-size: 2;
+  transition: background-color var(--duration-base) ease;
+}
+
+/*
+ * 代码块用 shiki 双主题（github-light / github-dark）渲染：浅色值写在行内样式的
+ * color 上，深色值以 --shiki-dark 变量同行输出。三种天气中只有夜间翻转为深色，
+ * 优先消费 shiki 的变量，未输出的 token 回退到块的深色前景。
+ */
+html[data-weather-mode='night'] .reading-prose pre,
+html[data-weather-mode='night'] .reading-prose pre span {
+  color: var(--shiki-dark, var(--night-text)) !important;
+}
+
+html[data-weather-mode='night'] .reading-prose pre {
+  background-color: var(--shiki-dark-bg, var(--night-1)) !important;
+  border-color: color-mix(in srgb, var(--night-text), transparent 84%);
+}
+
+html[data-weather-mode='night'] .reading-prose :where(:not(pre) > code) {
+  background: color-mix(in srgb, var(--night-1), var(--night-text) 8%);
 }
 
 .reading-prose :where(hr) {

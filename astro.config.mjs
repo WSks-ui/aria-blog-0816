@@ -21,7 +21,10 @@ export default defineConfig({
 	markdown: {
 		processor: unified({ gfm: true }),
 		shikiConfig: {
-			theme: 'github-light',
+			// 双主题：浅色值直接写入行内样式，深色值以 --shiki-dark 变量输出，
+			// 夜间天气模式下由 typography.css 翻转，无需重刷高亮。
+			themes: { light: 'github-light', dark: 'github-dark' },
+			defaultColor: 'light',
 			wrap: true,
 		},
 	},
