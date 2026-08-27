@@ -1,6 +1,6 @@
 <div class="shared-title-transition" data-shared-title-transition transition:persist="aria7-title-carrier" aria-hidden="true">
-	<div class="shared-title-transition__veil" data-shared-title-veil>
-		<span class="shared-title-transition__veil-label">ROUTE / PROFILE</span>
+	<div class="shared-title-transition__exposure" data-shared-title-exposure>
+		<span class="shared-title-transition__label" data-shared-title-label>PROFILE / ARIA-7</span>
 	</div>
 	<span class="shared-title-transition__carrier" data-shared-title-carrier>Aria-7</span>
 </div>
@@ -41,23 +41,26 @@
 
 	const FALLBACK_DURATION = 420;
 	/*
-	 * 「纸面显影」编排拍（点击 → 导航 → 抵达）：
-	 *   Hero 文案先退场（HomeHero 内 CSS，200–320ms）
-	 *   → 纸幕自顶落下 380ms（延迟 120ms 让文案先走一步）
-	 *   → 500ms 提交导航，标题经命名 View Transition 在纸幕上飞行
-	 *   → 抵达后纸幕继续下落 480ms 揭开关于页，与页内显影级联同时展开。
-	 * 字面值为编排内有意错拍；兜底计时防导航被拦截后纸幕滞留首屏。
+	 * 「离场呼吸 + 到达显影」编拍（点击 → 导航 → 抵达）：
+	 *   Hero 文案先退场（HomeHero/about 内 CSS，160–220ms），
+	 *   巨型标题同步微微上浮（280ms）；
+	 *   曝光幕借 WeatherTransition 晴天档的透明度语言涨满（延迟 90ms 起，300ms 升满，
+	 *   无移动边缘、无色块扫屏），430ms 提交导航；
+	 *   标题经命名 View Transition 在成形中的目标页上方飞行；
+	 *   抵达即随页内显影级联把曝光撤下（480ms）。字面值为编排内有意错拍；
+	 *   兜底计时防导航被拦截后曝光滞留首屏。
 	 */
-	const VEIL_ENTER_DELAY = 120;
-	const VEIL_ENTER_DURATION = 380;
-	const NAVIGATE_AT = 500;
-	const VEIL_EXIT_DURATION = 480;
+	const EXPOSURE_IN_DELAY = 90;
+	const EXPOSURE_IN_DURATION = 300;
+	const NAVIGATE_AT = 430;
+	const EXPOSURE_OUT_DURATION = 480;
 	const SAFETY_TIMEOUT = 2400;
 	const RAIN_EASING = 'cubic-bezier(0.22, 0.75, 0.28, 1)';
 
 	let root: HTMLElement | null = null;
 	let carrier: HTMLElement | null = null;
-	let veil: HTMLElement | null = null;
+	let exposure: HTMLElement | null = null;
+	let label: HTMLElement | null = null;
 	let pendingTransition: PendingTransition | null = null;
 	let pendingTimer = 0;
 	let carrierAnimation: Animation | null = null;
@@ -71,8 +74,8 @@
 	let journeyActive = false;
 	let submitTimer = 0;
 	let safetyTimer = 0;
-	let liftTimer = 0;
-	let veilAnimation: Animation | null = null;
+	let settleTimer = 0;
+	let exposureAnimation: Animation | null = null;
 
 	const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 	const supportsNativeTransition = typeof document.startViewTransition === 'function';
@@ -101,6 +104,8 @@
 			fontVariationSettings: style.fontVariationSettings,
 		};
 	};
+
+	const normalizePath = (pathname: string) => pathname.replace(/\/+$/, '') || '/';
 
 	const setCarrierStyle = (element: HTMLElement, rect: Rect, style: TitleStyle) => {
 		element.style.left = `${rect.left}px`;
@@ -154,60 +159,73 @@
 	const clearJourneyTimers = () => {
 		window.clearTimeout(submitTimer);
 		window.clearTimeout(safetyTimer);
-		window.clearTimeout(liftTimer);
+		window.clearTimeout(settleTimer);
 		submitTimer = 0;
 		safetyTimer = 0;
-		liftTimer = 0;
+		settleTimer = 0;
 	};
 
 	const hardReset = () => {
 		clearJourneyTimers();
-		veilAnimation?.cancel();
-		veilAnimation = null;
+		exposureAnimation?.cancel();
+		exposureAnimation = null;
 		journeyActive = false;
+		reset();
 		root?.classList.remove('is-veiling');
 		delete document.documentElement.dataset.titleVeil;
-		if (veil) {
-			// 进入动画 fill 会持续压过行内样式，必须全部取消后停靠态才生效；
-			// 否则遮罩在退场结束后会弹回满屏覆盖。
-			veil.getAnimations().forEach((animation) => animation.cancel());
-			veil.style.transform = 'translateY(-102%)';
+		if (exposure) {
+			// 进入动画 fill 会持续压过行内样式，必须全部取消后停靠态才生效。
+			exposure.getAnimations().forEach((animation) => animation.cancel());
+			exposure.style.removeProperty('opacity');
 		}
+		if (label) label.textContent = 'PROFILE / ARIA-7';
 	};
 
-	const beginVeilLift = () => {
-		if (!root || !veil) {
+	/*
+	 * 到达侧：撤掉曝光露出成形中的页面。此前玻璃纸幕靠 transform 下滑时，
+	 * 命名转场会把新页快照整页冻住，级联只能在幕后偷偷跑完再被硬掀开；
+	 * 现在根元素不参与视图转场（见 BaseLayout 的 view-transition-name: none），
+	 * 抵达后的页面是活层，曝光透明度衰减与显影级联可以实时同台演出。
+	 */
+	const beginExposureFall = () => {
+		if (!root || !exposure) {
 			hardReset();
 			return;
 		}
 		window.clearTimeout(submitTimer);
 		delete document.documentElement.dataset.titleVeil;
-		// 先清空进入动画的 fill，再钉住覆盖态起跳，避免新旧动画叠加插值。
-		veil.getAnimations().forEach((animation) => animation.cancel());
-		veilAnimation = null;
-		veil.style.transform = 'translateY(0)';
-		veilAnimation = veil.animate(
-			[{ transform: 'translateY(0)' }, { transform: 'translateY(102%)' }],
-			{ duration: VEIL_EXIT_DURATION, easing: RAIN_EASING, fill: 'forwards' },
+		exposure.getAnimations().forEach((animation) => animation.cancel());
+		exposureAnimation = null;
+		exposure.style.opacity = '1';
+		exposureAnimation = exposure.animate(
+			[{ opacity: '1' }, { opacity: '0' }],
+			{ duration: EXPOSURE_OUT_DURATION, easing: RAIN_EASING, fill: 'forwards' },
 		);
-		liftTimer = window.setTimeout(() => hardReset(), VEIL_EXIT_DURATION + 80);
+		settleTimer = window.setTimeout(() => hardReset(), EXPOSURE_OUT_DURATION + 80);
 	};
 
-	const beginTitleJourney = (destination: URL, trigger: HTMLAnchorElement) => {
-		if (!root || !veil || journeyActive) return;
+	const beginExposureJourney = (destination: URL, trigger: HTMLAnchorElement) => {
+		if (!root || !exposure || journeyActive) return;
 		journeyActive = true;
 		root.classList.add('is-veiling');
-		// HomeHero 依此标记让文案组先行退场；巨型标题保持原位交给命名转场飞行。
+		// HomeHero/about 依此标记让文案组先行呼吸退场；巨型标题保持可见，
+		// 只微微上浮，随后交给命名 View Transition 飞行。
 		document.documentElement.dataset.titleVeil = 'leaving';
+		if (label) {
+			label.textContent = normalizePath(destination.pathname) === '/about'
+				? 'PROFILE / ARIA-7'
+				: 'INDEX / RAIN ARCHIVE';
+		}
 		// 行内终态先行：跨文档搬运或动画丢弃时，新文档同一帧仍是覆盖态，不会露出硬切。
-		veil.style.transform = 'translateY(0)';
-		veilAnimation = veil.animate(
-			[{ transform: 'translateY(-102%)' }, { transform: 'translateY(0)' }],
-			{ duration: VEIL_ENTER_DURATION, delay: VEIL_ENTER_DELAY, easing: RAIN_EASING, fill: 'both' },
+		exposure.getAnimations().forEach((animation) => animation.cancel());
+		exposure.style.opacity = '1';
+		exposureAnimation = exposure.animate(
+			[{ opacity: '0' }, { opacity: '1' }],
+			{ duration: EXPOSURE_IN_DURATION, delay: EXPOSURE_IN_DELAY, easing: RAIN_EASING, fill: 'both' },
 		);
 		submitTimer = window.setTimeout(() => {
 			try {
-			navigate(destination.href, { sourceElement: trigger });
+				navigate(destination.href, { sourceElement: trigger });
 			} catch {
 				hardReset();
 			}
@@ -240,13 +258,18 @@
 		}
 		if (destination.origin !== window.location.origin) return;
 		if (destination.pathname === window.location.pathname && destination.search === window.location.search) return;
+		// 编排只服务首页↔关于这对镜面路由，品牌链接在其他页面保持普通导航。
+		const from = normalizePath(window.location.pathname);
+		const to = normalizePath(destination.pathname);
+		const mirroredPair = (from === '/' && to === '/about') || (from === '/about' && to === '/');
+		if (!mirroredPair) return;
 
 		event.preventDefault();
-		beginTitleJourney(destination, link);
+		beginExposureJourney(destination, link);
 	};
 
 	// ClientRouter 已确认本次导航并取得目标文档后才触发该事件。后备载体在此刻
-	// 接管首页标题，与路由器共用同一条导航事务，不会和链接点击监听器竞争时机。
+	// 接管当前页标题，与路由器共用同一条导航事务，不会和链接点击监听器竞争时机。
 	const prepareFallback = (event: TransitionPreparationEvent) => {
 		if (reduceMotion.matches || supportsNativeTransition) return;
 		const trigger = event.sourceElement instanceof Element
@@ -256,9 +279,11 @@
 			return;
 		}
 		const destination = new URL(trigger.href, window.location.href);
-		if (destination.origin !== window.location.origin || destination.pathname !== '/about/') {
-			return;
-		}
+		if (destination.origin !== window.location.origin) return;
+		const from = normalizePath(window.location.pathname);
+		const to = normalizePath(destination.pathname);
+		const mirroredPair = (from === '/' && to === '/about') || (from === '/about' && to === '/');
+		if (!mirroredPair) return;
 		const title = document.querySelector<HTMLElement>('[data-aria7-title-transition]');
 		if (!title) {
 			return;
@@ -317,24 +342,23 @@
 	function initSharedTitleTransition() {
 		root = document.querySelector<HTMLElement>('[data-shared-title-transition]') ?? null;
 		carrier = root?.querySelector<HTMLElement>('[data-shared-title-carrier]') ?? null;
-		veil = root?.querySelector<HTMLElement>('[data-shared-title-veil]') ?? null;
+		exposure = root?.querySelector<HTMLElement>('[data-shared-title-exposure]') ?? null;
+		label = root?.querySelector<HTMLElement>('[data-shared-title-label]') ?? null;
+		// 上一次旅程被浏览器缓存打断时会残留行内覆盖态；非旅程状态下直接归零。
+		if (!journeyActive && exposure) exposure.style.removeProperty('opacity');
 	}
 
 	initSharedTitleTransition();
 	document.addEventListener('astro:page-load', initSharedTitleTransition);
 	document.addEventListener('click', handleClick, true);
 	document.addEventListener('astro:before-preparation', prepareFallback);
-	// 抵达侧：fallback="swap" 模式下节点会被整体替换，先重查引用再揭幕，
-	// 保证持久化与非持久化两条路径都从覆盖态继续下落。
+	// 抵达侧：fallback="swap" 模式下节点会被整体替换，先重查引用再撤幕，
+	// 保证持久化与非持久化两条路径的曝光都从覆盖态继续退去。
 	document.addEventListener('astro:after-swap', () => {
 		initSharedTitleTransition();
 		completeFallback();
 		if (!journeyActive) return;
-		if (window.location.pathname !== '/about/') {
-			hardReset();
-			return;
-		}
-		beginVeilLift();
+		beginExposureFall();
 	});
 	window.addEventListener('pageshow', (event) => {
 		if (event.persisted) hardReset();
@@ -355,20 +379,25 @@
 	}
 
 	/*
-	 * 纸幕：与当前天气同系的纸面（--weather-surface 随 rain/clear/night 重写，
-	 * 夜间比页面底色亮一档以保持可读的幕体），叠 archive-fiber 纤维纹理；
-	 * 底缘一条玻璃墨线充当雨帘前缘。平时停在视口上方（translateY(-102%)），
-	 * 编排时经 WAAPI 落下并继续落出。
+	 * 曝光幕：不滑动、无边缘，只做透明度呼吸。基色取天气光晕与纸面的调和
+	 * （--weather-glow 在雨/晴/夜三档都有合适亮度：雨天浅青、晴天近白、夜间
+	 * 中亮的青，避免夜间被漂白成刺目闪屏），上亮下沉的极浅渐变模拟暗房灯箱，
+	 * 叠 archive-fiber 纤维维持档案质感。平时完全透明，编拍时由 WAAPI 涨满再退去。
 	 */
-	.shared-title-transition__veil {
+	.shared-title-transition__exposure {
 		position: fixed;
 		inset: 0;
-		transform: translateY(-102%);
-		background-color: var(--weather-surface);
-		will-change: transform;
+		opacity: 0;
+		background: linear-gradient(
+			180deg,
+			color-mix(in srgb, var(--weather-glow) 52%, var(--weather-surface)) 0%,
+			color-mix(in srgb, var(--weather-glow) 34%, var(--weather-surface)) 64%,
+			color-mix(in srgb, var(--weather-glow) 22%, var(--weather-surface)) 100%
+		);
+		will-change: opacity;
 	}
 
-	.shared-title-transition__veil::before {
+	.shared-title-transition__exposure::before {
 		position: absolute;
 		inset: 0;
 		content: '';
@@ -377,16 +406,7 @@
 		mix-blend-mode: var(--weather-fiber-blend, multiply);
 	}
 
-	.shared-title-transition__veil::after {
-		position: absolute;
-		inset: auto 0 -1px 0;
-		height: 1px;
-		content: '';
-		background: var(--weather-glass-line);
-		opacity: 0.5;
-	}
-
-	.shared-title-transition__veil-label {
+	.shared-title-transition__label {
 		position: absolute;
 		left: 28px;
 		bottom: 24px;

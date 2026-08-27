@@ -39,7 +39,6 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 		<meta name="generator" content={Astro.generator} />
 		<meta name="description" content={description} />
 		<meta name="theme-color" content="#ebedec" />
-		<meta name="theme-color" content="#0d1216" media="(prefers-color-scheme: dark)" />
 		<link rel="canonical" href={canonical} />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<link rel="alternate" type="application/rss+xml" title="Aria-7 RSS" href="/rss.xml" />
@@ -85,11 +84,15 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 				animation-timing-function: var(--ease-rain, ease);
 			}
 
-			/* 首页与关于页的其余内容直接交换，只让 Aria-7 承担连续运动。 */
-			::view-transition-old(root),
-			::view-transition-new(root) {
-				animation: none;
-				mix-blend-mode: normal;
+			/*
+			 * 根元素退出视图转场分组：整页不再被快照冻结，换页瞬间即是活层。
+			 * 「纸面显影」的到达编排（曝光退去 + about 显影级联）因此在标题飞行
+			 * 期间实时演出，而不是被冻在幕后等飞行结束才被硬掀开；遮住换帧的
+			 * 职责交给 SharedTitleTransition 自己的曝光幕。不支持该值的浏览器
+			 * 会回退到旧行为（根快照盖场），曝光幕的行内覆盖态仍能兜住换帧。
+			 */
+			html {
+				view-transition-name: none;
 			}
 
 			@media (prefers-reduced-motion: reduce) {
@@ -112,7 +115,7 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 				}
 				const initial = modes.has(saved)
 					? saved
-					: (matchMedia('(prefers-color-scheme: dark)').matches ? 'night' : 'rain');
+					: 'rain';
 				document.documentElement.dataset.weatherMode = initial;
 				document.documentElement.dataset.theme = initial === 'night' ? 'night' : 'light';
 				document.documentElement.style.colorScheme = initial === 'night' ? 'dark' : 'light';

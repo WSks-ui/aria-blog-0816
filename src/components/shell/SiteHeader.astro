@@ -24,7 +24,14 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 ---
 
 <header class="site-header" data-site-header>
-	<a class="site-brand" href="/" aria-label="Aria-7 首页">
+	{/* 品牌链接只在关于页承担「纸面显影」的返回入口；其他页面保持普通导航，
+	    编排由 SharedTitleTransition 的镜像路由守卫（/ ↔ /about）统一把关。 */}
+	<a
+		class="site-brand"
+		href="/"
+		aria-label="Aria-7 首页"
+		data-aria7-title-transition-link={pathname === '/about/' ? '' : undefined}
+	>
 		<img src="/assets/brand/rain-archive-mark.svg" alt="" width="40" height="40" />
 		<span class="site-brand__name">Aria-7</span>
 		<span class="site-brand__meta">RAIN ARCHIVE / 001</span>
