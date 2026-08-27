@@ -1,39 +1,109 @@
 ---
-import { GitBranch, Mail, Rss } from '@lucide/astro';
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { ArrowLeft, GitBranch, Mail, Rss, Users } from '@lucide/astro';
 import PageHeader from '@/components/content/PageHeader.astro';
 import BaseLayout from '@/layouts/BaseLayout.astro';
 
 // 个人入口由公开环境变量注入；缺少配置时只保留站内 RSS，不暴露伪造的联系方式。
 const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim() || '';
 const contactEmail = import.meta.env.PUBLIC_CONTACT_EMAIL?.trim() || '';
+const qqGroupUrl = import.meta.env.PUBLIC_QQ_GROUP_URL?.trim() || '';
+
+/*
+ * 肖像真图：把照片放进 public/assets/about/portrait.{avif,webp,jpg,jpeg,png}
+ * 即在构建时自动启用（同多张时按此优先级取第一张）；缺图回退现有占位 SVG。
+ */
+const PORTRAIT_EXTENSIONS = ['avif', 'webp', 'jpg', 'jpeg', 'png'];
+let portraitFile: string | null = null;
+try {
+	const files = readdirSync(join(process.cwd(), 'public', 'assets', 'about'));
+	portraitFile = files
+		.map((file) => ({ file, ext: file.split('.').pop()?.toLowerCase() ?? '' }))
+		.filter(({ ext }) => PORTRAIT_EXTENSIONS.includes(ext))
+		.sort((a, b) => PORTRAIT_EXTENSIONS.indexOf(a.ext) - PORTRAIT_EXTENSIONS.indexOf(b.ext))[0]?.file ?? null;
+} catch {
+	// 目录尚未创建时静默保持占位图，不阻断构建。
+}
+const portraitUrl = portraitFile ? `/assets/about/${portraitFile}` : '/assets/patterns/umbrella-field.svg';
+
+/*
+ * 自我介绍打字机：构建期把每条切分为 token（中文逐字、英文与数字整词、
+ * 空白成组），每个 token 一个透明占位的 span，按 --char-i 错时显现——
+ * 布局从首帧就是最终形态，逐字浮现不推挤页面。链接段整体保持 <a> 语义。
+ */
+const tokenizeFact = (text: string): string[] => text.match(/\s+|[A-Za-z0-9]+|./gs) ?? [];
+
+type FactSegment = { t: string; link?: boolean };
+const factSegments: FactSegment[][] = [
+	[{ t: '在读 29 届大学生，对人工智能方向很感兴趣，目前正在兴趣导向地学习。' }],
+	[{ t: '喜欢把时间花在有趣的事情上。' }],
+	[{ t: '常用 Python · TypeScript · JavaScript · Astro · C · 鸿蒙。这个博客就是用 Astro 写的。' }],
+	contactEmail
+		? [{ t: '很乐意免费参与有趣的项目和想法，欢迎随时给我' }, { t: '发邮件', link: true }, { t: '。' }]
+		: [{ t: '很乐意免费参与有趣的项目和想法，欢迎随时给我发邮件。' }],
+	[{ t: '如果你对我正在做的事感兴趣，欢迎一起来做。' }],
+];
+const factLines = factSegments.map((segments) => {
+	let cursor = 0;
+	return segments.map((segment) => {
+		const tokens = tokenizeFact(segment.t);
+		const start = cursor;
+		cursor += tokens.length;
+		return { ...segment, tokens, start };
+	});
+});
 ---
 
 <BaseLayout title="关于" description="关于 Aria-7 与这个个人档案站。">
 	<div class="page-shell about-page">
 		<div class="about-header">
-			<PageHeader eyebrow="PROFILE / ARIA-7" title="关于 Aria-7" sharedTitle="Aria-7" description="这里保存正在学习、制作和观察的事物，也记录它们如何慢慢形成可复用的经验。" />
+			<PageHeader eyebrow="PROFILE / ARIA-7" title="关于 Aria-7" sharedTitle="Aria-7" />
 		</div>
 		<section class="about-grid">
 			<div class="about-portrait" aria-hidden="true">
-				<img src="/assets/patterns/umbrella-field.svg" alt="" width="700" height="900" />
+				<img src={portraitUrl} alt="" width="700" height="900" />
 				<span>VISUAL ARCHIVE / RAIN STUDY</span>
 			</div>
-			<div class="about-copy prose">
-				<h2 style="--reveal-order: 0">现在</h2>
-				<p style="--reveal-order: 1">Aria-7 是一个持续整理中的个人档案站，记录随笔、学习笔记、项目、底片、代码与可重复实践的指南。内容会随着新的实验和阅读继续增长。</p>
-				<h2 style="--reveal-order: 2">关注的主题</h2>
-				<ul style="--reveal-order: 3">
-					<li>前端开发与界面设计</li>
-					<li>学习方法与知识整理</li>
-					<li>开源项目与小型工具</li>
-					<li>摄影、插画与视觉观察</li>
+			<div class="about-copy">
+				{/* 文案由站长本人提供，学 lvy 主页的清单式自我介绍；技术栈取自 GitHub 公开仓库。 */}
+				<p class="about-greet" style="--reveal-order: 0">Hi，我是 Aria-7。</p>
+				<ul class="about-facts">
+					{factLines.map((segments, i) => (
+						<li style={`--reveal-order: ${i + 1}`}>
+							{segments.map((segment) =>
+								segment.link ? (
+									<a href={`mailto:${contactEmail}`}>
+										{segment.tokens.map((ch, j) => (
+											<span class="ch" style={`--char-i: ${segment.start + j}`}>{ch}</span>
+										))}
+									</a>
+								) : (
+									segment.tokens.map((ch, j) => (
+										<span class="ch" style={`--char-i: ${segment.start + j}`}>{ch}</span>
+									))
+								)
+							)}
+						</li>
+					))}
 				</ul>
-				<h2 style="--reveal-order: 4">联系</h2>
-				<div class="about-links" style="--reveal-order: 5">
+				<div class="about-links" style="--reveal-order: 6">
 					{githubUrl && <a href={githubUrl} rel="noopener noreferrer"><GitBranch size={18} stroke-width={1.5} aria-hidden="true" /> GitHub</a>}
 					{contactEmail && <a href={`mailto:${contactEmail}`}><Mail size={18} stroke-width={1.5} aria-hidden="true" /> 邮箱</a>}
 					<a href="/rss.xml" data-astro-reload><Rss size={18} stroke-width={1.5} aria-hidden="true" /> RSS</a>
+					{/* QQ 群：配置了分享链接就是一键加群入口，否则回退为群号展示。 */}
+					{qqGroupUrl ? (
+						<a href={qqGroupUrl} target="_blank" rel="noopener noreferrer"><Users size={18} stroke-width={1.5} aria-hidden="true" /> QQ 群</a>
+					) : (
+						<span class="about-links__static"><Users size={18} stroke-width={1.5} aria-hidden="true" /> QQ 群 701267561</span>
+					)}
 				</div>
+				{/* 与首页「关于我 →」同构的镜像返回入口：挂在同一镜像路由守卫下，
+				    点击即走「纸面显影」返回编排；不加该标记时仍是普通返回路径。 */}
+				<a class="about-return" href="/" data-aria7-title-transition-link style="--reveal-order: 7">
+					<ArrowLeft size={20} stroke-width={1.5} aria-hidden="true" />
+					<span>返回首页</span>
+				</a>
 			</div>
 		</section>
 	</div>
@@ -41,11 +111,15 @@ const contactEmail = import.meta.env.PUBLIC_CONTACT_EMAIL?.trim() || '';
 
 <style is:global>
 	/*
-	 * 「纸面显影」到达编排：纸幕落定后基线先画出，页头元数据与肖像随之显影，
-	 * 正文按 --reveal-order 逐条落定。键帧与引用全部收在同一个全局块里，
-	 * 避免 scoped 与 global 混用时 dev/build 的键帧改名差异；规则都用
+	 * 「离场呼吸 + 到达显影」双拍（about 侧）：
+	 * 到达——曝光幕退去的同时 eyebrow 页头栏先落定，标题下基线从左画出，
+	 * 描述与肖像 clip-path 展开随后，正文按 --reveal-order 以 65ms 字面错拍
+	 * 落定：末项约 0.97s 收束，正文 0.25s 起可读。键帧与引用全部收在同一个
+	 * 全局块里，避免 scoped 与 global 混用时 dev/build 的键帧改名差异；规则用
 	 * .about-page 前缀限定作用域。直接访问本页时同一套级联充当入场，
 	 * reduced-motion 下由 motion.css 一级兜底瞬时到达并把延迟清零。
+	 * 离场——点击返回首页时同一 html 标记驱动反向呼吸：文案组错峰上浮退场，
+	 * 巨型标题微微上浮，交由命名 View Transition 接力飞行。
 	 */
 	@keyframes about-rise {
 		from { opacity: 0; transform: translateY(14px); }
@@ -54,8 +128,8 @@ const contactEmail = import.meta.env.PUBLIC_CONTACT_EMAIL?.trim() || '';
 
 	@keyframes about-baseline {
 		0% { opacity: 0; transform: scaleX(0); }
-		16% { opacity: 0.5; }
-		44%, 70% { opacity: 0.42; transform: scaleX(1); }
+		16% { opacity: 0.55; }
+		46%, 66% { opacity: 0.45; transform: scaleX(1); }
 		100% { opacity: 0; transform: scaleX(1); }
 	}
 
@@ -69,6 +143,26 @@ const contactEmail = import.meta.env.PUBLIC_CONTACT_EMAIL?.trim() || '';
 		to { transform: scale(1); }
 	}
 
+	@keyframes about-exit-rise {
+		from { opacity: 1; transform: translateY(0); }
+		to { opacity: 0; transform: translateY(-8px); }
+	}
+
+	@keyframes about-type-in {
+		from { opacity: 0; }
+		to { opacity: 1; }
+	}
+
+	@keyframes about-title-lift {
+		from { opacity: 1; transform: translateY(0); }
+		to { opacity: 1; transform: translateY(-8px); }
+	}
+
+	@keyframes about-portrait-exit {
+		from { opacity: 1; }
+		to { opacity: 0; }
+	}
+
 	/* 页头基线：沿页头既有底线画一条青色墨线，画出后自行隐去，页面恢复原设计。 */
 	.about-page .about-header { position: relative; }
 	.about-page .about-header::after {
@@ -80,22 +174,56 @@ const contactEmail = import.meta.env.PUBLIC_CONTACT_EMAIL?.trim() || '';
 		opacity: 0;
 		transform: scaleX(0);
 		transform-origin: left center;
-		animation: about-baseline 1400ms var(--ease-rain) 140ms both;
+		animation: about-baseline 1100ms var(--ease-rain) 130ms both;
 	}
 
-	.about-page .page-header__rail { animation: about-rise 420ms var(--ease-rain) 160ms both; }
-	.about-page .page-header__mark { animation: about-rise 480ms var(--ease-rain) 200ms both; }
-	.about-page .page-header p { animation: about-rise 440ms var(--ease-rain) 240ms both; }
+	/* 到达显影顺序：页头栏 → 基线 → 描述 → 肖像展开 → 正文条目。 */
+	.about-page .page-header__rail { animation: about-rise 400ms var(--ease-rain) 110ms both; }
+	.about-page .page-header__mark { animation: about-rise 440ms var(--ease-rain) 150ms both; }
+	.about-page .page-header p { animation: about-rise 420ms var(--ease-rain) 200ms both; }
 
 	/* 肖像显影：容器自上而下揭开（clip-path），图像同时从轻缩放落定。 */
-	.about-page .about-portrait { animation: about-develop 560ms var(--ease-rain) 260ms both; }
-	.about-page .about-portrait img { animation: about-develop-img 640ms var(--ease-rain) 260ms both; }
+	.about-page .about-portrait { animation: about-develop 560ms var(--ease-rain) 240ms both; }
+	.about-page .about-portrait img { animation: about-develop-img 620ms var(--ease-rain) 240ms both; }
 
-	/* 正文条目在纸幕上抬过半时开始逐条落定，0.4s 左右首屏已可读。 */
+	/* 正文条目 65ms 错拍落定，透过正在退去的曝光幕 0.25s 左右即可读。 */
 	.about-page .about-copy > * {
-		animation: about-rise 420ms var(--ease-rain) both;
-		animation-delay: calc(300ms + var(--reveal-order, 0) * 70ms);
+		animation: about-rise 400ms var(--ease-rain) both;
+		animation-delay: calc(250ms + var(--reveal-order, 0) * 65ms);
 	}
+
+	/*
+	 * 自我介绍打字机：清单整体不再淡入（布局占位由透明 token 承担），每个
+	 * token 在所属条目的节拍上依 --char-i 以 26ms 字面步进从左到右亮起；
+	 * 行内方点跟随条目第一个字同时落点，不在空行上提前亮出。约 1.4s 收束。
+	 */
+	.about-page .about-facts { animation: none; }
+	.about-page .about-facts .ch {
+		opacity: 0;
+		animation: about-type-in 1ms linear both;
+		animation-delay: calc(430ms + var(--reveal-order, 1) * 70ms + var(--char-i, 0) * 26ms);
+	}
+	.about-page .about-facts li::before {
+		opacity: 0;
+		animation: about-type-in 1ms linear both;
+		animation-delay: calc(430ms + var(--reveal-order, 1) * 70ms);
+	}
+
+	/*
+	 * 离场呼吸：标记挂上后文案组按 fast 档字面错拍上浮退场，巨型标题微微
+	 * 上浮保持可见。选择器链比到达规则高一级，确保覆盖已完成的入场填充；
+	 * 曝光幕同时从 SharedTitleTransition 涨满接管画面。
+	 */
+	html[data-title-veil='leaving'] .about-page .page-header__rail { animation: about-exit-rise 180ms var(--ease-drift) both; }
+	html[data-title-veil='leaving'] .about-page .page-header__mark { animation: about-exit-rise 200ms var(--ease-drift) 30ms both; }
+	html[data-title-veil='leaving'] .about-page .page-header p { animation: about-exit-rise 180ms var(--ease-drift) 50ms both; }
+	html[data-title-veil='leaving'] .about-page .about-portrait,
+	html[data-title-veil='leaving'] .about-page .about-portrait img { animation: about-portrait-exit 220ms var(--ease-drift) both; }
+	html[data-title-veil='leaving'] .about-page .about-copy > * {
+		animation: about-exit-rise 200ms var(--ease-drift) both;
+		animation-delay: calc(var(--reveal-order, 0) * 30ms);
+	}
+	html[data-title-veil='leaving'] .about-page .page-header h1 { animation: about-title-lift 280ms var(--ease-drift) 30ms both; }
 
 	@media (prefers-reduced-motion: reduce) {
 		.about-page .about-header::after,
@@ -105,6 +233,10 @@ const contactEmail = import.meta.env.PUBLIC_CONTACT_EMAIL?.trim() || '';
 		.about-page .page-header__rail,
 		.about-page .page-header__mark,
 		.about-page .page-header p { animation-delay: 0ms; }
+
+		/* 打字机是正文内容动效：减弱动态时跳过逐字节奏，全文直接可读。 */
+		.about-page .about-facts .ch,
+		.about-page .about-facts li::before { animation: none; opacity: 1; }
 	}
 </style>
 
@@ -116,10 +248,23 @@ const contactEmail = import.meta.env.PUBLIC_CONTACT_EMAIL?.trim() || '';
 	.about-portrait img { width: 100%; height: 100%; object-fit: cover; }
 	.about-portrait span { position: absolute; left: 18px; bottom: 16px; font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
 	.about-copy { padding-top: 24px; }
-	.about-links { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 28px; border-block: 1px solid var(--line); }
-	.about-links a { display: flex; min-height: 64px; align-items: center; gap: 10px; padding-inline: 12px; border-right: 1px solid var(--line); font-family: var(--font-ui); font-size: 11px; color: var(--ink); text-decoration: none; }
-	.about-links a:last-child { border-right: 0; }
+
+	/* 清单式自我介绍（学 lvy 主页）：问候 + 方点短句，行距放宽，不再写文档腔。 */
+	.about-greet { margin: 0 0 24px; font-size: 22px; font-weight: 500; }
+	.about-facts { display: grid; gap: 18px; margin: 0 0 40px; padding: 0; list-style: none; }
+	.about-facts li { position: relative; padding-left: 22px; line-height: 1.9; }
+	.about-facts li::before { position: absolute; top: 0.92em; left: 2px; width: 5px; height: 5px; content: ''; background: var(--weather-accent); }
+	.about-facts a { color: var(--accent-strong); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.22em; }
+	.about-facts a:hover { text-decoration-thickness: 2px; }
+	.about-links { display: grid; grid-template-columns: repeat(2, 1fr); margin-top: 28px; border-block: 1px solid var(--line); }
+	.about-links a, .about-links .about-links__static { display: flex; min-height: 64px; align-items: center; gap: 10px; padding-inline: 12px; border-right: 1px solid var(--line); font-family: var(--font-ui); font-size: 11px; color: var(--ink); text-decoration: none; }
+	.about-links a:last-child, .about-links .about-links__static:last-child { border-right: 0; }
+
+	/* 「← 返回首页」与首页「关于我 →」同构：同一按钮语法，箭头朝左、悬停反向位移。 */
+	.about-return { display: inline-flex; min-height: 44px; align-items: center; gap: 18px; margin-top: 30px; padding: 0 18px 0 14px; border: 1px solid var(--ink); background: color-mix(in srgb, var(--paper-0) 86%, transparent); font-family: var(--font-ui); font-size: 11px; color: var(--ink); text-decoration: none; backdrop-filter: blur(10px); }
+	.about-return svg { transition: transform var(--duration-base) var(--ease-rain); }
+	.about-return:hover svg { transform: translateX(-4px); }
 
 	@media (max-width: 900px) { .about-grid { grid-template-columns: 1fr; } .about-portrait { min-height: 420px; } }
-	@media (max-width: 760px) { .page-shell { padding-inline: 20px; } .about-links { grid-template-columns: 1fr; } .about-links a { border-right: 0; border-bottom: 1px solid var(--line); } }
+		@media (max-width: 760px) { .page-shell { padding-inline: 20px; } .about-links { grid-template-columns: 1fr; } .about-links a, .about-links .about-links__static { border-right: 0; border-bottom: 1px solid var(--line); } }
 </style>
