@@ -77,16 +77,12 @@ const {
       const buttons = Array.from(
         root.querySelectorAll<HTMLButtonElement>('[data-weather-mode-value]'),
       );
-      const darkPreference = window.matchMedia('(prefers-color-scheme: dark)');
       const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-      let hasStoredPreference = false;
 
       const readStoredMode = (): WeatherMode | null => {
         try {
           const value = localStorage.getItem(storageKey);
-          const mode = isWeatherMode(value) ? value : null;
-          hasStoredPreference = mode !== null;
-          return mode;
+          return isWeatherMode(value) ? value : null;
         } catch {
           return null;
         }
@@ -123,7 +119,6 @@ const {
         if (persist) {
           try {
             localStorage.setItem(storageKey, mode);
-            hasStoredPreference = true;
           } catch {
             // 隐私模式可能禁用存储；主题仍在当前页面立即生效。
           }
@@ -161,7 +156,8 @@ const {
       };
 
       const storedMode = readStoredMode();
-      requestMode(storedMode ?? (darkPreference.matches ? 'night' : 'rain'), false, true);
+      // 首访默认固定为 Rain，不再跟随系统深浅色偏好；读者手动切换后才记住选择。
+      requestMode(storedMode ?? 'rain', false, true);
 
       buttons.forEach((button) => {
         button.addEventListener('click', () => {
@@ -190,15 +186,10 @@ const {
         if (mode && isWeatherMode(mode)) requestMode(mode, true);
       });
 
-      darkPreference.addEventListener('change', (event) => {
-        if (!hasStoredPreference) requestMode(event.matches ? 'night' : 'rain');
-      });
-
       window.addEventListener('storage', (event) => {
         if (event.key !== storageKey && event.key !== null) return;
         const mode = isWeatherMode(event.newValue) ? event.newValue : null;
-        hasStoredPreference = mode !== null;
-        requestMode(mode ?? (darkPreference.matches ? 'night' : 'rain'));
+        requestMode(mode ?? 'rain');
       });
     });
   }
