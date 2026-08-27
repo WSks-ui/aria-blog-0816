@@ -1,0 +1,237 @@
+<div class="shared-title-transition" data-shared-title-transition transition:persist="aria7-title-carrier" aria-hidden="true">
+	<span class="shared-title-transition__carrier" data-shared-title-carrier>Aria-7</span>
+</div>
+
+<script>
+	type Rect = {
+		left: number;
+		top: number;
+		width: number;
+		height: number;
+	};
+
+	type TitleStyle = {
+		fontFamily: string;
+		fontSize: string;
+		fontWeight: string;
+		fontStretch: string;
+		fontStyle: string;
+		fontVariant: string;
+		lineHeight: string;
+		letterSpacing: string;
+		color: string;
+		textTransform: string;
+		fontFeatureSettings: string;
+		fontVariationSettings: string;
+	};
+
+	type PendingTransition = {
+		rect: Rect;
+		style: TitleStyle;
+	};
+
+	type TransitionPreparationEvent = Event & {
+		sourceElement?: Element | null;
+	};
+
+	const FALLBACK_DURATION = 420;
+	let pendingTransition: PendingTransition | null = null;
+	let pendingTimer = 0;
+	let carrierAnimation: Animation | null = null;
+	let targetAnimation: Animation | null = null;
+	let source: HTMLElement | null = null;
+	let target: HTMLElement | null = null;
+	let sourceOpacity = '';
+	let sourceOpacityPriority = '';
+	let targetOpacity = '';
+	let targetOpacityPriority = '';
+
+	const getRect = (element: Element): Rect => {
+		const rect = element.getBoundingClientRect();
+		return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+	};
+
+	const isValidRect = (rect: Rect) => rect.width > 0 && rect.height > 0;
+
+	const getStyle = (element: HTMLElement): TitleStyle => {
+		const style = getComputedStyle(element);
+		return {
+			fontFamily: style.fontFamily,
+			fontSize: style.fontSize,
+			fontWeight: style.fontWeight,
+			fontStretch: style.fontStretch,
+			fontStyle: style.fontStyle,
+			fontVariant: style.fontVariant,
+			lineHeight: style.lineHeight,
+			letterSpacing: style.letterSpacing,
+			color: style.color,
+			textTransform: style.textTransform,
+			fontFeatureSettings: style.fontFeatureSettings,
+			fontVariationSettings: style.fontVariationSettings,
+		};
+	};
+
+	const setCarrierStyle = (carrier: HTMLElement, rect: Rect, style: TitleStyle) => {
+		carrier.style.left = `${rect.left}px`;
+		carrier.style.top = `${rect.top}px`;
+		carrier.style.width = `${rect.width}px`;
+		carrier.style.height = `${rect.height}px`;
+		carrier.style.fontFamily = style.fontFamily;
+		carrier.style.fontSize = style.fontSize;
+		carrier.style.fontWeight = style.fontWeight;
+		carrier.style.fontStretch = style.fontStretch;
+		carrier.style.fontStyle = style.fontStyle;
+		carrier.style.fontVariant = style.fontVariant;
+		carrier.style.lineHeight = style.lineHeight;
+		carrier.style.letterSpacing = style.letterSpacing;
+		carrier.style.color = style.color;
+		carrier.style.textTransform = style.textTransform;
+		carrier.style.fontFeatureSettings = style.fontFeatureSettings;
+		carrier.style.fontVariationSettings = style.fontVariationSettings;
+		carrier.style.opacity = '1';
+		carrier.style.transform = 'translate3d(0, 0, 0) scale(1)';
+	};
+
+	const restoreOpacity = (element: HTMLElement | null, value: string, priority: string) => {
+		if (!element) return;
+		if (value) {
+			element.style.setProperty('opacity', value, priority);
+		} else {
+			element.style.removeProperty('opacity');
+		}
+	};
+
+	const reset = (carrier: HTMLElement) => {
+		window.clearTimeout(pendingTimer);
+		pendingTimer = 0;
+		carrierAnimation?.cancel();
+		targetAnimation?.cancel();
+		carrierAnimation = null;
+		targetAnimation = null;
+		restoreOpacity(source, sourceOpacity, sourceOpacityPriority);
+		restoreOpacity(target, targetOpacity, targetOpacityPriority);
+		source = null;
+		target = null;
+		sourceOpacity = '';
+		sourceOpacityPriority = '';
+		targetOpacity = '';
+		targetOpacityPriority = '';
+		pendingTransition = null;
+		carrier.removeAttribute('style');
+	};
+
+	function initSharedTitleTransition() {
+		const root = document.querySelector<HTMLElement>('[data-shared-title-transition]');
+		const carrier = root?.querySelector<HTMLElement>('[data-shared-title-carrier]');
+		if (!root || !carrier || root.dataset.interactiveReady === 'true') return;
+		root.dataset.interactiveReady = 'true';
+
+		const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+		const supportsNativeTransition = typeof document.startViewTransition === 'function';
+
+		const prepareFallback = (event: TransitionPreparationEvent) => {
+			if (reduceMotion.matches || supportsNativeTransition) {
+				return;
+			}
+			const trigger = event.sourceElement instanceof Element
+				? event.sourceElement.closest<HTMLAnchorElement>('a[data-aria7-title-transition-link]')
+				: null;
+			if (!trigger || trigger.target || trigger.hasAttribute('download')) {
+				return;
+			}
+			const destination = new URL(trigger.href, window.location.href);
+			if (destination.origin !== window.location.origin || destination.pathname !== '/about/') {
+				return;
+			}
+			const title = document.querySelector<HTMLElement>('[data-aria7-title-transition]');
+			if (!title) {
+				return;
+			}
+
+			const rect = getRect(title);
+			if (!isValidRect(rect)) {
+				return;
+			}
+			reset(carrier);
+			source = title;
+			sourceOpacity = title.style.getPropertyValue('opacity');
+			sourceOpacityPriority = title.style.getPropertyPriority('opacity');
+			setCarrierStyle(carrier, rect, getStyle(title));
+			title.style.setProperty('opacity', '0', 'important');
+			pendingTransition = { rect, style: getStyle(title) };
+			// 取页失败或被新导航取消时恢复源标题，防止持久载体长时间占住首屏。
+			pendingTimer = window.setTimeout(() => reset(carrier), 1800);
+		};
+
+		const completeFallback = () => {
+			if (!pendingTransition || reduceMotion.matches || supportsNativeTransition) return;
+			const title = document.querySelector<HTMLElement>('[data-aria7-title-transition]');
+			if (!title) {
+				reset(carrier);
+				return;
+			}
+			const destinationRect = getRect(title);
+			if (!isValidRect(destinationRect)) {
+				reset(carrier);
+				return;
+			}
+
+			target = title;
+			targetOpacity = title.style.getPropertyValue('opacity');
+			targetOpacityPriority = title.style.getPropertyPriority('opacity');
+			title.style.setProperty('opacity', '0');
+			const { rect } = pendingTransition;
+			const finalTransform = `translate3d(${destinationRect.left - rect.left}px, ${destinationRect.top - rect.top}px, 0) scale(${destinationRect.width / rect.width}, ${destinationRect.height / rect.height})`;
+			carrierAnimation = carrier.animate([
+				{ transform: 'translate3d(0, 0, 0) scale(1)', opacity: 1, offset: 0 },
+				{ transform: finalTransform, opacity: 1, offset: 0.8 },
+				{ transform: finalTransform, opacity: 0, offset: 1 },
+			], {
+				duration: FALLBACK_DURATION,
+				easing: 'cubic-bezier(0.22, 0.75, 0.28, 1)',
+				fill: 'forwards',
+			});
+			targetAnimation = title.animate(
+				[{ opacity: 0 }, { opacity: 1 }],
+				{ duration: 110, delay: FALLBACK_DURATION - 110, easing: 'ease-out', fill: 'forwards' },
+			);
+			Promise.allSettled([carrierAnimation.finished, targetAnimation.finished]).then(() => reset(carrier));
+		};
+
+		// ClientRouter 已确认本次导航并取得目标文档后才触发该事件。后备载体在此刻
+		// 接管首页标题，与路由器共用同一条导航事务，不会和链接点击监听器竞争时机。
+		document.addEventListener('astro:before-preparation', prepareFallback);
+		document.addEventListener('astro:after-swap', completeFallback);
+		window.addEventListener('pageshow', () => reset(carrier));
+	}
+
+	initSharedTitleTransition();
+	document.addEventListener('astro:page-load', initSharedTitleTransition);
+</script>
+
+<style>
+	.shared-title-transition {
+		position: fixed;
+		inset: 0;
+		z-index: var(--z-route);
+		pointer-events: none;
+	}
+
+	.shared-title-transition__carrier {
+		position: fixed;
+		box-sizing: border-box;
+		display: inline-block;
+		margin: 0;
+		padding: 0;
+		white-space: nowrap;
+		pointer-events: none;
+		opacity: 0;
+		transform-origin: top left;
+		will-change: transform, opacity;
+		text-rendering: geometricPrecision;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.shared-title-transition { display: none; }
+	}
+</style>

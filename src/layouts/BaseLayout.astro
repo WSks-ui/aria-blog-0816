@@ -4,7 +4,9 @@ import SiteFrame from '@/components/shell/SiteFrame.astro';
 import SiteHeader from '@/components/shell/SiteHeader.astro';
 import RainField from '@/components/visual/RainField.astro';
 import RouteTransition from '@/components/visual/RouteTransition.astro';
+import SharedTitleTransition from '@/components/visual/SharedTitleTransition.astro';
 import WeatherTransition from '@/components/visual/WeatherTransition.astro';
+import { ClientRouter } from 'astro:transitions';
 import { InteractionSurface, Lightbox, SearchDialog, TooltipLayer, WeatherModeControl } from '@/components/interactive';
 import '@/styles/global.css';
 
@@ -62,6 +64,7 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 			type="speculationrules"
 			set:html={JSON.stringify({ prefetch: [{ source: 'document', where: { href_matches: '/*' }, eagerness: 'moderate' }] })}
 		/>
+		<ClientRouter fallback="swap" />
 		<style is:inline>
 			/* 外部样式表尚未下载时先建立页面画布，避免完整页面导航暴露浏览器默认白底。 */
 			html { background-color: #ebedec; }
@@ -76,6 +79,22 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 			html[data-route-transition='slide-leaving'][data-route-direction='backward'] body { animation: aria7-nav-leave-backward 180ms var(--ease-drift, ease) both; }
 			html[data-route-arrival='slide'][data-route-direction='forward'] body { animation: aria7-nav-arrive-forward 240ms var(--ease-drift, ease) both; }
 			html[data-route-arrival='slide'][data-route-direction='backward'] body { animation: aria7-nav-arrive-backward 240ms var(--ease-drift, ease) both; }
+			/* 命名标题由浏览器保存旧、新快照并插值位置；不再跨文档重建克隆节点。 */
+			::view-transition-group(aria7-title) {
+				animation-duration: var(--duration-arrival, 560ms);
+				animation-timing-function: var(--ease-rain, ease);
+			}
+
+			/* 首页与关于页的其余内容直接交换，只让 Aria-7 承担连续运动。 */
+			::view-transition-old(root),
+			::view-transition-new(root) {
+				animation: none;
+				mix-blend-mode: normal;
+			}
+
+			@media (prefers-reduced-motion: reduce) {
+				::view-transition-group(aria7-title) { animation-duration: 1ms; }
+			}
 			@keyframes aria7-nav-leave-forward { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(-18px); } }
 			@keyframes aria7-nav-leave-backward { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(18px); } }
 			@keyframes aria7-nav-arrive-forward { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: translateX(0); } }
@@ -84,6 +103,7 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 		<script is:inline>
 			(() => {
 				const modes = new Set(['clear', 'rain', 'night']);
+				const prefersReducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 				let saved = null;
 				try {
 					saved = localStorage.getItem('aria7-weather-mode');
@@ -104,7 +124,11 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 					if (arrivalValue) {
 						sessionStorage.removeItem('aria7-route-arrival');
 						const arrival = JSON.parse(arrivalValue);
-						if (arrival?.pathname === location.pathname && arrival?.search === location.search) {
+						const arrivalAge = typeof arrival?.createdAt === 'number'
+							? Date.now() - arrival.createdAt
+							: Number.NaN;
+						const isFresh = Number.isFinite(arrivalAge) && arrivalAge >= 0 && arrivalAge < 5000;
+						if (!prefersReducedMotion && isFresh && arrival?.pathname === location.pathname && arrival?.search === location.search) {
 							const isSlide = arrival.mode === 'slide';
 							document.documentElement.dataset.routeArrival = isSlide ? 'slide' : 'scene';
 							if (isSlide) {
@@ -115,6 +139,7 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 				} catch {
 					// 会话存储不可用或旧标记格式失效时退化为普通页面抵达，不阻断主题初始化。
 				}
+
 			})();
 		</script>
 	</head>
@@ -124,6 +149,7 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 		<RainField />
 		<WeatherTransition />
 		<RouteTransition />
+		<SharedTitleTransition />
 		<InteractionSurface />
 		<TooltipLayer />
 		<SiteHeader pathname={Astro.url.pathname}>

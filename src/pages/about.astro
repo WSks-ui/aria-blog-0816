@@ -10,7 +10,7 @@ const contactEmail = import.meta.env.PUBLIC_CONTACT_EMAIL?.trim() || '';
 
 <BaseLayout title="关于" description="关于 Aria-7 与这个个人档案站。">
 	<div class="page-shell">
-		<PageHeader eyebrow="PROFILE / ARIA-7" title="关于 Aria-7" description="这里保存正在学习、制作和观察的事物，也记录它们如何慢慢形成可复用的经验。" />
+		<PageHeader eyebrow="PROFILE / ARIA-7" title="关于 Aria-7" sharedTitle="Aria-7" description="这里保存正在学习、制作和观察的事物，也记录它们如何慢慢形成可复用的经验。" />
 		<section class="about-grid">
 			<div class="about-portrait" aria-hidden="true">
 				<img src="/assets/patterns/umbrella-field.svg" alt="" width="700" height="900" />
@@ -30,7 +30,7 @@ const contactEmail = import.meta.env.PUBLIC_CONTACT_EMAIL?.trim() || '';
 				<div class="about-links">
 					{githubUrl && <a href={githubUrl} rel="noopener noreferrer"><GitBranch size={18} stroke-width={1.5} aria-hidden="true" /> GitHub</a>}
 					{contactEmail && <a href={`mailto:${contactEmail}`}><Mail size={18} stroke-width={1.5} aria-hidden="true" /> 邮箱</a>}
-					<a href="/rss.xml"><Rss size={18} stroke-width={1.5} aria-hidden="true" /> RSS</a>
+					<a href="/rss.xml" data-astro-reload><Rss size={18} stroke-width={1.5} aria-hidden="true" /> RSS</a>
 				</div>
 			</div>
 		</section>

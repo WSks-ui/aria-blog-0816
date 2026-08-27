@@ -4,11 +4,13 @@ interface Props {
 	title: string;
 	description?: string;
 	count?: number;
+	/** 将标题中的共享词组单独渲染，供命名 View Transition 匹配使用。 */
+	sharedTitle?: string;
 	/** 由页面语义决定标题区密度，避免页面组件依赖跨作用域 CSS 覆盖。 */
 	variant?: 'default' | 'photo' | 'tutorial';
 }
 
-const { eyebrow, title, description, count, variant = 'default' } = Astro.props;
+const { eyebrow, title, description, count, sharedTitle, variant = 'default' } = Astro.props;
 ---
 
 <header class:list={['page-header', variant !== 'default' && `page-header--${variant}`]}>
@@ -17,7 +19,14 @@ const { eyebrow, title, description, count, variant = 'default' } = Astro.props;
 		{count !== undefined && <strong>{String(count).padStart(2, '0')}</strong>}
 	</div>
 	<div class="page-header__main">
-		<h1>{title}</h1>
+		<h1 aria-label={title}>
+			{sharedTitle && title.endsWith(sharedTitle) ? (
+				<>
+					{title.slice(0, -sharedTitle.length)}
+					<span class="page-header__shared-title" data-aria7-title-transition transition:name="aria7-title">{sharedTitle}</span>
+				</>
+			) : title}
+		</h1>
 		{description && <p>{description}</p>}
 	</div>
 	<div class="page-header__mark" aria-hidden="true">
@@ -69,6 +78,8 @@ const { eyebrow, title, description, count, variant = 'default' } = Astro.props;
 		line-height: 1.16;
 		overflow-wrap: anywhere;
 	}
+
+	.page-header__shared-title { display: inline-block; white-space: nowrap; }
 
 	.page-header p {
 		max-width: 680px;

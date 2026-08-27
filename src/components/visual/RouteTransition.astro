@@ -23,6 +23,7 @@
 		const root = document.querySelector<HTMLElement>('[data-route-transition]');
 		if (!root || root.dataset.interactiveReady === 'true') return;
 		root.dataset.interactiveReady = 'true';
+		const lifecycle = new AbortController();
 
 		const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 		// 站内链接已由 Speculation Rules 在悬停时预取：目标页通常已在内存里，
@@ -48,36 +49,75 @@
 		let arrivalPrimeFrame = 0;
 		let arrivalFrame = 0;
 		let navigating = false;
+		let disposed = false;
+		let transitionSequence = 0;
 
-		const resetTransition = () => {
-			window.clearTimeout(navigationTimer);
+		const isCurrent = (sequence: number) => (
+			!disposed && !lifecycle.signal.aborted && sequence === transitionSequence
+		);
+
+		const clearArrivalWork = () => {
 			window.clearTimeout(arrivalTimer);
-			window.clearTimeout(safetyTimer);
 			window.cancelAnimationFrame(arrivalPrimeFrame);
 			window.cancelAnimationFrame(arrivalFrame);
+			arrivalTimer = 0;
+			arrivalPrimeFrame = 0;
+			arrivalFrame = 0;
+		};
+
+		const clearArrivalState = () => {
+			clearArrivalWork();
+			// 新导航开始时取消上一轮兜底计时，避免旧事务在本次离场中途误触发 reset。
+			window.clearTimeout(safetyTimer);
+			safetyTimer = 0;
+			root.classList.remove('is-arrival-ready', 'is-arriving');
+			delete document.documentElement.dataset.routeArrival;
+			delete document.documentElement.dataset.routeDirection;
+		};
+
+		const clearMarker = (key: string) => {
+			try {
+				window.sessionStorage.removeItem(key);
+			} catch {
+				// 隐私模式下 sessionStorage 可能完全不可用，视觉状态仍会被清理。
+			}
+		};
+
+		const writeMarker = (key: string, value: unknown) => {
+			try {
+				window.sessionStorage.setItem(key, JSON.stringify(value));
+				return true;
+			} catch {
+				return false;
+			}
+		};
+
+		const resetTransition = () => {
+			transitionSequence += 1;
+			window.clearTimeout(navigationTimer);
+			window.clearTimeout(safetyTimer);
+			navigationTimer = 0;
+			safetyTimer = 0;
+			clearArrivalWork();
 			navigating = false;
 			root.classList.remove('is-leaving', 'is-arrival-ready', 'is-arriving');
 			delete document.documentElement.dataset.routeTransition;
 			delete document.documentElement.dataset.routeArrival;
 			delete document.documentElement.dataset.routeDirection;
-			try {
-				window.sessionStorage.removeItem(ROUTE_ARRIVAL_KEY);
-			} catch {
-				// 会话存储不可用时无需额外清理，视觉状态仍由当前页面解除。
-			}
+			clearMarker(ROUTE_ARRIVAL_KEY);
 		};
 
 		const routeArrival = document.documentElement.dataset.routeArrival;
 		if (routeArrival === 'slide' && !reduceMotion.matches) {
 			// 主导航的入场动画由 BaseLayout 的内联 CSS 在首帧执行；这里只负责在动画
 			// 结束后清理 data 属性，避免浏览器后退或刷新时继承上一次的运动方向。
-			arrivalTimer = window.setTimeout(resetTransition, 260);
+			arrivalTimer = window.setTimeout(() => resetTransition(), 260);
 		} else if ((routeArrival === 'scene' || routeArrival === 'true') && !reduceMotion.matches) {
 			if (arrivedFromPrefetch) {
 				// 预取抵达时页面首帧已经完整，无需不透明遮罩接帧，直接开始退场。
 				root.classList.add('is-arriving');
 				delete document.documentElement.dataset.routeArrival;
-				arrivalTimer = window.setTimeout(resetTransition, 480);
+				arrivalTimer = window.setTimeout(() => resetTransition(), 480);
 			} else {
 				// 场景模式先用不透明遮罩接住 HTML 首帧，下一帧才开始退场，
 				// 否则遮罩淡出时下层仍是黑色，末尾会整页突然显现为一次白闪。
@@ -87,7 +127,7 @@
 						delete document.documentElement.dataset.routeArrival;
 						root.classList.remove('is-arrival-ready');
 						root.classList.add('is-arriving');
-						arrivalTimer = window.setTimeout(resetTransition, 680);
+						arrivalTimer = window.setTimeout(() => resetTransition(), 680);
 					});
 				});
 			}
@@ -95,7 +135,7 @@
 			delete document.documentElement.dataset.routeArrival;
 		}
 
-		document.addEventListener('click', (event) => {
+		const handleClick = (event: Event) => {
 			if (!(event instanceof MouseEvent) || event.defaultPrevented) return;
 			if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
 			if (navigating) {
@@ -105,8 +145,7 @@
 
 			const target = event.target;
 			if (!(target instanceof Element)) return;
-			// 文章入口保留场景转场，主导航使用更短的左右淡入淡出；其余链接不主动接管，
-			// 避免影响搜索、关系图、哈希定位和外部跳转。
+			// 文章入口保留场景转场，主导航使用更短的左右淡入淡出；其余链接交给 ClientRouter。
 			const link = target.closest('a[data-article-transition-link], a[data-route-transition-link], a[data-nav-slide-link]');
 			if (!link || link.hasAttribute('download')) return;
 			const rawTarget = link.getAttribute('target');
@@ -114,14 +153,20 @@
 			if (!rawHref || rawHref.startsWith('#') || link.hasAttribute('data-scene-link')) return;
 			if (rawTarget && rawTarget !== '_self') return;
 
-			// 关系图中的入口是 SVGAnchorElement，必须读取属性值，不能依赖 HTMLAnchorElement.href。
-			const destination = new URL(rawHref, window.location.href);
+			let destination: URL;
+			try {
+				// 关系图中的入口是 SVGAnchorElement，必须读取属性值，不能依赖 HTMLAnchorElement.href。
+				destination = new URL(rawHref, window.location.href);
+			} catch {
+				return;
+			}
 			const sameDocument = destination.origin === window.location.origin
 				&& destination.pathname === window.location.pathname
 				&& destination.search === window.location.search;
 			if (destination.origin !== window.location.origin || sameDocument) return;
 			if (reduceMotion.matches) return;
 
+			const sequence = ++transitionSequence;
 			event.preventDefault();
 			navigating = true;
 			const isNavigationSlide = link.hasAttribute('data-nav-slide-link');
@@ -132,54 +177,74 @@
 				: 'forward';
 			// 到达动画尚未结束时也允许继续导航，但必须先取消旧清理任务，
 			// 避免它在离场中途移除遮罩并取消本次 navigationTimer。
-			window.clearTimeout(arrivalTimer);
-			window.cancelAnimationFrame(arrivalPrimeFrame);
-			window.cancelAnimationFrame(arrivalFrame);
+			clearArrivalState();
 			if (isNavigationSlide) {
 				document.documentElement.dataset.routeTransition = 'slide-leaving';
 				document.documentElement.dataset.routeDirection = direction;
 				navigationTimer = window.setTimeout(() => {
+					if (!isCurrent(sequence)) return;
+					writeMarker(ROUTE_ARRIVAL_KEY, {
+						pathname: destination.pathname,
+						search: destination.search,
+						createdAt: Date.now(),
+						mode: 'slide',
+						direction,
+					});
+					safetyTimer = window.setTimeout(() => {
+						if (isCurrent(sequence)) resetTransition();
+					}, 520);
 					try {
-						window.sessionStorage.setItem(ROUTE_ARRIVAL_KEY, JSON.stringify({
-							pathname: destination.pathname,
-							search: destination.search,
-							mode: 'slide',
-							direction,
-						}));
+						window.location.assign(destination.href);
 					} catch {
-						// 隐私模式禁用会话存储时仍可完成离场，只会退化为目标页无入场动画。
+						resetTransition();
 					}
-					safetyTimer = window.setTimeout(resetTransition, 520);
-					window.location.assign(destination.href);
 				}, 180);
 				return;
 			}
-			root.classList.remove('is-arrival-ready', 'is-arriving');
 			root.classList.add('is-leaving');
 			document.documentElement.dataset.routeTransition = 'leaving';
 			delete document.documentElement.dataset.routeDirection;
 
 			navigationTimer = window.setTimeout(() => {
+				if (!isCurrent(sequence)) return;
 				// 标记绑定具体目标，并在真正导航前才写入；浏览器后退或重定向不会让无关页面误播入场。
-				try {
-					window.sessionStorage.setItem(ROUTE_ARRIVAL_KEY, JSON.stringify({
-						pathname: destination.pathname,
-						search: destination.search,
-						mode: 'scene',
-					}));
-				} catch {
-					// 隐私模式禁用会话存储时仍完成离场与导航，只省略下一页的反向镜头。
-				}
+				writeMarker(ROUTE_ARRIVAL_KEY, {
+					pathname: destination.pathname,
+					search: destination.search,
+					createdAt: Date.now(),
+					mode: 'scene',
+				});
 				// 哈希导航、浏览器拦截或异常路由都不应把全屏遮罩永久留在当前页面。
-				safetyTimer = window.setTimeout(resetTransition, 1400);
-				window.location.assign(destination.href);
+				safetyTimer = window.setTimeout(() => {
+					if (isCurrent(sequence)) resetTransition();
+				}, 1400);
+				try {
+					window.location.assign(destination.href);
+				} catch {
+					resetTransition();
+				}
 			}, leavingDuration);
-		});
+		};
+
+		// 在 ClientRouter 的冒泡监听器之前接管既有文章/主导航转场；首页关于入口
+		// 没有这些标记，因此会自然落到命名 View Transition。
+		document.addEventListener('click', handleClick, { capture: true, signal: lifecycle.signal });
 
 		// 浏览器从往返缓存恢复旧页面时，离场类可能被完整保存，必须立刻解除遮罩。
 		window.addEventListener('pageshow', (event) => {
 			if (event.persisted) resetTransition();
-		});
+		}, { signal: lifecycle.signal });
+
+		const dispose = () => {
+			if (disposed) return;
+			disposed = true;
+			resetTransition();
+			// ClientRouter 换页会复用 document；解除初始化标记，下一次 astro:page-load
+			// 才能为新页面重新绑定文章和主导航的完整页面转场。
+			delete root.dataset.interactiveReady;
+			lifecycle.abort();
+		};
+		document.addEventListener('astro:before-swap', dispose, { once: true, signal: lifecycle.signal });
 	}
 
 	initRouteTransition();
