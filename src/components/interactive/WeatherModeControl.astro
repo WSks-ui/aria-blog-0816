@@ -159,6 +159,20 @@ const {
       // 首访默认固定为 Rain，不再跟随系统深浅色偏好；读者手动切换后才记住选择。
       requestMode(storedMode ?? 'rain', false, true);
 
+      /*
+       * 页头会在 ClientRouter 换页时持久化，但 Astro 仍会把目标文档的
+       * <html data-weather-mode="rain"> 属性写回当前根节点。控件本身不会
+       * 重新初始化，因此这里无动画地恢复此实例已应用的模式；存储不可用时
+       * root 的 activeMode 仍是可信来源。这样场景颜色、地址栏 theme-color、
+       * 单选状态和页面数据属性始终处于同一主题，不会在切换栏目后回落为 Rain。
+       */
+		const restoreModeAfterSwap = () => {
+			const activeMode = root.dataset.activeMode ?? null;
+        const mode = isWeatherMode(activeMode) ? activeMode : readStoredMode() ?? 'rain';
+        commitMode(mode, false);
+      };
+      document.addEventListener('astro:after-swap', restoreModeAfterSwap);
+
       buttons.forEach((button) => {
         button.addEventListener('click', () => {
           const mode = button.dataset.weatherModeValue;

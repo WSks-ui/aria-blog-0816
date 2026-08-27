@@ -23,7 +23,12 @@ const navItems = [
 const isActive = (href: string) => pathname === href || pathname.startsWith(href.replace(/\/$/, '') + '/');
 ---
 
-<header class="site-header" data-site-header>
+<!--
+	栏目页由 ClientRouter 交换内容时，页头作为稳定的导航坐标系必须保留原 DOM：
+	这样品牌、工具与标签栏不会跟随正文一起卸载再显现，读者能持续辨认当前位置。
+	选中态会在下方脚本的 astro:after-swap 回调中按当前 URL 重新同步。
+-->
+<header class="site-header" data-site-header transition:persist="site-header">
 	{/* 品牌链接只在关于页承担「纸面显影」的返回入口；其他页面保持普通导航，
 	    编排由 SharedTitleTransition 的镜像路由守卫（/ ↔ /about）统一把关。 */}
 	<a
@@ -39,8 +44,8 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 
 	<nav class="site-nav" aria-label="主导航" data-site-nav>
 		<span class="site-nav__indicator" aria-hidden="true" data-site-nav-indicator></span>
-		{navItems.map((item, index) => (
-			<a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined} data-site-nav-link data-nav-slide-link data-nav-index={index}>
+		{navItems.map((item) => (
+			<a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined} data-site-nav-link>
 				{item.label}
 			</a>
 		))}
@@ -69,6 +74,8 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 </header>
 
 <script>
+	const normalizePath = (pathname: string) => pathname.replace(/\/+$/, '') || '/';
+
 	function initSiteHeaderNavigation() {
 		document.querySelectorAll<HTMLElement>('[data-site-nav]').forEach((nav) => {
 			if (nav.dataset.navigationReady === 'true') return;
@@ -76,7 +83,7 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 			const indicator = nav.querySelector<HTMLElement>('[data-site-nav-indicator]');
 			const links = [...nav.querySelectorAll<HTMLElement>('[data-site-nav-link]')];
 			// 首页没有匹配的栏目路由时，以“随笔”作为视觉起点；进入具体栏目后仍优先使用真实当前项。
-			const activeLink = nav.querySelector<HTMLElement>('[data-site-nav-link][aria-current="page"]')
+			let activeLink: HTMLElement | null = nav.querySelector<HTMLElement>('[data-site-nav-link][aria-current="page"]')
 				?? links[0]
 				?? null;
 			let currentTarget: HTMLElement | null = activeLink;
@@ -98,6 +105,37 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 				if (placeImmediately) requestAnimationFrame(() => indicator.classList.remove('is-placing'));
 			};
 
+			/*
+			 * transition:persist 会保留旧页头节点，因此服务端渲染给新页面的
+			 * aria-current 不会自动落到这个节点上。每次正文交换完成后依据
+			 * location 重新计算选中标签，同时让指示线从旧标签滑向新标签。
+			 * 品牌链接的 Aria-7 共享标题入口也在这里同步，保证 about→首页
+			 * 仍可通过点击品牌触发镜像转场。
+			 */
+			const syncRouteState = (placeImmediately = false) => {
+				const currentPath = normalizePath(window.location.pathname);
+				activeLink = links.find((link) => {
+					const href = link.getAttribute('href');
+					if (!href) return false;
+					const targetPath = normalizePath(new URL(href, window.location.href).pathname);
+					return currentPath === targetPath || currentPath.startsWith(`${targetPath}/`);
+				}) ?? null;
+
+				links.forEach((link) => {
+					if (link === activeLink) link.setAttribute('aria-current', 'page');
+					else link.removeAttribute('aria-current');
+				});
+
+				const header = nav.closest<HTMLElement>('[data-site-header]');
+				const brand = header?.querySelector<HTMLAnchorElement>('.site-brand') ?? null;
+				if (brand) {
+					if (currentPath === '/about') brand.setAttribute('data-aria7-title-transition-link', '');
+					else brand.removeAttribute('data-aria7-title-transition-link');
+				}
+
+				moveIndicator(activeLink ?? links[0] ?? null, placeImmediately);
+			};
+
 			links.forEach((link) => {
 				link.addEventListener('pointerenter', () => moveIndicator(link, nav.dataset.navCursorVisible !== 'true'));
 				link.addEventListener('focus', () => moveIndicator(link, nav.dataset.navCursorVisible !== 'true'));
@@ -117,7 +155,9 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 			// 字体载入、窗口变化或工具区宽度改变后重新测量，避免指示器与文字错位。
 			const resizeObserver = new ResizeObserver(() => moveIndicator(currentTarget, true));
 			resizeObserver.observe(nav);
-			requestAnimationFrame(() => moveIndicator(activeLink, true));
+			// 首屏指示线直接定位；后续栏目切换则从旧项自然滑向新项。
+			requestAnimationFrame(() => syncRouteState(true));
+			document.addEventListener('astro:after-swap', () => syncRouteState());
 		});
 	}
 

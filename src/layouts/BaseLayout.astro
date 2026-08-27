@@ -63,7 +63,11 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 			type="speculationrules"
 			set:html={JSON.stringify({ prefetch: [{ source: 'document', where: { href_matches: '/*' }, eagerness: 'moderate' }] })}
 		/>
-		<ClientRouter fallback="swap" />
+		<!--
+			非原生 View Transition 浏览器需要运行 fallback 的 old/new 两段动画；
+			具体规则只命中 data-page-main，因此持久化页头仍固定在原位。
+		-->
+		<ClientRouter fallback="animate" />
 		<style is:inline>
 			/* 外部样式表尚未下载时先建立页面画布，避免完整页面导航暴露浏览器默认白底。 */
 			html { background-color: #ebedec; }
@@ -72,18 +76,11 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 			html[data-weather-mode='night'],
 			html[data-route-arrival='scene'] { background-color: #0d1216; }
 			html[data-route-arrival='scene'] body { background-color: #0d1216 !important; }
-			/* 主导航的栏目切换是轻量的左右滑动，而不是覆盖整个页面的场景动画。
-			   入口与出口都写在内联样式中，保证外部 CSS 尚未解析完时也不会闪现一帧静态页面。 */
-			html[data-route-transition='slide-leaving'][data-route-direction='forward'] body { animation: aria7-nav-leave-forward 180ms var(--ease-drift, ease) both; }
-			html[data-route-transition='slide-leaving'][data-route-direction='backward'] body { animation: aria7-nav-leave-backward 180ms var(--ease-drift, ease) both; }
-			html[data-route-arrival='slide'][data-route-direction='forward'] body { animation: aria7-nav-arrive-forward 240ms var(--ease-drift, ease) both; }
-			html[data-route-arrival='slide'][data-route-direction='backward'] body { animation: aria7-nav-arrive-backward 240ms var(--ease-drift, ease) both; }
 			/* 命名标题由浏览器保存旧、新快照并插值位置；不再跨文档重建克隆节点。 */
 			::view-transition-group(aria7-title) {
 				animation-duration: var(--duration-arrival, 560ms);
 				animation-timing-function: var(--ease-rain, ease);
 			}
-
 			/*
 			 * 根元素退出视图转场分组：整页不再被快照冻结，换页瞬间即是活层。
 			 * 「纸面显影」的到达编排（曝光退去 + about 显影级联）因此在标题飞行
@@ -95,13 +92,21 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 				view-transition-name: none;
 			}
 
+			/*
+			 * 命名转场只为首页↔关于这对镜像旅程服务：其余导航不给标题命名，
+			 * 否则浏览器会对单侧存在的命名元素播放孤儿渐显/渐隐——从其它页
+			 * 返回首页时标题的闪烁即由此而来。旅程开始时 SharedTitleTransition
+			 * 先给当前根节点挂 data-title-flight，再在 astro:before-swap 阶段给
+			 * newDocument 的根节点同步该标记；属性交换后飞行的两个快照才能同名。
+			 */
+			html [data-aria7-title-transition] { view-transition-name: none; }
+			html[data-title-flight='active'] [data-aria7-title-transition] { view-transition-name: aria7-title; }
+			html [data-page-main] { view-transition-name: aria7-page-main; }
+			html[data-title-flight='active'] [data-page-main] { view-transition-name: none; }
+
 			@media (prefers-reduced-motion: reduce) {
 				::view-transition-group(aria7-title) { animation-duration: 1ms; }
 			}
-			@keyframes aria7-nav-leave-forward { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(-18px); } }
-			@keyframes aria7-nav-leave-backward { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(18px); } }
-			@keyframes aria7-nav-arrive-forward { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: translateX(0); } }
-			@keyframes aria7-nav-arrive-backward { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: translateX(0); } }
 		</style>
 		<script is:inline>
 			(() => {
@@ -132,11 +137,9 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 							: Number.NaN;
 						const isFresh = Number.isFinite(arrivalAge) && arrivalAge >= 0 && arrivalAge < 5000;
 						if (!prefersReducedMotion && isFresh && arrival?.pathname === location.pathname && arrival?.search === location.search) {
-							const isSlide = arrival.mode === 'slide';
-							document.documentElement.dataset.routeArrival = isSlide ? 'slide' : 'scene';
-							if (isSlide) {
-								document.documentElement.dataset.routeDirection = arrival.direction === 'backward' ? 'backward' : 'forward';
-							}
+							// 文章和讲义的完整场景转场仍需在新文档首帧建立黑场；
+							// 普通站内导航则由 ClientRouter 的正文快照负责，不写会话标记。
+							document.documentElement.dataset.routeArrival = 'scene';
 						}
 					}
 				} catch {
@@ -158,7 +161,12 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 		<SiteHeader pathname={Astro.url.pathname}>
 			<WeatherModeControl slot="weather-control" />
 		</SiteHeader>
-		<main id="main-content">
+		<!--
+			Astro 只有在模板中声明 transition:animate 后，才会把该元素登记为
+			ClientRouter 的可交换层。slide 让前进、后退分别使用相反方向的正文
+			位移；data-page-main 保留给首页与关于页的专用标题旅程进行排除控制。
+		-->
+		<main id="main-content" data-page-main transition:name="aria7-page-main" transition:animate="slide">
 			<slot />
 		</main>
 		<SiteFooter />

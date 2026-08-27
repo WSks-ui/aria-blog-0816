@@ -5,10 +5,14 @@ import { ArrowLeft, GitBranch, Mail, Rss, Users } from '@lucide/astro';
 import PageHeader from '@/components/content/PageHeader.astro';
 import BaseLayout from '@/layouts/BaseLayout.astro';
 
-// 个人入口由公开环境变量注入；缺少配置时只保留站内 RSS，不暴露伪造的联系方式。
-const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim() || '';
-const contactEmail = import.meta.env.PUBLIC_CONTACT_EMAIL?.trim() || '';
-const qqGroupUrl = import.meta.env.PUBLIC_QQ_GROUP_URL?.trim() || '';
+/*
+ * 个人入口：公开值直接内置为默认（克隆即构建，无需部署平台配置），
+ * 环境变量仅作覆盖通道——值变更或失效时改 .env / 平台变量即可，不动代码。
+ */
+const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim() || 'https://github.com/WSks-ui';
+const contactEmail = import.meta.env.PUBLIC_CONTACT_EMAIL?.trim() || 'aria_7@yeah.net';
+const qqGroupUrl = import.meta.env.PUBLIC_QQ_GROUP_URL?.trim()
+	|| 'https://qun.qq.com/universal-share/share?ac=1&authKey=TvbAWmh4kftVoQxrUuqIXbpq8ZEFhjGMPDklklYXTbY4O4vRHmQAAdWCXd03lP9T&busi_data=eyJncm91cENvZGUiOiI3MDEyNjc1NjEiLCJ0b2tlbiI6IkxraUh5aVhLdi81dFdLOVpYK2lKOW9KWmI0aFh5Ym8yc2daaEZSdDMybVJXczNudzJnRS9oMmRZWGwxNnJXR2IiLCJ1aW4iOiIyMzgzNDAzMjA2In0=&data=FFtTF0Zb5T9pTfj3527xyXqTdWp1AAIMQ8Mg65q_ltHlV5dnwju3HWFyMl7ssQoNwUhRW-jEWFMcDIJ-9Jcbax5s-dOaYKClKi3Iwa8GtEs&svctype=5&tempid=h5_group_info';
 
 /*
  * 肖像真图：把照片放进 public/assets/about/portrait.{avif,webp,jpg,jpeg,png}
@@ -39,9 +43,7 @@ const factSegments: FactSegment[][] = [
 	[{ t: '在读 29 届大学生，对人工智能方向很感兴趣，目前正在兴趣导向地学习。' }],
 	[{ t: '喜欢把时间花在有趣的事情上。' }],
 	[{ t: '常用 Python · TypeScript · JavaScript · Astro · C · 鸿蒙。这个博客就是用 Astro 写的。' }],
-	contactEmail
-		? [{ t: '很乐意免费参与有趣的项目和想法，欢迎随时给我' }, { t: '发邮件', link: true }, { t: '。' }]
-		: [{ t: '很乐意免费参与有趣的项目和想法，欢迎随时给我发邮件。' }],
+	[{ t: '很乐意免费参与有趣的项目和想法，欢迎随时给我' }, { t: '发邮件', link: true }, { t: '。' }],
 	[{ t: '如果你对我正在做的事感兴趣，欢迎一起来做。' }],
 ];
 const factLines = factSegments.map((segments) => {
@@ -88,15 +90,11 @@ const factLines = factSegments.map((segments) => {
 					))}
 				</ul>
 				<div class="about-links" style="--reveal-order: 6">
-					{githubUrl && <a href={githubUrl} rel="noopener noreferrer"><GitBranch size={18} stroke-width={1.5} aria-hidden="true" /> GitHub</a>}
-					{contactEmail && <a href={`mailto:${contactEmail}`}><Mail size={18} stroke-width={1.5} aria-hidden="true" /> 邮箱</a>}
+					<a href={githubUrl} rel="noopener noreferrer"><GitBranch size={18} stroke-width={1.5} aria-hidden="true" /> GitHub</a>
+					<a href={`mailto:${contactEmail}`}><Mail size={18} stroke-width={1.5} aria-hidden="true" /> 邮箱</a>
 					<a href="/rss.xml" data-astro-reload><Rss size={18} stroke-width={1.5} aria-hidden="true" /> RSS</a>
-					{/* QQ 群：配置了分享链接就是一键加群入口，否则回退为群号展示。 */}
-					{qqGroupUrl ? (
-						<a href={qqGroupUrl} target="_blank" rel="noopener noreferrer"><Users size={18} stroke-width={1.5} aria-hidden="true" /> QQ 群</a>
-					) : (
-						<span class="about-links__static"><Users size={18} stroke-width={1.5} aria-hidden="true" /> QQ 群 701267561</span>
-					)}
+					{/* QQ 群：默认即为加群分享链接，一键直达；链接失效时在 .env 覆盖新值。 */}
+					<a href={qqGroupUrl} target="_blank" rel="noopener noreferrer"><Users size={18} stroke-width={1.5} aria-hidden="true" /> QQ 群</a>
 				</div>
 				{/* 与首页「关于我 →」同构的镜像返回入口：挂在同一镜像路由守卫下，
 				    点击即走「纸面显影」返回编排；不加该标记时仍是普通返回路径。 */}
@@ -257,8 +255,8 @@ const factLines = factSegments.map((segments) => {
 	.about-facts a { color: var(--accent-strong); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.22em; }
 	.about-facts a:hover { text-decoration-thickness: 2px; }
 	.about-links { display: grid; grid-template-columns: repeat(2, 1fr); margin-top: 28px; border-block: 1px solid var(--line); }
-	.about-links a, .about-links .about-links__static { display: flex; min-height: 64px; align-items: center; gap: 10px; padding-inline: 12px; border-right: 1px solid var(--line); font-family: var(--font-ui); font-size: 11px; color: var(--ink); text-decoration: none; }
-	.about-links a:last-child, .about-links .about-links__static:last-child { border-right: 0; }
+	.about-links a { display: flex; min-height: 64px; align-items: center; gap: 10px; padding-inline: 12px; border-right: 1px solid var(--line); font-family: var(--font-ui); font-size: 11px; color: var(--ink); text-decoration: none; }
+	.about-links a:last-child { border-right: 0; }
 
 	/* 「← 返回首页」与首页「关于我 →」同构：同一按钮语法，箭头朝左、悬停反向位移。 */
 	.about-return { display: inline-flex; min-height: 44px; align-items: center; gap: 18px; margin-top: 30px; padding: 0 18px 0 14px; border: 1px solid var(--ink); background: color-mix(in srgb, var(--paper-0) 86%, transparent); font-family: var(--font-ui); font-size: 11px; color: var(--ink); text-decoration: none; backdrop-filter: blur(10px); }
@@ -266,5 +264,5 @@ const factLines = factSegments.map((segments) => {
 	.about-return:hover svg { transform: translateX(-4px); }
 
 	@media (max-width: 900px) { .about-grid { grid-template-columns: 1fr; } .about-portrait { min-height: 420px; } }
-		@media (max-width: 760px) { .page-shell { padding-inline: 20px; } .about-links { grid-template-columns: 1fr; } .about-links a, .about-links .about-links__static { border-right: 0; border-bottom: 1px solid var(--line); } }
+		@media (max-width: 760px) { .page-shell { padding-inline: 20px; } .about-links { grid-template-columns: 1fr; } .about-links a { border-right: 0; border-bottom: 1px solid var(--line); } }
 </style>

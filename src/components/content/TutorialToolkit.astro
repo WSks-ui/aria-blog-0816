@@ -78,7 +78,7 @@ const firstTool = tools.find((tool) => tool.stage === initialStage.id) ?? tools[
 							style={`--tool-accent: ${stage?.accent ?? 'var(--accent-strong)'}; --tool-delay: ${index * 38}ms;`}
 						>
 							<!-- 工具目录只进入站内讲义；官网与参考站链接在讲义末尾集中呈现，避免学习路径被外链打断。 -->
-							<a class="tutorial-tool__open" href={getTutorialToolPath(tool)} data-route-transition-link>
+							<a class="tutorial-tool__open" href={getTutorialToolPath(tool)} data-route-transition-link data-astro-reload>
 								<header>
 									<span class="tutorial-tool__index">{String(index + 1).padStart(2, '0')}</span>
 									<span class="tutorial-tool__code">{tool.code}</span>

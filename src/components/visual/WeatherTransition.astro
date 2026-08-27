@@ -24,6 +24,7 @@
 
 			const label = root.querySelector<HTMLElement>('[data-weather-transition-label]');
 			const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+			const lifecycle = new AbortController();
 			let commitTimer = 0;
 			let cleanupTimer = 0;
 			let primeFrame = 0;
@@ -70,7 +71,18 @@
 				});
 			};
 
-			document.addEventListener('weather-mode-request', handleModeRequest);
+			document.addEventListener('weather-mode-request', handleModeRequest, { signal: lifecycle.signal });
+			/*
+			 * 天气幕本身不持久化，ClientRouter 每次都会替换这个节点；若不在
+			 * 交换前释放 document 监听器，旧幕会继续响应后续主题请求，长期
+			 * 栏目切换后会累积不可见节点和定时器。当前幕离场时一并取消动画，
+			 * 新页面会在 astro:page-load 中初始化自己的唯一实例。
+			 */
+			document.addEventListener('astro:before-swap', () => {
+				generation += 1;
+				clearPendingTransition();
+				lifecycle.abort();
+			}, { once: true, signal: lifecycle.signal });
 		});
 	}
 

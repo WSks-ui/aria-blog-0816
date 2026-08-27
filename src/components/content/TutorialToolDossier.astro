@@ -50,7 +50,7 @@ const tocHeadings = headings.filter((heading) => heading.depth >= 2 && heading.d
 		</div>
 
 		<div class="tool-dossier__heading">
-			<a class="tool-dossier__back" href="/types/tutorial/" data-route-transition-link>
+			<a class="tool-dossier__back" href="/types/tutorial/" data-route-transition-link data-astro-reload>
 				<ArrowLeft size={16} stroke-width={1.5} aria-hidden="true" />
 				工具导航
 			</a>
@@ -147,17 +147,17 @@ const tocHeadings = headings.filter((heading) => heading.depth >= 2 && heading.d
 
 	<nav class="tool-dossier__neighbors" aria-label="工具讲义导航">
 		{previous ? (
-			<a href={`/toolkit/${previous.tool.id}/`} data-route-transition-link>
+			<a href={`/toolkit/${previous.tool.id}/`} data-route-transition-link data-astro-reload>
 				<ArrowLeft size={16} stroke-width={1.5} aria-hidden="true" />
 				<span><small>PREVIOUS / {String(previous.index + 1).padStart(2, '0')}</small><strong>{previous.tool.name}</strong></span>
 			</a>
 		) : <span class="tool-dossier__neighbor-placeholder" aria-hidden="true"></span>}
-		<a class="tool-dossier__neighbors-index" href="/types/tutorial/" data-route-transition-link>
+		<a class="tool-dossier__neighbors-index" href="/types/tutorial/" data-route-transition-link data-astro-reload>
 			<span>TOOLKIT</span>
 			<strong>{stageIndex} / {tool.code}</strong>
 		</a>
 		{next ? (
-			<a class="tool-dossier__neighbor-next" href={`/toolkit/${next.tool.id}/`} data-route-transition-link>
+			<a class="tool-dossier__neighbor-next" href={`/toolkit/${next.tool.id}/`} data-route-transition-link data-astro-reload>
 				<span><small>NEXT / {String(next.index + 1).padStart(2, '0')}</small><strong>{next.tool.name}</strong></span>
 				<ArrowRight size={16} stroke-width={1.5} aria-hidden="true" />
 			</a>

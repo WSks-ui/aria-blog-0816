@@ -108,11 +108,7 @@
 		};
 
 		const routeArrival = document.documentElement.dataset.routeArrival;
-		if (routeArrival === 'slide' && !reduceMotion.matches) {
-			// 主导航的入场动画由 BaseLayout 的内联 CSS 在首帧执行；这里只负责在动画
-			// 结束后清理 data 属性，避免浏览器后退或刷新时继承上一次的运动方向。
-			arrivalTimer = window.setTimeout(() => resetTransition(), 260);
-		} else if ((routeArrival === 'scene' || routeArrival === 'true') && !reduceMotion.matches) {
+		if ((routeArrival === 'scene' || routeArrival === 'true') && !reduceMotion.matches) {
 			if (arrivedFromPrefetch) {
 				// 预取抵达时页面首帧已经完整，无需不透明遮罩接帧，直接开始退场。
 				root.classList.add('is-arriving');
@@ -145,8 +141,9 @@
 
 			const target = event.target;
 			if (!(target instanceof Element)) return;
-			// 文章入口保留场景转场，主导航使用更短的左右淡入淡出；其余链接交给 ClientRouter。
-			const link = target.closest('a[data-article-transition-link], a[data-route-transition-link], a[data-nav-slide-link]');
+			// 文章入口和讲义内部导航保留场景转场；栏目标签不在此处拦截，
+			// 交由 ClientRouter 替换正文，以便持久化页头维持在原位。
+			const link = target.closest('a[data-article-transition-link], a[data-route-transition-link]');
 			if (!link || link.hasAttribute('download')) return;
 			const rawTarget = link.getAttribute('target');
 			const rawHref = link.getAttribute('href');
@@ -169,38 +166,9 @@
 			const sequence = ++transitionSequence;
 			event.preventDefault();
 			navigating = true;
-			const isNavigationSlide = link.hasAttribute('data-nav-slide-link');
-			const destinationIndex = Number(link.getAttribute('data-nav-index'));
-			const activeIndex = Number(document.querySelector('[data-nav-slide-link][aria-current="page"]')?.getAttribute('data-nav-index'));
-			const direction = Number.isFinite(destinationIndex) && Number.isFinite(activeIndex) && destinationIndex < activeIndex
-				? 'backward'
-				: 'forward';
 			// 到达动画尚未结束时也允许继续导航，但必须先取消旧清理任务，
 			// 避免它在离场中途移除遮罩并取消本次 navigationTimer。
 			clearArrivalState();
-			if (isNavigationSlide) {
-				document.documentElement.dataset.routeTransition = 'slide-leaving';
-				document.documentElement.dataset.routeDirection = direction;
-				navigationTimer = window.setTimeout(() => {
-					if (!isCurrent(sequence)) return;
-					writeMarker(ROUTE_ARRIVAL_KEY, {
-						pathname: destination.pathname,
-						search: destination.search,
-						createdAt: Date.now(),
-						mode: 'slide',
-						direction,
-					});
-					safetyTimer = window.setTimeout(() => {
-						if (isCurrent(sequence)) resetTransition();
-					}, 520);
-					try {
-						window.location.assign(destination.href);
-					} catch {
-						resetTransition();
-					}
-				}, 180);
-				return;
-			}
 			root.classList.add('is-leaving');
 			document.documentElement.dataset.routeTransition = 'leaving';
 			delete document.documentElement.dataset.routeDirection;
@@ -226,8 +194,8 @@
 			}, leavingDuration);
 		};
 
-		// 在 ClientRouter 的冒泡监听器之前接管既有文章/主导航转场；首页关于入口
-		// 没有这些标记，因此会自然落到命名 View Transition。
+		// 在 ClientRouter 的冒泡监听器之前只接管文章与讲义的场景转场；栏目标签
+		// 没有这些标记，会自然走持久化页头下的内容转场。
 		document.addEventListener('click', handleClick, { capture: true, signal: lifecycle.signal });
 
 		// 浏览器从往返缓存恢复旧页面时，离场类可能被完整保存，必须立刻解除遮罩。

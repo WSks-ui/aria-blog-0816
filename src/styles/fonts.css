@@ -1,7 +1,8 @@
 /*
  * 方案A的拉丁字体层：UI使用Space Grotesk，正文中的拉丁字符使用Source Serif 4，
- * 代码与HUD使用JetBrains Mono。文件只保留首屏和文章常用的Latin/Latin-ext子集，
- * 中文字符继续交给下方按unicode-range拆分的Noto Serif SC，避免重复下载字形。
+ * 代码与HUD使用JetBrains Mono。文件只保留首屏和文章常用的Latin/Latin-ext子集；
+ * 中文载体为 harmonyos-sans.css 的 HarmonyOS Sans SC 分片（站长指定），
+ * 下方 Noto Serif SC 分片保留作衬线回退与缺失字形兜底。
  */
 @font-face {
   font-family: 'Space Grotesk';

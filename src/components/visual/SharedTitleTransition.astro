@@ -35,8 +35,11 @@
 		style: TitleStyle;
 	};
 
-	type TransitionPreparationEvent = Event & {
+	type RouterTransitionEvent = Event & {
 		sourceElement?: Element | null;
+		from?: URL;
+		to?: URL;
+		newDocument?: Document;
 	};
 
 	const FALLBACK_DURATION = 420;
@@ -173,6 +176,7 @@
 		reset();
 		root?.classList.remove('is-veiling');
 		delete document.documentElement.dataset.titleVeil;
+		delete document.documentElement.dataset.titleFlight;
 		if (exposure) {
 			// 进入动画 fill 会持续压过行内样式，必须全部取消后停靠态才生效。
 			exposure.getAnimations().forEach((animation) => animation.cancel());
@@ -209,8 +213,10 @@
 		journeyActive = true;
 		root.classList.add('is-veiling');
 		// HomeHero/about 依此标记让文案组先行呼吸退场；巨型标题保持可见，
-		// 只微微上浮，随后交给命名 View Transition 飞行。
+		// 只微微上浮，随后交给命名 View Transition 飞行。这里先给旧快照命名；
+		// 目标文档会在 astro:before-swap 内同步命名，避免根属性交换把它清掉。
 		document.documentElement.dataset.titleVeil = 'leaving';
+		document.documentElement.dataset.titleFlight = 'active';
 		if (label) {
 			label.textContent = normalizePath(destination.pathname) === '/about'
 				? 'PROFILE / ARIA-7'
@@ -270,7 +276,7 @@
 
 	// ClientRouter 已确认本次导航并取得目标文档后才触发该事件。后备载体在此刻
 	// 接管当前页标题，与路由器共用同一条导航事务，不会和链接点击监听器竞争时机。
-	const prepareFallback = (event: TransitionPreparationEvent) => {
+	const prepareFallback = (event: RouterTransitionEvent) => {
 		if (reduceMotion.matches || supportsNativeTransition) return;
 		const trigger = event.sourceElement instanceof Element
 			? event.sourceElement.closest<HTMLAnchorElement>('a[data-aria7-title-transition-link]')
@@ -302,6 +308,28 @@
 		pendingTransition = { rect, style: getStyle(title) };
 		// 取页失败或被新导航取消时恢复源标题，防止载体长时间占住首屏。
 		pendingTimer = window.setTimeout(() => reset(), 1800);
+	};
+
+	/*
+	 * Astro 会在交换阶段以 newDocument 的 <html> 属性覆盖当前根节点。命名
+	 * View Transition 的旧快照已在此回调前固定，而新快照会在 swap 后采集；
+	 * 因此必须在这里给目标文档补上同一标记，才能让两个 Aria-7 归入同一
+	 * aria7-title 组并插值位置。不能只依赖当前 documentElement 的属性，
+	 * 否则交换后目标标题会回到 view-transition-name: none，表现为没有跟踪。
+	 */
+	const armIncomingTitle = (event: RouterTransitionEvent) => {
+		if (reduceMotion.matches || !journeyActive) return;
+		const trigger = event.sourceElement instanceof Element
+			? event.sourceElement.closest<HTMLAnchorElement>('a[data-aria7-title-transition-link]')
+			: null;
+		if (!trigger || trigger.target || trigger.hasAttribute('download')) return;
+
+		const from = normalizePath(event.from?.pathname ?? window.location.pathname);
+		const to = normalizePath(event.to?.pathname ?? new URL(trigger.href, window.location.href).pathname);
+		const mirroredPair = (from === '/' && to === '/about') || (from === '/about' && to === '/');
+		if (!mirroredPair) return;
+
+		event.newDocument?.documentElement.setAttribute('data-title-flight', 'active');
 	};
 
 	const completeFallback = () => {
@@ -345,6 +373,8 @@
 		exposure = root?.querySelector<HTMLElement>('[data-shared-title-exposure]') ?? null;
 		label = root?.querySelector<HTMLElement>('[data-shared-title-label]') ?? null;
 		// 上一次旅程被浏览器缓存打断时会残留行内覆盖态；非旅程状态下直接归零。
+		// 注意：不能在这里清除 data-title-flight。这个组件会随 ClientRouter 持久化，
+		// 而目标根节点刚由 armIncomingTitle 接手标记；过早清除会让标题飞行断开。
 		if (!journeyActive && exposure) exposure.style.removeProperty('opacity');
 	}
 
@@ -352,6 +382,7 @@
 	document.addEventListener('astro:page-load', initSharedTitleTransition);
 	document.addEventListener('click', handleClick, true);
 	document.addEventListener('astro:before-preparation', prepareFallback);
+	document.addEventListener('astro:before-swap', armIncomingTitle);
 	// 抵达侧：fallback="swap" 模式下节点会被整体替换，先重查引用再撤幕，
 	// 保证持久化与非持久化两条路径的曝光都从覆盖态继续退去。
 	document.addEventListener('astro:after-swap', () => {
