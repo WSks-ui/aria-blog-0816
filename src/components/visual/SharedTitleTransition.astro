@@ -1,8 +1,13 @@
 <div class="shared-title-transition" data-shared-title-transition transition:persist="aria7-title-carrier" aria-hidden="true">
+	<div class="shared-title-transition__veil" data-shared-title-veil>
+		<span class="shared-title-transition__veil-label">ROUTE / PROFILE</span>
+	</div>
 	<span class="shared-title-transition__carrier" data-shared-title-carrier>Aria-7</span>
 </div>
 
 <script>
+	import { navigate } from 'astro:transitions/client';
+
 	type Rect = {
 		left: number;
 		top: number;
@@ -35,6 +40,24 @@
 	};
 
 	const FALLBACK_DURATION = 420;
+	/*
+	 * 「纸面显影」编排拍（点击 → 导航 → 抵达）：
+	 *   Hero 文案先退场（HomeHero 内 CSS，200–320ms）
+	 *   → 纸幕自顶落下 380ms（延迟 120ms 让文案先走一步）
+	 *   → 500ms 提交导航，标题经命名 View Transition 在纸幕上飞行
+	 *   → 抵达后纸幕继续下落 480ms 揭开关于页，与页内显影级联同时展开。
+	 * 字面值为编排内有意错拍；兜底计时防导航被拦截后纸幕滞留首屏。
+	 */
+	const VEIL_ENTER_DELAY = 120;
+	const VEIL_ENTER_DURATION = 380;
+	const NAVIGATE_AT = 500;
+	const VEIL_EXIT_DURATION = 480;
+	const SAFETY_TIMEOUT = 2400;
+	const RAIN_EASING = 'cubic-bezier(0.22, 0.75, 0.28, 1)';
+
+	let root: HTMLElement | null = null;
+	let carrier: HTMLElement | null = null;
+	let veil: HTMLElement | null = null;
 	let pendingTransition: PendingTransition | null = null;
 	let pendingTimer = 0;
 	let carrierAnimation: Animation | null = null;
@@ -45,6 +68,14 @@
 	let sourceOpacityPriority = '';
 	let targetOpacity = '';
 	let targetOpacityPriority = '';
+	let journeyActive = false;
+	let submitTimer = 0;
+	let safetyTimer = 0;
+	let liftTimer = 0;
+	let veilAnimation: Animation | null = null;
+
+	const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+	const supportsNativeTransition = typeof document.startViewTransition === 'function';
 
 	const getRect = (element: Element): Rect => {
 		const rect = element.getBoundingClientRect();
@@ -71,25 +102,25 @@
 		};
 	};
 
-	const setCarrierStyle = (carrier: HTMLElement, rect: Rect, style: TitleStyle) => {
-		carrier.style.left = `${rect.left}px`;
-		carrier.style.top = `${rect.top}px`;
-		carrier.style.width = `${rect.width}px`;
-		carrier.style.height = `${rect.height}px`;
-		carrier.style.fontFamily = style.fontFamily;
-		carrier.style.fontSize = style.fontSize;
-		carrier.style.fontWeight = style.fontWeight;
-		carrier.style.fontStretch = style.fontStretch;
-		carrier.style.fontStyle = style.fontStyle;
-		carrier.style.fontVariant = style.fontVariant;
-		carrier.style.lineHeight = style.lineHeight;
-		carrier.style.letterSpacing = style.letterSpacing;
-		carrier.style.color = style.color;
-		carrier.style.textTransform = style.textTransform;
-		carrier.style.fontFeatureSettings = style.fontFeatureSettings;
-		carrier.style.fontVariationSettings = style.fontVariationSettings;
-		carrier.style.opacity = '1';
-		carrier.style.transform = 'translate3d(0, 0, 0) scale(1)';
+	const setCarrierStyle = (element: HTMLElement, rect: Rect, style: TitleStyle) => {
+		element.style.left = `${rect.left}px`;
+		element.style.top = `${rect.top}px`;
+		element.style.width = `${rect.width}px`;
+		element.style.height = `${rect.height}px`;
+		element.style.fontFamily = style.fontFamily;
+		element.style.fontSize = style.fontSize;
+		element.style.fontWeight = style.fontWeight;
+		element.style.fontStretch = style.fontStretch;
+		element.style.fontStyle = style.fontStyle;
+		element.style.fontVariant = style.fontVariant;
+		element.style.lineHeight = style.lineHeight;
+		element.style.letterSpacing = style.letterSpacing;
+		element.style.color = style.color;
+		element.style.textTransform = style.textTransform;
+		element.style.fontFeatureSettings = style.fontFeatureSettings;
+		element.style.fontVariationSettings = style.fontVariationSettings;
+		element.style.opacity = '1';
+		element.style.transform = 'translate3d(0, 0, 0) scale(1)';
 	};
 
 	const restoreOpacity = (element: HTMLElement | null, value: string, priority: string) => {
@@ -101,7 +132,7 @@
 		}
 	};
 
-	const reset = (carrier: HTMLElement) => {
+	const reset = () => {
 		window.clearTimeout(pendingTimer);
 		pendingTimer = 0;
 		carrierAnimation?.cancel();
@@ -117,96 +148,197 @@
 		targetOpacity = '';
 		targetOpacityPriority = '';
 		pendingTransition = null;
-		carrier.removeAttribute('style');
+		carrier?.removeAttribute('style');
+	};
+
+	const clearJourneyTimers = () => {
+		window.clearTimeout(submitTimer);
+		window.clearTimeout(safetyTimer);
+		window.clearTimeout(liftTimer);
+		submitTimer = 0;
+		safetyTimer = 0;
+		liftTimer = 0;
+	};
+
+	const hardReset = () => {
+		clearJourneyTimers();
+		veilAnimation?.cancel();
+		veilAnimation = null;
+		journeyActive = false;
+		root?.classList.remove('is-veiling');
+		delete document.documentElement.dataset.titleVeil;
+		if (veil) {
+			// 进入动画 fill 会持续压过行内样式，必须全部取消后停靠态才生效；
+			// 否则遮罩在退场结束后会弹回满屏覆盖。
+			veil.getAnimations().forEach((animation) => animation.cancel());
+			veil.style.transform = 'translateY(-102%)';
+		}
+	};
+
+	const beginVeilLift = () => {
+		if (!root || !veil) {
+			hardReset();
+			return;
+		}
+		window.clearTimeout(submitTimer);
+		delete document.documentElement.dataset.titleVeil;
+		// 先清空进入动画的 fill，再钉住覆盖态起跳，避免新旧动画叠加插值。
+		veil.getAnimations().forEach((animation) => animation.cancel());
+		veilAnimation = null;
+		veil.style.transform = 'translateY(0)';
+		veilAnimation = veil.animate(
+			[{ transform: 'translateY(0)' }, { transform: 'translateY(102%)' }],
+			{ duration: VEIL_EXIT_DURATION, easing: RAIN_EASING, fill: 'forwards' },
+		);
+		liftTimer = window.setTimeout(() => hardReset(), VEIL_EXIT_DURATION + 80);
+	};
+
+	const beginTitleJourney = (destination: URL, trigger: HTMLAnchorElement) => {
+		if (!root || !veil || journeyActive) return;
+		journeyActive = true;
+		root.classList.add('is-veiling');
+		// HomeHero 依此标记让文案组先行退场；巨型标题保持原位交给命名转场飞行。
+		document.documentElement.dataset.titleVeil = 'leaving';
+		// 行内终态先行：跨文档搬运或动画丢弃时，新文档同一帧仍是覆盖态，不会露出硬切。
+		veil.style.transform = 'translateY(0)';
+		veilAnimation = veil.animate(
+			[{ transform: 'translateY(-102%)' }, { transform: 'translateY(0)' }],
+			{ duration: VEIL_ENTER_DURATION, delay: VEIL_ENTER_DELAY, easing: RAIN_EASING, fill: 'both' },
+		);
+		submitTimer = window.setTimeout(() => {
+			try {
+			navigate(destination.href, { sourceElement: trigger });
+			} catch {
+				hardReset();
+			}
+		}, NAVIGATE_AT);
+		safetyTimer = window.setTimeout(() => {
+			if (journeyActive) hardReset();
+		}, SAFETY_TIMEOUT);
+	};
+
+	const handleClick = (event: Event) => {
+		if (!(event instanceof MouseEvent) || event.defaultPrevented) return;
+		if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+		if (journeyActive) {
+			event.preventDefault();
+			return;
+		}
+		if (reduceMotion.matches || typeof navigate !== 'function') return;
+
+		const target = event.target;
+		if (!(target instanceof Element)) return;
+		const link = target.closest<HTMLAnchorElement>('a[data-aria7-title-transition-link]');
+		if (!link || link.target || link.hasAttribute('download')) return;
+		const rawHref = link.getAttribute('href');
+		if (!rawHref || rawHref.startsWith('#')) return;
+		let destination: URL;
+		try {
+			destination = new URL(rawHref, window.location.href);
+		} catch {
+			return;
+		}
+		if (destination.origin !== window.location.origin) return;
+		if (destination.pathname === window.location.pathname && destination.search === window.location.search) return;
+
+		event.preventDefault();
+		beginTitleJourney(destination, link);
+	};
+
+	// ClientRouter 已确认本次导航并取得目标文档后才触发该事件。后备载体在此刻
+	// 接管首页标题，与路由器共用同一条导航事务，不会和链接点击监听器竞争时机。
+	const prepareFallback = (event: TransitionPreparationEvent) => {
+		if (reduceMotion.matches || supportsNativeTransition) return;
+		const trigger = event.sourceElement instanceof Element
+			? event.sourceElement.closest<HTMLAnchorElement>('a[data-aria7-title-transition-link]')
+			: null;
+		if (!trigger || trigger.target || trigger.hasAttribute('download')) {
+			return;
+		}
+		const destination = new URL(trigger.href, window.location.href);
+		if (destination.origin !== window.location.origin || destination.pathname !== '/about/') {
+			return;
+		}
+		const title = document.querySelector<HTMLElement>('[data-aria7-title-transition]');
+		if (!title) {
+			return;
+		}
+
+		const rect = getRect(title);
+		if (!isValidRect(rect)) {
+			return;
+		}
+		reset();
+		source = title;
+		sourceOpacity = title.style.getPropertyValue('opacity');
+		sourceOpacityPriority = title.style.getPropertyPriority('opacity');
+		if (carrier) setCarrierStyle(carrier, rect, getStyle(title));
+		title.style.setProperty('opacity', '0', 'important');
+		pendingTransition = { rect, style: getStyle(title) };
+		// 取页失败或被新导航取消时恢复源标题，防止载体长时间占住首屏。
+		pendingTimer = window.setTimeout(() => reset(), 1800);
+	};
+
+	const completeFallback = () => {
+		if (!pendingTransition || reduceMotion.matches || supportsNativeTransition) return;
+		const title = document.querySelector<HTMLElement>('[data-aria7-title-transition]');
+		if (!title || !carrier) {
+			reset();
+			return;
+		}
+		const destinationRect = getRect(title);
+		if (!isValidRect(destinationRect)) {
+			reset();
+			return;
+		}
+
+		target = title;
+		targetOpacity = title.style.getPropertyValue('opacity');
+		targetOpacityPriority = title.style.getPropertyPriority('opacity');
+		title.style.setProperty('opacity', '0');
+		const { rect } = pendingTransition;
+		const finalTransform = `translate3d(${destinationRect.left - rect.left}px, ${destinationRect.top - rect.top}px, 0) scale(${destinationRect.width / rect.width}, ${destinationRect.height / rect.height})`;
+		carrierAnimation = carrier.animate([
+			{ transform: 'translate3d(0, 0, 0) scale(1)', opacity: 1, offset: 0 },
+			{ transform: finalTransform, opacity: 1, offset: 0.8 },
+			{ transform: finalTransform, opacity: 0, offset: 1 },
+		], {
+			duration: FALLBACK_DURATION,
+			easing: RAIN_EASING,
+			fill: 'forwards',
+		});
+		targetAnimation = title.animate(
+			[{ opacity: 0 }, { opacity: 1 }],
+			{ duration: 110, delay: FALLBACK_DURATION - 110, easing: 'ease-out', fill: 'forwards' },
+		);
+		Promise.allSettled([carrierAnimation.finished, targetAnimation.finished]).then(() => reset());
 	};
 
 	function initSharedTitleTransition() {
-		const root = document.querySelector<HTMLElement>('[data-shared-title-transition]');
-		const carrier = root?.querySelector<HTMLElement>('[data-shared-title-carrier]');
-		if (!root || !carrier || root.dataset.interactiveReady === 'true') return;
-		root.dataset.interactiveReady = 'true';
-
-		const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-		const supportsNativeTransition = typeof document.startViewTransition === 'function';
-
-		const prepareFallback = (event: TransitionPreparationEvent) => {
-			if (reduceMotion.matches || supportsNativeTransition) {
-				return;
-			}
-			const trigger = event.sourceElement instanceof Element
-				? event.sourceElement.closest<HTMLAnchorElement>('a[data-aria7-title-transition-link]')
-				: null;
-			if (!trigger || trigger.target || trigger.hasAttribute('download')) {
-				return;
-			}
-			const destination = new URL(trigger.href, window.location.href);
-			if (destination.origin !== window.location.origin || destination.pathname !== '/about/') {
-				return;
-			}
-			const title = document.querySelector<HTMLElement>('[data-aria7-title-transition]');
-			if (!title) {
-				return;
-			}
-
-			const rect = getRect(title);
-			if (!isValidRect(rect)) {
-				return;
-			}
-			reset(carrier);
-			source = title;
-			sourceOpacity = title.style.getPropertyValue('opacity');
-			sourceOpacityPriority = title.style.getPropertyPriority('opacity');
-			setCarrierStyle(carrier, rect, getStyle(title));
-			title.style.setProperty('opacity', '0', 'important');
-			pendingTransition = { rect, style: getStyle(title) };
-			// 取页失败或被新导航取消时恢复源标题，防止持久载体长时间占住首屏。
-			pendingTimer = window.setTimeout(() => reset(carrier), 1800);
-		};
-
-		const completeFallback = () => {
-			if (!pendingTransition || reduceMotion.matches || supportsNativeTransition) return;
-			const title = document.querySelector<HTMLElement>('[data-aria7-title-transition]');
-			if (!title) {
-				reset(carrier);
-				return;
-			}
-			const destinationRect = getRect(title);
-			if (!isValidRect(destinationRect)) {
-				reset(carrier);
-				return;
-			}
-
-			target = title;
-			targetOpacity = title.style.getPropertyValue('opacity');
-			targetOpacityPriority = title.style.getPropertyPriority('opacity');
-			title.style.setProperty('opacity', '0');
-			const { rect } = pendingTransition;
-			const finalTransform = `translate3d(${destinationRect.left - rect.left}px, ${destinationRect.top - rect.top}px, 0) scale(${destinationRect.width / rect.width}, ${destinationRect.height / rect.height})`;
-			carrierAnimation = carrier.animate([
-				{ transform: 'translate3d(0, 0, 0) scale(1)', opacity: 1, offset: 0 },
-				{ transform: finalTransform, opacity: 1, offset: 0.8 },
-				{ transform: finalTransform, opacity: 0, offset: 1 },
-			], {
-				duration: FALLBACK_DURATION,
-				easing: 'cubic-bezier(0.22, 0.75, 0.28, 1)',
-				fill: 'forwards',
-			});
-			targetAnimation = title.animate(
-				[{ opacity: 0 }, { opacity: 1 }],
-				{ duration: 110, delay: FALLBACK_DURATION - 110, easing: 'ease-out', fill: 'forwards' },
-			);
-			Promise.allSettled([carrierAnimation.finished, targetAnimation.finished]).then(() => reset(carrier));
-		};
-
-		// ClientRouter 已确认本次导航并取得目标文档后才触发该事件。后备载体在此刻
-		// 接管首页标题，与路由器共用同一条导航事务，不会和链接点击监听器竞争时机。
-		document.addEventListener('astro:before-preparation', prepareFallback);
-		document.addEventListener('astro:after-swap', completeFallback);
-		window.addEventListener('pageshow', () => reset(carrier));
+		root = document.querySelector<HTMLElement>('[data-shared-title-transition]') ?? null;
+		carrier = root?.querySelector<HTMLElement>('[data-shared-title-carrier]') ?? null;
+		veil = root?.querySelector<HTMLElement>('[data-shared-title-veil]') ?? null;
 	}
 
 	initSharedTitleTransition();
 	document.addEventListener('astro:page-load', initSharedTitleTransition);
+	document.addEventListener('click', handleClick, true);
+	document.addEventListener('astro:before-preparation', prepareFallback);
+	// 抵达侧：fallback="swap" 模式下节点会被整体替换，先重查引用再揭幕，
+	// 保证持久化与非持久化两条路径都从覆盖态继续下落。
+	document.addEventListener('astro:after-swap', () => {
+		initSharedTitleTransition();
+		completeFallback();
+		if (!journeyActive) return;
+		if (window.location.pathname !== '/about/') {
+			hardReset();
+			return;
+		}
+		beginVeilLift();
+	});
+	window.addEventListener('pageshow', (event) => {
+		if (event.persisted) hardReset();
+	});
 </script>
 
 <style>
@@ -215,6 +347,53 @@
 		inset: 0;
 		z-index: var(--z-route);
 		pointer-events: none;
+	}
+
+	/* 编排进行中整幕拦截点击与键盘误触，结束后由 hardReset 释放。 */
+	.shared-title-transition.is-veiling {
+		pointer-events: auto;
+	}
+
+	/*
+	 * 纸幕：与当前天气同系的纸面（--weather-surface 随 rain/clear/night 重写，
+	 * 夜间比页面底色亮一档以保持可读的幕体），叠 archive-fiber 纤维纹理；
+	 * 底缘一条玻璃墨线充当雨帘前缘。平时停在视口上方（translateY(-102%)），
+	 * 编排时经 WAAPI 落下并继续落出。
+	 */
+	.shared-title-transition__veil {
+		position: fixed;
+		inset: 0;
+		transform: translateY(-102%);
+		background-color: var(--weather-surface);
+		will-change: transform;
+	}
+
+	.shared-title-transition__veil::before {
+		position: absolute;
+		inset: 0;
+		content: '';
+		background: url('/assets/patterns/archive-fiber.svg') 0 0 / 220px 220px;
+		opacity: var(--weather-fiber-opacity, 0.18);
+		mix-blend-mode: var(--weather-fiber-blend, multiply);
+	}
+
+	.shared-title-transition__veil::after {
+		position: absolute;
+		inset: auto 0 -1px 0;
+		height: 1px;
+		content: '';
+		background: var(--weather-glass-line);
+		opacity: 0.5;
+	}
+
+	.shared-title-transition__veil-label {
+		position: absolute;
+		left: 28px;
+		bottom: 24px;
+		font-family: var(--font-ui);
+		font-size: 9px;
+		letter-spacing: 0.14em;
+		color: var(--ink-muted);
 	}
 
 	.shared-title-transition__carrier {

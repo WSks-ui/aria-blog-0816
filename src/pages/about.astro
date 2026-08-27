@@ -9,25 +9,27 @@ const contactEmail = import.meta.env.PUBLIC_CONTACT_EMAIL?.trim() || '';
 ---
 
 <BaseLayout title="关于" description="关于 Aria-7 与这个个人档案站。">
-	<div class="page-shell">
-		<PageHeader eyebrow="PROFILE / ARIA-7" title="关于 Aria-7" sharedTitle="Aria-7" description="这里保存正在学习、制作和观察的事物，也记录它们如何慢慢形成可复用的经验。" />
+	<div class="page-shell about-page">
+		<div class="about-header">
+			<PageHeader eyebrow="PROFILE / ARIA-7" title="关于 Aria-7" sharedTitle="Aria-7" description="这里保存正在学习、制作和观察的事物，也记录它们如何慢慢形成可复用的经验。" />
+		</div>
 		<section class="about-grid">
 			<div class="about-portrait" aria-hidden="true">
 				<img src="/assets/patterns/umbrella-field.svg" alt="" width="700" height="900" />
 				<span>VISUAL ARCHIVE / RAIN STUDY</span>
 			</div>
 			<div class="about-copy prose">
-				<h2>现在</h2>
-				<p>Aria-7 是一个持续整理中的个人档案站，记录随笔、学习笔记、项目、底片、代码与可重复实践的指南。内容会随着新的实验和阅读继续增长。</p>
-				<h2>关注的主题</h2>
-				<ul>
+				<h2 style="--reveal-order: 0">现在</h2>
+				<p style="--reveal-order: 1">Aria-7 是一个持续整理中的个人档案站，记录随笔、学习笔记、项目、底片、代码与可重复实践的指南。内容会随着新的实验和阅读继续增长。</p>
+				<h2 style="--reveal-order: 2">关注的主题</h2>
+				<ul style="--reveal-order: 3">
 					<li>前端开发与界面设计</li>
 					<li>学习方法与知识整理</li>
 					<li>开源项目与小型工具</li>
 					<li>摄影、插画与视觉观察</li>
 				</ul>
-				<h2>联系</h2>
-				<div class="about-links">
+				<h2 style="--reveal-order: 4">联系</h2>
+				<div class="about-links" style="--reveal-order: 5">
 					{githubUrl && <a href={githubUrl} rel="noopener noreferrer"><GitBranch size={18} stroke-width={1.5} aria-hidden="true" /> GitHub</a>}
 					{contactEmail && <a href={`mailto:${contactEmail}`}><Mail size={18} stroke-width={1.5} aria-hidden="true" /> 邮箱</a>}
 					<a href="/rss.xml" data-astro-reload><Rss size={18} stroke-width={1.5} aria-hidden="true" /> RSS</a>
@@ -37,8 +39,78 @@ const contactEmail = import.meta.env.PUBLIC_CONTACT_EMAIL?.trim() || '';
 	</div>
 </BaseLayout>
 
+<style is:global>
+	/*
+	 * 「纸面显影」到达编排：纸幕落定后基线先画出，页头元数据与肖像随之显影，
+	 * 正文按 --reveal-order 逐条落定。键帧与引用全部收在同一个全局块里，
+	 * 避免 scoped 与 global 混用时 dev/build 的键帧改名差异；规则都用
+	 * .about-page 前缀限定作用域。直接访问本页时同一套级联充当入场，
+	 * reduced-motion 下由 motion.css 一级兜底瞬时到达并把延迟清零。
+	 */
+	@keyframes about-rise {
+		from { opacity: 0; transform: translateY(14px); }
+		to { opacity: 1; transform: translateY(0); }
+	}
+
+	@keyframes about-baseline {
+		0% { opacity: 0; transform: scaleX(0); }
+		16% { opacity: 0.5; }
+		44%, 70% { opacity: 0.42; transform: scaleX(1); }
+		100% { opacity: 0; transform: scaleX(1); }
+	}
+
+	@keyframes about-develop {
+		from { clip-path: inset(0 0 100% 0); }
+		to { clip-path: inset(0 0 0 0); }
+	}
+
+	@keyframes about-develop-img {
+		from { transform: scale(1.05); }
+		to { transform: scale(1); }
+	}
+
+	/* 页头基线：沿页头既有底线画一条青色墨线，画出后自行隐去，页面恢复原设计。 */
+	.about-page .about-header { position: relative; }
+	.about-page .about-header::after {
+		position: absolute;
+		inset: auto 0 -1px 0;
+		height: 1px;
+		content: '';
+		background: var(--weather-accent);
+		opacity: 0;
+		transform: scaleX(0);
+		transform-origin: left center;
+		animation: about-baseline 1400ms var(--ease-rain) 140ms both;
+	}
+
+	.about-page .page-header__rail { animation: about-rise 420ms var(--ease-rain) 160ms both; }
+	.about-page .page-header__mark { animation: about-rise 480ms var(--ease-rain) 200ms both; }
+	.about-page .page-header p { animation: about-rise 440ms var(--ease-rain) 240ms both; }
+
+	/* 肖像显影：容器自上而下揭开（clip-path），图像同时从轻缩放落定。 */
+	.about-page .about-portrait { animation: about-develop 560ms var(--ease-rain) 260ms both; }
+	.about-page .about-portrait img { animation: about-develop-img 640ms var(--ease-rain) 260ms both; }
+
+	/* 正文条目在纸幕上抬过半时开始逐条落定，0.4s 左右首屏已可读。 */
+	.about-page .about-copy > * {
+		animation: about-rise 420ms var(--ease-rain) both;
+		animation-delay: calc(300ms + var(--reveal-order, 0) * 70ms);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.about-page .about-header::after,
+		.about-page .about-portrait,
+		.about-page .about-portrait img,
+		.about-page .about-copy > *,
+		.about-page .page-header__rail,
+		.about-page .page-header__mark,
+		.about-page .page-header p { animation-delay: 0ms; }
+	}
+</style>
+
 <style>
 	.page-shell { max-width: var(--content-max); margin-inline: auto; padding-inline: var(--page-gutter); }
+
 	.about-grid { display: grid; grid-template-columns: minmax(360px, 0.85fr) minmax(520px, 1.15fr); gap: 72px; margin-top: 72px; }
 	.about-portrait { position: relative; min-height: 660px; overflow: hidden; background: var(--accent-soft); }
 	.about-portrait img { width: 100%; height: 100%; object-fit: cover; }
@@ -47,6 +119,7 @@ const contactEmail = import.meta.env.PUBLIC_CONTACT_EMAIL?.trim() || '';
 	.about-links { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 28px; border-block: 1px solid var(--line); }
 	.about-links a { display: flex; min-height: 64px; align-items: center; gap: 10px; padding-inline: 12px; border-right: 1px solid var(--line); font-family: var(--font-ui); font-size: 11px; color: var(--ink); text-decoration: none; }
 	.about-links a:last-child { border-right: 0; }
+
 	@media (max-width: 900px) { .about-grid { grid-template-columns: 1fr; } .about-portrait { min-height: 420px; } }
 	@media (max-width: 760px) { .page-shell { padding-inline: 20px; } .about-links { grid-template-columns: 1fr; } .about-links a { border-right: 0; border-bottom: 1px solid var(--line); } }
 </style>

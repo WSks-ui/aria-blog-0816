@@ -86,6 +86,22 @@ const { recordsCount, lastUpdateText } = Astro.props;
 		to { opacity: 1; transform: translateY(0); }
 	}
 
+	/*
+	 * 「纸面显影」离场拍：SharedTitleTransition 在点击关于入口时设置 html 标记，
+	 * 文案组按 0–120ms 错峰上浮退场（新动画覆盖入场动画的 forwards 填充）；
+	 * 巨型标题保持原位，交给命名 View Transition 在纸幕上飞行。
+	 */
+	:global(html[data-title-veil='leaving']) .home-hero__status { animation: home-hero-exit 200ms var(--ease-drift) both; }
+	:global(html[data-title-veil='leaving']) .home-hero__copy > p { animation: home-hero-exit 200ms var(--ease-drift) 40ms both; }
+	:global(html[data-title-veil='leaving']) .home-hero__copy > strong { animation: home-hero-exit 220ms var(--ease-drift) 70ms both; }
+	:global(html[data-title-veil='leaving']) .home-hero__copy > span { animation: home-hero-exit 200ms var(--ease-drift) 95ms both; }
+	:global(html[data-title-veil='leaving']) .home-hero__enter { animation: home-hero-exit 200ms var(--ease-drift) 120ms both; }
+
+	@keyframes home-hero-exit {
+		from { opacity: 1; transform: translateY(0); }
+		to { opacity: 0; transform: translateY(-10px); }
+	}
+
 	@media (prefers-reduced-motion: reduce) {
 		.home-hero__status,
 		.home-hero__copy > p,
