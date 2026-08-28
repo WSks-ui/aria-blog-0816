@@ -82,6 +82,68 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 				animation-timing-function: var(--ease-rain, ease);
 			}
 			/*
+			 * 栏目 tab 的正文换页不做双层叠影：两层文本同屏时，旧页文字会透过
+			 * 新页快照的透明背景显形，并一直停留到快照销毁，读起来像未完成的
+			 * 淡切。这里改为先后式——旧页先带方向整体退净，纸面留出一拍，新页
+			 * 再从行进方向落定，两层文本永不重叠。方向由栏目顺序决定（SiteHeader
+			 * 依索引改写 direction）：前进向左翻页，后退向右翻回。
+			 */
+			html:not([data-title-flight='active'])::view-transition-group(aria7-page-main) {
+				animation-duration: 510ms;
+				animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+			}
+			html:not([data-title-flight='active'])::view-transition-image-pair(aria7-page-main) {
+				isolation: isolate;
+			}
+			html:not([data-title-flight='active'])::view-transition-old(aria7-page-main) {
+				z-index: 1;
+				will-change: opacity, transform;
+				animation: aria7-page-exit-forward 240ms var(--ease-rain, cubic-bezier(0.22, 0.75, 0.28, 1)) both;
+			}
+			html:not([data-title-flight='active'])::view-transition-new(aria7-page-main) {
+				z-index: 2;
+				will-change: opacity, transform;
+				animation: aria7-page-reveal-forward 360ms var(--ease-rain, cubic-bezier(0.22, 0.75, 0.28, 1)) 150ms both;
+			}
+			html[data-astro-transition='back']:not([data-title-flight='active'])::view-transition-old(aria7-page-main) {
+				animation-name: aria7-page-exit-back;
+			}
+			html[data-astro-transition='back']:not([data-title-flight='active'])::view-transition-new(aria7-page-main) {
+				animation-name: aria7-page-reveal-back;
+			}
+			/* fallback 没有新旧快照，old/new 两段本来就先后播放，直接复用同一组关键帧。 */
+			html:not([data-title-flight='active'])[data-astro-transition-fallback='old'] [data-page-main] {
+				animation: aria7-page-exit-forward 240ms var(--ease-rain, cubic-bezier(0.22, 0.75, 0.28, 1)) both;
+			}
+			html:not([data-title-flight='active'])[data-astro-transition-fallback='new'] [data-page-main] {
+				animation: aria7-page-reveal-forward 360ms var(--ease-rain, cubic-bezier(0.22, 0.75, 0.28, 1)) both;
+			}
+			html[data-astro-transition='back']:not([data-title-flight='active'])[data-astro-transition-fallback='old'] [data-page-main] {
+				animation-name: aria7-page-exit-back;
+			}
+			html[data-astro-transition='back']:not([data-title-flight='active'])[data-astro-transition-fallback='new'] [data-page-main] {
+				animation-name: aria7-page-reveal-back;
+			}
+			html[data-title-flight='active'][data-astro-transition-fallback] [data-page-main] {
+				animation: none;
+			}
+			@keyframes aria7-page-exit-forward {
+				from { opacity: 1; transform: translate3d(0, 0, 0); }
+				to { opacity: 0; transform: translate3d(-3.2%, 0, 0); }
+			}
+			@keyframes aria7-page-reveal-forward {
+				from { opacity: 0; transform: translate3d(2.6%, 0, 0); }
+				to { opacity: 1; transform: translate3d(0, 0, 0); }
+			}
+			@keyframes aria7-page-exit-back {
+				from { opacity: 1; transform: translate3d(0, 0, 0); }
+				to { opacity: 0; transform: translate3d(3.2%, 0, 0); }
+			}
+			@keyframes aria7-page-reveal-back {
+				from { opacity: 0; transform: translate3d(-2.6%, 0, 0); }
+				to { opacity: 1; transform: translate3d(0, 0, 0); }
+			}
+			/*
 			 * 根元素退出视图转场分组：整页不再被快照冻结，换页瞬间即是活层。
 			 * 「纸面显影」的到达编排（曝光退去 + about 显影级联）因此在标题飞行
 			 * 期间实时演出，而不是被冻在幕后等飞行结束才被硬掀开；遮住换帧的
@@ -106,6 +168,15 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 
 			@media (prefers-reduced-motion: reduce) {
 				::view-transition-group(aria7-title) { animation-duration: 1ms; }
+				html:not([data-title-flight='active'])::view-transition-group(aria7-page-main),
+				html:not([data-title-flight='active'])::view-transition-old(aria7-page-main),
+				html:not([data-title-flight='active'])::view-transition-new(aria7-page-main) {
+					animation-duration: 1ms !important;
+					animation-delay: 0ms !important;
+				}
+				html[data-astro-transition-fallback] [data-page-main] {
+					animation-duration: 1ms !important;
+				}
 			}
 		</style>
 		<script is:inline>
@@ -163,10 +234,10 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 		</SiteHeader>
 		<!--
 			Astro 只有在模板中声明 transition:animate 后，才会把该元素登记为
-			ClientRouter 的可交换层。slide 让前进、后退分别使用相反方向的正文
-			位移；data-page-main 保留给首页与关于页的专用标题旅程进行排除控制。
+			ClientRouter 的可交换层。实际运动由上方的命名 View Transition 规则
+			接管；data-page-main 保留给首页与关于页的专用标题旅程进行排除控制。
 		-->
-		<main id="main-content" data-page-main transition:name="aria7-page-main" transition:animate="slide">
+		<main id="main-content" data-page-main transition:name="aria7-page-main" transition:animate="none">
 			<slot />
 		</main>
 		<SiteFooter />
