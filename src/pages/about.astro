@@ -191,20 +191,32 @@ const factLines = factSegments.map((segments) => {
 	}
 
 	/*
-	 * 自我介绍打字机：清单整体不再淡入（布局占位由透明 token 承担），每个
-	 * token 在所属条目的节拍上依 --char-i 以 26ms 字面步进从左到右亮起；
-	 * 行内方点跟随条目第一个字同时落点，不在空行上提前亮出。约 1.4s 收束。
+	 * 自我介绍打字机：清单整体不再淡入（布局占位由透明 token 承担）。每个
+	 * 字符在所属条目的节拍上依 --char-i 以 26ms 字面步进打出，先落在自身
+	 * 位置的右下偏移点上，随即各自滑进预定位置，落版随打字波次递进。
+	 * 行内方点跟随条目第一个字同时落点，不在空行上提前亮出。
 	 */
 	.about-page .about-facts { animation: none; }
 	.about-page .about-facts .ch {
+		position: relative;
 		opacity: 0;
-		animation: about-type-in 1ms linear both;
+		animation: about-char-land 240ms var(--ease-rain) both;
 		animation-delay: calc(430ms + var(--reveal-order, 1) * 70ms + var(--char-i, 0) * 26ms);
 	}
 	.about-page .about-facts li::before {
 		opacity: 0;
 		animation: about-type-in 1ms linear both;
 		animation-delay: calc(430ms + var(--reveal-order, 1) * 70ms);
+	}
+
+	/*
+	 * 逐字落版用相对定位的 left/top 而不是 transform：token 是行内盒子，
+	 * transform 对它不生效；换成 inline-block 又会塌掉空白 token、丢掉
+	 * 链接下划线，相对位移是唯一三方兼顾的落法。
+	 */
+	@keyframes about-char-land {
+		from { opacity: 0; left: 8px; top: 6px; }
+		to { opacity: 1; left: 0; top: 0; }
 	}
 
 	/*
