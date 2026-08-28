@@ -127,6 +127,54 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 			html[data-title-flight='active'][data-astro-transition-fallback] [data-page-main] {
 				animation: none;
 			}
+			/*
+			 * 文章导航（article-nav）：旧页软退、新页软入，让位给标题与封面的
+			 * 命名共享元素飞行。命名对先按通用节奏淡切——旧字快散、新字迟显，
+			 * 快照被盒子拉伸的过程藏在溶解里；aria7-page-main 的专属规则在后面
+			 * 按同特异性覆写回来。列表里其余未配对的行标题作为孤儿组原地随页
+			 * 淡出，与整页软退同拍，不留残影。
+			 */
+			html[data-article-nav='active']::view-transition-group(*) {
+				animation-duration: 300ms;
+				animation-timing-function: var(--ease-rain, ease);
+			}
+			html[data-article-nav='active']::view-transition-old(*),
+			html[data-article-nav='active']::view-transition-new(*) {
+				animation-duration: 150ms;
+				animation-timing-function: ease-out;
+			}
+			html[data-article-nav='active']::view-transition-new(*) {
+				animation-delay: 140ms;
+			}
+			html[data-article-nav='active']::view-transition-old(aria7-page-main) {
+				animation-name: aria7-article-soft-exit;
+				animation-duration: 220ms;
+				animation-delay: 0ms;
+			}
+			html[data-article-nav='active']::view-transition-new(aria7-page-main) {
+				animation-name: aria7-article-soft-reveal;
+				animation-duration: 380ms;
+				animation-delay: 80ms;
+			}
+			/* 后备浏览器没有命名共享元素，正文沿用同一套软退软入，节奏一致。 */
+			html[data-article-nav='active'][data-astro-transition-fallback='old'] [data-page-main] {
+				animation-name: aria7-article-soft-exit;
+				animation-duration: 220ms;
+				animation-delay: 0ms;
+			}
+			html[data-article-nav='active'][data-astro-transition-fallback='new'] [data-page-main] {
+				animation-name: aria7-article-soft-reveal;
+				animation-duration: 380ms;
+				animation-delay: 80ms;
+			}
+			@keyframes aria7-article-soft-exit {
+				from { opacity: 1; }
+				to { opacity: 0; }
+			}
+			@keyframes aria7-article-soft-reveal {
+				from { opacity: 0; }
+				to { opacity: 1; }
+			}
 			@keyframes aria7-page-exit-forward {
 				from { opacity: 1; transform: translate3d(0, 0, 0); }
 				to { opacity: 0; transform: translate3d(-3.2%, 0, 0); }
@@ -168,6 +216,13 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 
 			@media (prefers-reduced-motion: reduce) {
 				::view-transition-group(aria7-title) { animation-duration: 1ms; }
+				/* 命名共享元素（文章标题/封面）连同其余分组一律瞬时完成。 */
+				::view-transition-group(*),
+				::view-transition-old(*),
+				::view-transition-new(*) {
+					animation-duration: 1ms !important;
+					animation-delay: 0ms !important;
+				}
 				html:not([data-title-flight='active'])::view-transition-group(aria7-page-main),
 				html:not([data-title-flight='active'])::view-transition-old(aria7-page-main),
 				html:not([data-title-flight='active'])::view-transition-new(aria7-page-main) {
@@ -243,5 +298,35 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 		<SiteFooter />
 		<SearchDialog />
 		<Lightbox />
+		<script>
+			type RouterEvent = Event & { newDocument?: Document };
+
+			/*
+			 * 文章导航标注：before-preparation 阶段依据来源链接判定是否为文章
+			 * 导航，挂上 data-article-nav 让旧页软退、新页软入，标题与封面交给
+			 * 命名共享元素飞行（规则见 head 内联样式）。Astro 会在交换阶段以新
+			 * 文档的根属性覆盖当前根节点，因此在 before-swap 里同步给
+			 * newDocument，飞行两端才都持有该标记。脚本随 ClientRouter 持久
+			 * 存活，监听器只需注册一次。
+			 */
+			const armArticleNav = (event: Event) => {
+				const source = (event as Event & { sourceElement?: Element }).sourceElement;
+				const link = source instanceof Element
+					? source.closest('a[data-article-transition-link]')
+					: null;
+				if (link) {
+					document.documentElement.dataset.articleNav = 'active';
+				} else {
+					delete document.documentElement.dataset.articleNav;
+				}
+			};
+
+			document.addEventListener('astro:before-preparation', armArticleNav);
+			document.addEventListener('astro:before-swap', (event) => {
+				if (document.documentElement.dataset.articleNav === 'active') {
+					(event as RouterEvent).newDocument?.documentElement.setAttribute('data-article-nav', 'active');
+				}
+			});
+		</script>
 	</body>
 </html>

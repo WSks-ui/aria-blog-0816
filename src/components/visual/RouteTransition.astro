@@ -141,9 +141,14 @@
 
 			const target = event.target;
 			if (!(target instanceof Element)) return;
-			// 文章入口和讲义内部导航保留场景转场；栏目标签不在此处拦截，
-			// 交由 ClientRouter 替换正文，以便持久化页头维持在原位。
-			const link = target.closest('a[data-article-transition-link], a[data-route-transition-link]');
+			/*
+			 * 只有讲义工具链这类无对应元素可交接的路由保留全屏场景转场；文章
+			 * 入口（data-article-transition-link）已改走 ClientRouter 的共享元素
+			 * 转场——标题与封面由浏览器在两页快照间对插值飞行，黑场遮罩反而
+			 * 会把联动盖住。栏目标签同样不在此处拦截，交由 ClientRouter 替换
+			 * 正文，以便持久化页头维持在原位。
+			 */
+			const link = target.closest('a[data-route-transition-link]');
 			if (!link || link.hasAttribute('download')) return;
 			const rawTarget = link.getAttribute('target');
 			const rawHref = link.getAttribute('href');
