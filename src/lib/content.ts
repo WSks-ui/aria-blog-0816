@@ -82,6 +82,20 @@ export function getPostSlug(post: PostEntry): string {
   return post.id.replace(/\.(?:md|mdx)$/i, '').replaceAll('\\', '/');
 }
 
+/*
+ * 文章共享元素转场名：列表行标题与文章页 H1 各持同一名字，ClientRouter
+ * 换页时浏览器据此对插值位置完成标题飞行。view-transition-name 要求合法
+ * 的 CSS custom-ident；标识符允许非 ASCII 字母，因此中日文 slug 原样保留
+ * （只剔除空白与符号），避免多篇中文标题塌缩成同一个名字。前后缀保证
+ * 不以数字或连字符开头。
+ */
+export function getPostTransitionName(post: PostEntry): string {
+  const slug = getPostSlug(post)
+    .replace(/[^\p{L}\p{N}_-]+/gu, '-')
+    .replace(/^-+|-+$/g, '');
+  return `aria7-post-${slug || 'untitled'}`;
+}
+
 /**
  * 全站统一的阅读时长估算：中文按单字、拉丁按词计数（与 SceneGuide 的运行时
  * 算法一致），围栏与行内代码不计入。列表页与正文侧栏显示同一篇文章的分钟数

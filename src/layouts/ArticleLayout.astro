@@ -2,7 +2,7 @@
 import { Focus, GitBranch, MoveLeft, BookmarkCheck, ListTree } from '@lucide/astro';
 import type { MarkdownHeading } from 'astro';
 import type { PostEntry } from '@/lib/content';
-import { getPostPath } from '@/lib/content';
+import { getPostPath, getPostTransitionName } from '@/lib/content';
 import BaseLayout from './BaseLayout.astro';
 import KindLabel from '@/components/content/KindLabel.astro';
 import NightEcho from '@/components/content/NightEcho.astro';
@@ -40,7 +40,15 @@ const isEssay = post.data.kind === 'essay';
 	<div class="article-topline" aria-hidden="true"><span data-article-topline></span></div>
 	<div class="article-shell">
 		<header class="article-hero">
-			<div class="article-hero__cover" data-default-cover={!post.data.cover ? '' : undefined}>
+			<!--
+				封面持有全站唯一的 aria7-article-cover 共享名：从首页精选进入时与
+				精选封面板对插值展开，文章间互跳时前后两篇封面直接形变交接。
+			-->
+			<div
+				class="article-hero__cover"
+				transition:name="aria7-article-cover"
+				data-default-cover={!post.data.cover ? '' : undefined}
+			>
 				{post.data.cover ? (
 					<img src={post.data.cover} alt="" width="1600" height="900" loading="eager" fetchpriority="high" decoding="async" />
 				) : (
@@ -54,7 +62,8 @@ const isEssay = post.data.kind === 'essay';
 					全部文章
 				</a>
 				<KindLabel kind={post.data.kind} />
-				<h1>{post.data.title}</h1>
+				<!-- 与列表行标题共享同名转场：换页时浏览器对两页快照插值，标题从原行位置飞入。 -->
+				<h1 transition:name={getPostTransitionName(post)}>{post.data.title}</h1>
 				<p>{post.data.summary}</p>
 				<div class="article-hero__tags">
 					{post.data.tags.map((tag) => <a href={`/tags/${encodeURIComponent(tag)}/`}>#{tag}</a>)}

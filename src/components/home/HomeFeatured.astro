@@ -2,7 +2,7 @@
 import KindLabel from '@/components/content/KindLabel.astro';
 import PostMeta from '@/components/content/PostMeta.astro';
 import ContentCoverScene from '@/components/visual/ContentCoverScene.astro';
-import { getPostPath, type PostEntry } from '@/lib/content';
+import { getPostPath, getPostTransitionName, type PostEntry } from '@/lib/content';
 
 interface Props {
 	featured: PostEntry;
@@ -22,11 +22,11 @@ const { featured, featuredCover, featuredCoverFit } = Astro.props;
 			</div>
 			<div class="featured-band__copy">
 				<KindLabel kind={featured.data.kind} />
-				<h2 id="featured-title"><a href={getPostPath(featured)} data-article-transition-link data-astro-reload>{featured.data.title}</a></h2>
+				<h2 id="featured-title"><a href={getPostPath(featured)} data-article-transition-link transition:name={getPostTransitionName(featured)}>{featured.data.title}</a></h2>
 				<p>{featured.data.summary}</p>
 				<PostMeta date={featured.data.publishedAt} weather={featured.data.readingWeather} compact />
 			</div>
-			<a class="featured-band__visual" href={getPostPath(featured)} aria-label={`阅读《${featured.data.title}》`} data-article-transition-link data-astro-reload>
+			<a class="featured-band__visual" href={getPostPath(featured)} aria-label={`阅读《${featured.data.title}》`} data-article-transition-link transition:name="aria7-article-cover">
 				<ContentCoverScene kind={featured.data.kind} class="featured-band__cover-scene" />
 				{featuredCover && (
 					<span class:list={['featured-band__media', `featured-band__media--${featuredCoverFit}`]}>

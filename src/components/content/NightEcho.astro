@@ -42,7 +42,7 @@ const { minutes, scenes, related = [] } = Astro.props;
 		<div class="night-echo__related">
 			<p>EXTENDED READING</p>
 			{related.slice(0, 3).map((post) => (
-				<a href={post.href} data-article-transition-link data-astro-reload>
+				<a href={post.href} data-article-transition-link>
 					<span>{post.kind}</span>
 					<strong>{post.title}</strong>
 					<ArrowUpRight size={17} stroke-width={1.5} aria-hidden="true" />

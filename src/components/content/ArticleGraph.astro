@@ -148,7 +148,6 @@ const kindColors = {
 								class="article-graph__node"
 								href={getPostPath(node.post)}
 								data-article-transition-link
-								data-astro-reload
 								data-node-key={node.post.id}
 								tabindex="0"
 								aria-label={`${node.post.data.title}，${POST_KIND_LABELS[node.kind]}`}
@@ -196,7 +195,7 @@ const kindColors = {
 							<span style={`--kind-color: ${kindColors[post.data.kind]}`} aria-hidden="true"></span>
 							<div>
 								<small>{POST_KIND_LABELS[post.data.kind]}</small>
-								<a href={getPostPath(post)} data-article-transition-link data-astro-reload>{post.data.title}</a>
+								<a href={getPostPath(post)} data-article-transition-link>{post.data.title}</a>
 								<p>{post.data.tags.map((tag) => `#${tag}`).join(' ')}</p>
 							</div>
 						</li>

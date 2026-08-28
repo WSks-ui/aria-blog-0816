@@ -1,7 +1,7 @@
 ---
 import { ArrowUpRight } from '@lucide/astro';
 import type { PostEntry } from '@/lib/content';
-import { getPostPath } from '@/lib/content';
+import { getPostPath, getPostTransitionName } from '@/lib/content';
 import { POST_KIND_LABELS } from '@/data/site';
 import KindLabel from './KindLabel.astro';
 
@@ -28,7 +28,7 @@ const dateText = new Intl.DateTimeFormat('zh-CN', {
 	</div>
 	<div class="article-row__body">
 		<KindLabel kind={post.data.kind} />
-		<h3><a href={getPostPath(post)} data-article-transition-link data-astro-reload>{post.data.title}</a></h3>
+			<h3><a href={getPostPath(post)} data-article-transition-link transition:name={getPostTransitionName(post)}>{post.data.title}</a></h3>
 		{showSummary && <p>{post.data.summary}</p>}
 	</div>
 	<div class="article-row__meta">
@@ -38,7 +38,7 @@ const dateText = new Intl.DateTimeFormat('zh-CN', {
 		</div>
 		<span>{POST_KIND_LABELS[post.data.kind]}</span>
 	</div>
-	<a class="article-row__go" href={getPostPath(post)} aria-label={`阅读《${post.data.title}》`} data-article-transition-link data-astro-reload>
+	<a class="article-row__go" href={getPostPath(post)} aria-label={`阅读《${post.data.title}》`} data-article-transition-link>
 		<ArrowUpRight size={20} stroke-width={1.5} aria-hidden="true" />
 	</a>
 </article>
