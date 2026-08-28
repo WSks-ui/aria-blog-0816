@@ -120,11 +120,28 @@ small,
 }
 
 .reading-prose :where(blockquote) {
+  position: relative;
   margin-inline: 0;
-  padding-inline: var(--space-5);
+  padding: var(--space-4) var(--space-5);
   border-inline-start: 2px solid var(--color-rain);
+  background: color-mix(in srgb, var(--color-surface-muted), transparent 58%);
   color: var(--color-ink-muted);
   font-style: normal;
+}
+
+/* 方纸引点骑在左线上：引用块与全站方块母题同一语言。 */
+.reading-prose :where(blockquote)::before {
+  position: absolute;
+  top: calc(var(--space-4) + 0.3em);
+  left: calc(-1 * var(--space-5) - 5px);
+  width: 7px;
+  height: 7px;
+  background: var(--color-rain);
+  content: '';
+}
+
+.reading-prose :where(blockquote :where(p:last-of-type)) {
+  margin-block-end: 0;
 }
 
 .reading-prose :where(code) {
@@ -148,9 +165,103 @@ small,
   background: color-mix(in srgb, var(--color-surface), var(--color-rain-pale) 18%);
   font-variant-numeric: tabular-nums;
   font-variant-ligatures: contextual;
-  line-height: 1.62;
+  line-height: 1.66;
   tab-size: 2;
   transition: background-color var(--duration-base) ease;
+}
+
+/*
+ * 代码面板：JS 会把 pre 包进 .prose-code 并加上「语言标签 + 复制」头栏；
+ * 无 JS 时退回裸 pre（shiki 内联白底 + 细线边框）。包装态下面板供底色，
+ * pre 自身透明并强制不折行——长行横向滚动比无缩进的折行更可读。
+ * !important 用于压过 shiki 写在行内样式里的 background/white-space。
+ */
+.reading-prose .prose-code {
+  margin-block: 0 var(--space-5);
+  border: var(--border-hairline);
+  background: color-mix(in srgb, var(--color-surface), var(--color-rain-pale) 18%);
+}
+
+.reading-prose .prose-code pre.astro-code {
+  margin-block: 0;
+  border: 0;
+  background-color: transparent !important;
+  white-space: pre !important;
+  word-wrap: normal;
+}
+
+.reading-prose .prose-code__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 8px 7px 14px;
+  border-block-end: var(--border-hairline);
+}
+
+.reading-prose .prose-code__lang {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--color-ink-muted);
+  text-transform: uppercase;
+}
+
+.reading-prose .prose-code__lang::before {
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--accent-strong);
+  content: '';
+}
+
+.reading-prose .prose-code__copy {
+  padding: 3px 11px;
+  border: var(--border-hairline);
+  background: color-mix(in srgb, var(--color-surface) 72%, transparent);
+  font-family: var(--font-ui);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--color-ink-muted);
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) ease,
+    border-color var(--duration-fast) ease,
+    background-color var(--duration-fast) ease;
+}
+
+.reading-prose .prose-code__copy:hover,
+.reading-prose .prose-code__copy:focus-visible {
+  border-color: var(--accent-strong);
+  color: var(--accent-strong);
+}
+
+.reading-prose .prose-code__copy.is-copied {
+  border-color: var(--accent-strong);
+  background: color-mix(in srgb, var(--color-rain-pale) 42%, transparent);
+  color: var(--accent-strong);
+}
+
+.reading-prose .prose-code__copy.is-failed {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+/* 长代码横滚时给一条安静的细滚动条。 */
+.reading-prose .prose-code pre::-webkit-scrollbar,
+.reading-prose .prose-table::-webkit-scrollbar {
+  height: 8px;
+}
+
+.reading-prose .prose-code pre::-webkit-scrollbar-thumb,
+.reading-prose .prose-table::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-line) 55%, transparent);
+}
+
+.reading-prose .prose-code pre::-webkit-scrollbar-track,
+.reading-prose .prose-table::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 /*
@@ -177,7 +288,9 @@ small,
 /*
  * 代码块用 shiki 双主题（github-light / github-dark）渲染：浅色值写在行内样式的
  * color 上，深色值以 --shiki-dark 变量同行输出。三种天气中只有夜间翻转为深色，
- * 优先消费 shiki 的变量，未输出的 token 回退到块的深色前景。
+ * 优先消费 shiki 的变量，未输出的 token 回退到块的深色前景。包装态下面板底色
+ * 全权交给 .prose-code（变量随天气自动翻转），pre 保持透明，避免露出 shiki
+ * 行内白底与面板之间的接缝。
  */
 html[data-weather-mode='night'] .reading-prose pre,
 html[data-weather-mode='night'] .reading-prose pre span {
@@ -189,8 +302,193 @@ html[data-weather-mode='night'] .reading-prose pre {
   border-color: color-mix(in srgb, var(--night-text), transparent 84%);
 }
 
+html[data-weather-mode='night'] .reading-prose .prose-code {
+  border-color: color-mix(in srgb, var(--night-text), transparent 84%);
+}
+
+html[data-weather-mode='night'] .reading-prose .prose-code pre.astro-code {
+  background-color: transparent !important;
+}
+
 html[data-weather-mode='night'] .reading-prose :where(:not(pre) > code) {
   background: color-mix(in srgb, var(--night-1), var(--night-text) 8%);
+}
+
+/*
+ * 表格：JS 包一层 .prose-table 负责横向滚动，表格本体保持原生 table 布局。
+ * 表头用 UI 无衬线小字 + 细线分隔，行间细线 + 斑纹底、悬停纸青提亮。
+ */
+.reading-prose .prose-table {
+  margin-block: 0 var(--space-5);
+  overflow-x: auto;
+  border: var(--border-hairline);
+}
+
+.reading-prose .prose-table table {
+  width: 100%;
+  margin-block: 0;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+}
+
+.reading-prose :where(th, td) {
+  padding: 9px 14px;
+  border-block-end: 1px solid color-mix(in srgb, var(--color-line), transparent 52%);
+  text-align: left;
+  vertical-align: top;
+}
+
+.reading-prose :where(thead th) {
+  border-block-end: 1px solid var(--color-line);
+  background: color-mix(in srgb, var(--color-surface-muted), transparent 42%);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--color-ink);
+  white-space: nowrap;
+}
+
+.reading-prose :where(tbody tr:nth-child(even)) {
+  background: color-mix(in srgb, var(--color-surface-muted), transparent 76%);
+}
+
+.reading-prose :where(tbody tr:hover) {
+  background: color-mix(in srgb, var(--color-rain-pale) 30%, transparent);
+}
+
+.reading-prose :where(td) code {
+  font-size: 0.82em;
+}
+
+/*
+ * 列表：无序列表的项标记换成 5px 方纸点（方块母题），有序列表用等宽数字。
+ * 任务列表（GFM）撤掉方点，交给原生复选框。
+ */
+.reading-prose :where(ul) {
+  padding-inline-start: 1.5em;
+  list-style: none;
+}
+
+.reading-prose :where(ul > li) {
+  position: relative;
+}
+
+.reading-prose :where(ul > li)::before {
+  position: absolute;
+  top: 0.66em;
+  left: -1.2em;
+  width: 5px;
+  height: 5px;
+  background: var(--color-rain-deep);
+  opacity: 0.65;
+  content: '';
+}
+
+.reading-prose :where(ul ul > li)::before {
+  width: 4px;
+  height: 4px;
+  border: 1px solid var(--color-rain-deep);
+  background: transparent;
+  opacity: 0.8;
+}
+
+.reading-prose :where(ol) {
+  padding-inline-start: 1.6em;
+}
+
+.reading-prose :where(ol > li)::marker {
+  color: var(--color-rain-deep);
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+
+.reading-prose :where(li) {
+  margin-block: 0.32em;
+}
+
+.reading-prose :where(li > p) {
+  margin-block: 0;
+}
+
+.reading-prose :where(li.task-list-item)::before {
+  content: none;
+}
+
+.reading-prose :where(input[type='checkbox']) {
+  margin-inline-end: 0.45em;
+  accent-color: var(--color-rain-deep);
+}
+
+/* 行内强调件：kbd 键帽、mark 荧光笔。 */
+.reading-prose :where(kbd) {
+  padding: 0.1em 0.45em;
+  border: var(--border-hairline);
+  border-block-end-width: 2px;
+  background: var(--color-surface);
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+}
+
+.reading-prose :where(mark) {
+  padding: 0 0.18em;
+  background: color-mix(in srgb, var(--color-rain-pale) 75%, transparent);
+  color: inherit;
+}
+
+/*
+ * 章题 h2 带方纸章节标记（与列表页行标题、快捷导航同一母题）；
+ * h3 保持素净只留锚点间距。锚点跳转预留页头高度。
+ */
+.reading-prose :where(h2, h3) {
+  scroll-margin-top: 92px;
+}
+
+.reading-prose :where(h2) {
+  position: relative;
+  padding-inline-start: 18px;
+}
+
+.reading-prose :where(h2)::before {
+  position: absolute;
+  top: 0.44em;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  background: var(--color-rain-deep);
+  content: '';
+}
+
+.reading-prose :where(img) {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: var(--border-hairline);
+  background: var(--color-surface);
+}
+
+.reading-prose :where(hr) {
+  position: relative;
+  width: 100%;
+  margin-block: var(--space-8);
+  margin-inline: 0;
+  overflow: visible;
+  border: 0;
+  border-block-start: var(--border-hairline);
+}
+
+/* 分隔线中央骑一枚纸色小方，呼应页框四角。 */
+.reading-prose :where(hr)::after {
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--color-line);
+  background: var(--color-paper);
+  content: '';
+  transform: translateX(-50%);
 }
 
 .reading-prose :where(hr) {
