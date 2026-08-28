@@ -146,6 +146,25 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 			html[data-article-nav='active']::view-transition-new(*) {
 				animation-delay: 140ms;
 			}
+			/*
+			 * 细线航轨的可见性：默认的新旧快照交叉溶解会把 1px 的线在飞行中段
+			 * 淡没（old 150ms 退净、new 迟 140ms 才显），跟随几乎不可见。配对
+			 * 飞行时新旧快照在同一盒内完全重合，让 new 全程实心，线就整段可见；
+			 * 再放慢到 560ms、滞后 60ms 起飞——标题先动，细线拖在后面追上落位。
+			 * 只覆写 new：孤儿航轨（去程无配对）的 old 仍按通用节奏随整页淡出，
+			 * 不会留下悬空的一根线。
+			 */
+			html[data-article-nav='active']::view-transition-new(aria7-rule-top),
+			html[data-article-nav='active']::view-transition-new(aria7-rule-bottom) {
+				animation: none;
+				opacity: 1;
+			}
+			html[data-article-nav='active']::view-transition-group(aria7-rule-top),
+			html[data-article-nav='active']::view-transition-group(aria7-rule-bottom) {
+				animation-duration: 560ms;
+				animation-delay: 60ms;
+				animation-timing-function: var(--ease-rain, ease);
+			}
 			html[data-article-nav='active']::view-transition-old(aria7-page-main) {
 				animation-name: aria7-article-soft-exit;
 				animation-duration: 220ms;
@@ -156,8 +175,9 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 				animation-duration: 380ms;
 				animation-delay: 80ms;
 			}
-			/* 后备浏览器没有命名共享元素，正文沿用同一套软退软入，节奏一致。 */
-			html[data-article-nav='active'][data-astro-transition-fallback='old'] [data-page-main] {
+			/* 后备浏览器没有命名共享元素，正文沿用同一套软退软入，节奏一致。
+			   old 段发生在交换前，此刻标记还是 leaving；new 段在交换后，是 active。 */
+			html[data-article-nav='leaving'][data-astro-transition-fallback='old'] [data-page-main] {
 				animation-name: aria7-article-soft-exit;
 				animation-duration: 220ms;
 				animation-delay: 0ms;
@@ -302,31 +322,250 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 			type RouterEvent = Event & { newDocument?: Document };
 
 			/*
-			 * 文章导航标注：before-preparation 阶段依据来源链接判定是否为文章
-			 * 导航，挂上 data-article-nav 让旧页软退、新页软入，标题与封面交给
-			 * 命名共享元素飞行（规则见 head 内联样式）。Astro 会在交换阶段以新
-			 * 文档的根属性覆盖当前根节点，因此在 before-swap 里同步给
-			 * newDocument，飞行两端才都持有该标记。脚本随 ClientRouter 持久
-			 * 存活，监听器只需注册一次。
+			 * 文章导航标注（状态机）：before-preparation 给当前文档挂
+			 * leaving（离场页细线保持原样随整页软退，视口守卫在此刻测量），
+			 * before-swap 给新文档挂 active（整页软入、细线先藏），抵达后
+			 * astro:page-load 切 settled（细线逐行起笔），画完释放。Astro 会
+			 * 以新文档的根属性覆盖当前根节点，因此两端标记都要显式维护。
+			 * head 内联样式里的换页规则只认 active——它们在交换后的文档上求值。
 			 */
+			const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+			let settledTimer = 0;
+
 			const armArticleNav = (event: Event) => {
 				const source = (event as Event & { sourceElement?: Element }).sourceElement;
 				const link = source instanceof Element
 					? source.closest('a[data-article-transition-link]')
 					: null;
-				if (link) {
-					document.documentElement.dataset.articleNav = 'active';
+				window.clearTimeout(settledTimer);
+				// 上一次转场的航轨若还没走到释放点（快速连续导航），先拆干净，
+				// 避免与本次指派撞出重名导致整个视图转场被跳过。
+				document.querySelectorAll<HTMLElement>('[data-rule-flight]').forEach(releaseRuleFlight);
+				if (link && !reduceMotion.matches) {
+					document.documentElement.dataset.articleNav = 'leaving';
 				} else {
 					delete document.documentElement.dataset.articleNav;
 				}
 			};
 
-			document.addEventListener('astro:before-preparation', armArticleNav);
-			document.addEventListener('astro:before-swap', (event) => {
+			/*
+			 * 共享元素的视口守卫：命名元素只有在旧页快照与新页落点都真实可见
+			 * 时，「从哪儿来、到哪儿去」才成立。滚动后离屏的封面/标题一旦参与
+			 * 配对，就会从屏幕外一路飞进落点、返回时再飞出屏幕。因此离场前把
+			 * 出视口的命名元素临时摘名，落地后把折叠线以外的落点摘名——被摘名
+			 * 的一侧退回整页软退软入，不再单独飞行。
+			 */
+			const NAMED_ELEMENT_SELECTOR = '[data-astro-transition-scope]';
+			// 元素至少 1/4 露在视口带内才参与配对；贴边露一线的仍按离屏处理。
+			const isMostlyInsideBand = (top: number, height: number, bandTop: number, bandBottom: number) => {
+				if (height <= 0) return false;
+				const visible = Math.min(top + height, bandBottom) - Math.max(top, bandTop);
+				return visible / height >= 0.25;
+			};
+
+			// 新页尚未滚动，用文档坐标衡量落点是否在首屏内（文章链接总是落回顶部）。
+			// 摘名记录在案：转场结束后归还，之后用户滚到该元素再点走时守卫能
+			// 按当时的真实可见性重新判定，而不是被上一次的行内摘名锁死。
+			let arrivalStripped: HTMLElement[] = [];
+
+			/*
+			 * 细线航轨的动态指派：行细线在静态页面上是无名的，只有文章导航的
+			 * 瞬间才被授予 aria7-rule-top/bottom——去程指给被点击行的上下两条
+			 * 线（下线取下一行的上线，几何上正是该行的下缘），返程指给到达列表
+			 * 里出发文章所在行的两条线。航轨与标题区细线（静态持有同名）对插
+			 * 值，细线便跟着标题往返飞行。data-rule-flight 标记让航轨豁免藏线
+			 * 与起笔，飞行落位后保持原貌。
+			 */
+			const FLIGHT_TOP = 'aria7-rule-top';
+			const FLIGHT_BOTTOM = 'aria7-rule-bottom';
+
+			const nameRuleFlight = (element: Element | null, name: string) => {
+				if (!(element instanceof HTMLElement)) return;
+				element.style.viewTransitionName = name;
+				element.dataset.ruleFlight = 'true';
+			};
+
+			const rowFlightRules = (row: Element) => {
+				const next = row.nextElementSibling;
+				const bottomSource = next instanceof Element && next.matches('.article-row') ? next : null;
+				return {
+					top: row.querySelector<HTMLElement>('.article-row__rule--top'),
+					bottom: bottomSource?.querySelector<HTMLElement>('.article-row__rule--top') ?? null,
+				};
+			};
+
+			const releaseRuleFlight = (element: HTMLElement) => {
+				element.style.removeProperty('view-transition-name');
+				delete element.dataset.ruleFlight;
+			};
+
+			const stripArrivalOffscreenNames = () => {
+				document.querySelectorAll<HTMLElement>(`${NAMED_ELEMENT_SELECTOR}, [data-rule-flight]`).forEach((element) => {
+					// main 自身是整页分组，摘名会破坏整页软退软入，永不参与守卫。
+					if (element.matches('[data-page-main]')) return;
+					const rect = element.getBoundingClientRect();
+					if (isMostlyInsideBand(rect.top + window.scrollY, rect.height, 0, window.innerHeight)) return;
+					const name = getComputedStyle(element).viewTransitionName;
+					if (!name || name === 'none') return;
+					if (element.dataset.ruleFlight === 'true') {
+						// 折叠线外的落点接不住航轨：彻底归还无名状态，让它回到逐行
+						// 起笔的队伍里，而不是滞留一份缩在原地不动的行内名字。
+						releaseRuleFlight(element);
+						return;
+					}
+					element.style.viewTransitionName = 'none';
+					arrivalStripped.push(element);
+				});
+			};
+			document.addEventListener('astro:page-load', () => {
+				arrivalStripped.forEach((element) => element.style.removeProperty('view-transition-name'));
+				arrivalStripped = [];
+				// 转场结束：细线开始起笔，画完（含最长错拍）释放标记回到静态；
+				// 航轨用毕即拆，下次导航由指派逻辑重新授予。
 				if (document.documentElement.dataset.articleNav === 'active') {
-					(event as RouterEvent).newDocument?.documentElement.setAttribute('data-article-nav', 'active');
+					document.documentElement.dataset.articleNav = 'settled';
+					settledTimer = window.setTimeout(() => {
+						delete document.documentElement.dataset.articleNav;
+						document.querySelectorAll<HTMLElement>('[data-rule-flight]').forEach(releaseRuleFlight);
+					}, 1900);
 				}
 			});
+
+			let departedRestore: HTMLElement[] = [];
+			let departedTimer = 0;
+
+			document.addEventListener('astro:before-preparation', (event) => {
+				armArticleNav(event);
+				window.clearTimeout(departedTimer);
+				if (document.documentElement.dataset.articleNav !== 'leaving') {
+					departedRestore = [];
+					return;
+				}
+				departedRestore = [];
+				document.querySelectorAll<HTMLElement>(NAMED_ELEMENT_SELECTOR).forEach((element) => {
+					if (element.matches('[data-page-main]')) return;
+					const rect = element.getBoundingClientRect();
+					if (isMostlyInsideBand(rect.top, rect.height, 0, window.innerHeight)) return;
+					const name = getComputedStyle(element).viewTransitionName;
+					if (!name || name === 'none') return;
+					element.style.viewTransitionName = 'none';
+					departedRestore.push(element);
+				});
+				// 去程航轨：被点击行的上线与下缘线跟随标题飞往文章页。标题在视口
+				// 内（用户刚点过），其上下细线必然同样可见，无需再过视口守卫。
+				const sourceLink = (event as Event & { sourceElement?: Element }).sourceElement
+					?.closest('a[data-article-transition-link]');
+				const sourceRow = sourceLink?.closest('.article-row');
+				if (sourceRow instanceof Element) {
+					const rules = rowFlightRules(sourceRow);
+					nameRuleFlight(rules.top, FLIGHT_TOP);
+					nameRuleFlight(rules.bottom, FLIGHT_BOTTOM);
+					if (rules.top instanceof HTMLElement) departedRestore.push(rules.top);
+					if (rules.bottom instanceof HTMLElement) departedRestore.push(rules.bottom);
+				}
+				// 导航失败时旧文档仍是活页，稍后把名字还给元素；成功换页后这些
+				// 节点已被丢弃，恢复是无害的空操作，也不会波及新页的落点摘名。
+				departedTimer = window.setTimeout(() => {
+					departedRestore.forEach((element) => {
+						element.style.removeProperty('view-transition-name');
+						delete element.dataset.ruleFlight;
+					});
+					departedRestore = [];
+				}, 3000);
+			});
+			document.addEventListener('astro:before-swap', (event) => {
+				// 此刻当前文档持有 leaving；把 active 交给新文档，飞行与藏线两端才同持。
+				if (document.documentElement.dataset.articleNav !== 'leaving') return;
+				const newDocument = (event as RouterEvent).newDocument;
+				newDocument?.documentElement.setAttribute('data-article-nav', 'active');
+				// 返程航轨：在到达列表里找到出发文章所在的行，把它的上下两条线
+				// 指派为航轨，标题区的细线便跟着标题飞回行位。找不到（目标列表
+				// 没有这篇文章）就保持无名，航轨优雅退化为随整页淡入。
+				if (!newDocument) return;
+				const selector = `.article-row a[href="${window.location.pathname.replace(/["\\]/g, '\\$&')}"]`;
+				const matchedRow = newDocument.querySelector(selector)?.closest('.article-row');
+				if (!(matchedRow instanceof Element)) return;
+				const rules = rowFlightRules(matchedRow);
+				nameRuleFlight(rules.top, FLIGHT_TOP);
+				nameRuleFlight(rules.bottom, FLIGHT_BOTTOM);
+			});
+			document.addEventListener('astro:after-swap', () => {
+				if (document.documentElement.dataset.articleNav !== 'active') return;
+				stripArrivalOffscreenNames();
+			});
+		</script>
+		<script>
+			/*
+			 * 正文媒体增强：把 shiki 代码块包进带「语言标签 + 复制」头栏的面板，
+			 * 把宽表格包进横向滚动容器。全部渐进增强——无 JS 时正文退回裸
+			 * pre/table，样式与阅读不受影响。脚本随文档持久存活；包装在每次
+			 * astro:page-load 后对新页重跑，已包装元素按父级类名跳过。
+			 */
+			function enhanceProseMedia() {
+				document.querySelectorAll<HTMLElement>('.reading-prose pre.astro-code').forEach((pre) => {
+					if (pre.parentElement?.classList.contains('prose-code')) return;
+					const wrap = document.createElement('div');
+					wrap.className = 'prose-code';
+					const head = document.createElement('div');
+					head.className = 'prose-code__head';
+					const lang = document.createElement('span');
+					lang.className = 'prose-code__lang';
+					lang.textContent = pre.dataset.language || 'text';
+					const copy = document.createElement('button');
+					copy.className = 'prose-code__copy';
+					copy.type = 'button';
+					copy.textContent = '复制';
+					head.append(lang, copy);
+					pre.replaceWith(wrap);
+					wrap.append(head, pre);
+				});
+				document.querySelectorAll<HTMLElement>('.reading-prose table').forEach((table) => {
+					if (table.parentElement?.classList.contains('prose-table')) return;
+					const wrap = document.createElement('div');
+					wrap.className = 'prose-table';
+					table.replaceWith(wrap);
+					wrap.append(table);
+				});
+			}
+
+			let proseMediaBound = false;
+			if (!proseMediaBound) {
+				proseMediaBound = true;
+				document.addEventListener('click', async (event) => {
+					const button = event.target instanceof Element
+						? event.target.closest<HTMLButtonElement>('.prose-code__copy')
+						: null;
+					if (!button) return;
+					const pre = button.closest('.prose-code')?.querySelector('pre');
+					if (!pre) return;
+					const source = pre.textContent ?? '';
+					let copied = false;
+					try {
+						await navigator.clipboard.writeText(source);
+						copied = true;
+					} catch {
+						// 非安全上下文的兜底：临时选区 + execCommand。
+						const helper = document.createElement('textarea');
+						helper.value = source;
+						document.body.append(helper);
+						helper.select();
+						try {
+							copied = document.execCommand('copy');
+						} catch {
+							copied = false;
+						}
+						helper.remove();
+					}
+					button.classList.add(copied ? 'is-copied' : 'is-failed');
+					button.textContent = copied ? '已复制' : '复制失败';
+					window.setTimeout(() => {
+						button.classList.remove('is-copied', 'is-failed');
+						button.textContent = '复制';
+					}, 1600);
+				});
+			}
+			enhanceProseMedia();
+			document.addEventListener('astro:page-load', enhanceProseMedia);
 		</script>
 	</body>
 </html>
