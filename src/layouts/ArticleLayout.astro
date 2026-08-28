@@ -21,6 +21,21 @@ interface Props {
 
 const { post, headings, related, minutes } = Astro.props;
 const tocHeadings = headings.filter((heading) => heading.depth === 2 || heading.depth === 3);
+const currentKindPath = `/types/${post.data.kind}/`;
+/*
+ * 右侧轨的全站快捷导航：主导航不吸顶，深读时这里就是最近的跳转入口。
+ * 栏目与 SiteHeader 的 navItems 保持同一套文案；当前文章所属栏目点亮。
+ * 上一级按内容层级回所属栏目页（笔记文章的上级是「笔记」，不是文章池）。
+ */
+const railNav = [
+	{ href: '/types/essay/', label: '随笔' },
+	{ href: '/types/note/', label: '笔记' },
+	{ href: '/types/project/', label: '项目' },
+	{ href: '/types/photo/', label: '底片' },
+	{ href: '/types/code/', label: '代码' },
+	{ href: '/types/tutorial/', label: '指南' },
+	{ href: '/archive/', label: '归档' },
+];
 const defaultDayCover = '/assets/covers/default-day.webp';
 const defaultNightCover = '/assets/covers/default-night.webp';
 const cover = post.data.cover ?? (post.data.kind === 'code' ? defaultNightCover : defaultDayCover);
@@ -57,7 +72,14 @@ const isEssay = post.data.kind === 'essay';
 				<div class="article-hero__scene">SCENE / 001</div>
 			</div>
 			<div class="article-hero__heading">
-				<a class="article-hero__back" href="/posts/">
+				<!--
+					标题区上下细线是全站唯一的航轨（aria7-rule-top/bottom）：列表里
+					被点击行的上下两条细线跟随标题飞行，落位后成为这两条轨；返回时
+					再飞回行位。伪元素挂不了共享转场名，因此用真实元素承载。
+				-->
+				<span class="article-hero__rule article-hero__rule--top" aria-hidden="true" transition:name="aria7-rule-top"></span>
+				<span class="article-hero__rule article-hero__rule--bottom" aria-hidden="true" transition:name="aria7-rule-bottom"></span>
+				<a class="article-hero__back" href="/posts/" data-article-transition-link>
 					<MoveLeft size={17} stroke-width={1.5} aria-hidden="true" />
 					全部文章
 				</a>
@@ -148,6 +170,47 @@ const isEssay = post.data.kind === 'essay';
 					<Focus size={18} stroke-width={1.5} aria-hidden="true" />
 				</button>
 				<span class="article-focus__state" data-article-focus-state>OFF</span>
+				<!--
+					全站快捷导航：主导航不吸顶，深读时这里是最近的入口。首页与天气
+					切换置顶，其下与 SiteHeader 主导航同一套栏目（当前文章所属栏目
+					点亮）。右侧滑动指示旗由脚本驱动：悬停追到指向项，离开滑回当前
+					栏目。
+				-->
+				<nav class="article-tabs" aria-label="快捷导航">
+					<span class="article-tabs__label" aria-hidden="true">NAV / QUICK</span>
+					<span class="article-tabs__flag" aria-hidden="true"></span>
+					<a class="article-tabs__item" href="/" style="--rail-order: 0">
+						<span class="article-tabs__index" aria-hidden="true">01</span>
+						<span class="article-tabs__title">首页</span>
+					</a>
+					<!--
+						天气观测窗：CSS 手绘的三档天气图形（晴=旋芒圆日 / 雨=落雨斜纹 /
+						夜=新月星点），点击循环并走 weather-mode-request 握手——
+						WeatherTransition 在场时播转场，不在场立即提交。偏好写入同一
+						存储键，与页头控件保持同步。
+					-->
+					<button
+						class="article-tabs__item article-weather"
+						type="button"
+						data-rail-weather
+						data-rail-weather-mode="rain"
+						data-tooltip="切换颜色模式"
+					>
+						<span class="article-weather__glyph" aria-hidden="true"></span>
+						<span class="article-weather__mode" data-rail-weather-label>RAIN</span>
+					</button>
+					{railNav.map((item, index) => (
+						<a
+							class:list={['article-tabs__item', { 'is-current': item.href === currentKindPath }]}
+							href={item.href}
+							style={`--rail-order: ${index + 2}`}
+							aria-current={item.href === currentKindPath ? 'true' : undefined}
+						>
+							<span class="article-tabs__index" aria-hidden="true">{String(index + 3).padStart(2, '0')}</span>
+							<span class="article-tabs__title">{item.label}</span>
+						</a>
+					))}
+				</nav>
 				<div class="article-focus__scale" aria-hidden="true"></div>
 			</div>
 		</div>
@@ -298,8 +361,108 @@ const isEssay = post.data.kind === 'essay';
 			}
 		}
 
+		/*
+		 * 快捷导航的滑动指示旗：悬停追到指向项，移出后滑回当前所属栏目；
+		 * 没有当前栏目（异常路径）就整枚藏起。旗只做位移，不参与入场动画。
+		 */
+		function initRailNavFlag() {
+			const nav = document.querySelector<HTMLElement>('.article-tabs');
+			const flag = nav?.querySelector<HTMLElement>('.article-tabs__flag');
+			if (!nav || !flag) return;
+			if (nav.dataset.flagReady === 'true') return;
+			nav.dataset.flagReady = 'true';
+			const items = Array.from(nav.querySelectorAll<HTMLElement>('.article-tabs__item'));
+			const anchor = () => nav.querySelector<HTMLElement>('.article-tabs__item.is-current') ?? null;
+			const moveTo = (item: HTMLElement | null) => {
+				if (!item) {
+					flag.classList.remove('is-on');
+					return;
+				}
+				const y = item.offsetTop + (item.offsetHeight - flag.offsetHeight) / 2;
+				flag.style.transform = `translateY(${Math.max(0, y)}px)`;
+				flag.classList.add('is-on');
+			};
+			moveTo(anchor());
+			items.forEach((item) => item.addEventListener('mouseenter', () => moveTo(item)));
+			nav.addEventListener('mouseleave', () => moveTo(anchor()));
+		}
+
+		/*
+		 * 快捷导航里的天气切换：读取当前模式 → 循环到下一档 → 走
+		 * weather-mode-request 握手。commit 复刻 WeatherModeControl 的提交
+		 * 动作（根属性、地址栏色、存储、全局事件），并同步页头控件的单选
+		 * 状态；转场动画由 WeatherTransition 接管，缺席时立即提交。
+		 */
+		function initRailWeather() {
+			const button = document.querySelector<HTMLButtonElement>('[data-rail-weather]');
+			const label = document.querySelector<HTMLElement>('[data-rail-weather-label]');
+			if (!button || !label || button.dataset.railWeatherReady === 'true') return;
+			button.dataset.railWeatherReady = 'true';
+			const modes = ['clear', 'rain', 'night'] as const;
+			type Mode = (typeof modes)[number];
+			const isMode = (value: string | null): value is Mode =>
+				value !== null && (modes as readonly string[]).includes(value);
+
+			const syncLabel = (mode: Mode) => {
+				label.textContent = mode.toUpperCase();
+				button.dataset.railWeatherMode = mode;
+			};
+			const commit = (mode: Mode) => {
+				const previousMode = document.documentElement.dataset.weatherMode ?? null;
+				document.documentElement.dataset.weatherMode = mode;
+				document.documentElement.dataset.theme = mode === 'night' ? 'night' : 'light';
+				document.documentElement.style.colorScheme = mode === 'night' ? 'dark' : 'light';
+				const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]:not([media])');
+				if (themeColor) {
+					themeColor.content = mode === 'night' ? '#0d1216' : mode === 'clear' ? '#f6f7f3' : '#ebedec';
+				}
+				// 页头控件是另一组件的 DOM：同步它的单选状态，避免两处显示分叉。
+				document.querySelectorAll<HTMLElement>('[data-weather-mode-value]').forEach((control) => {
+					const selected = (control as HTMLElement).dataset.weatherModeValue === mode;
+					control.setAttribute('aria-checked', String(selected));
+					control.tabIndex = selected ? 0 : -1;
+					control.dataset.active = String(selected);
+				});
+				try {
+					localStorage.setItem('aria7-weather-mode', mode);
+				} catch {
+					// 存储不可用时偏好不落盘，本页立即生效即可。
+				}
+				document.dispatchEvent(
+					new CustomEvent('weather-mode-change', { detail: { mode, previousMode, source: 'control' } }),
+				);
+				syncLabel(mode);
+			};
+			syncLabel(isMode(document.documentElement.dataset.weatherMode ?? null)
+				? (document.documentElement.dataset.weatherMode as Mode)
+				: 'rain');
+			button.addEventListener('click', () => {
+				const current = isMode(document.documentElement.dataset.weatherMode ?? null)
+					? (document.documentElement.dataset.weatherMode as Mode)
+					: 'rain';
+				const next = modes[(modes.indexOf(current) + 1) % modes.length];
+				if (next === current) return;
+				const request = new CustomEvent('weather-mode-request', {
+					cancelable: true,
+					detail: {
+						mode: next,
+						previousMode: current,
+						commit: () => commit(next),
+					},
+				});
+				// 没有转场组件接管时事件不被取消，立即提交。
+				if (document.dispatchEvent(request)) commit(next);
+			});
+		}
+
 		initArticleReaderHelpers();
-		document.addEventListener('astro:page-load', initArticleReaderHelpers);
+		initRailNavFlag();
+		initRailWeather();
+		document.addEventListener('astro:page-load', () => {
+			initArticleReaderHelpers();
+			initRailNavFlag();
+			initRailWeather();
+		});
 	</script>
 
 <style>
@@ -409,13 +572,33 @@ const isEssay = post.data.kind === 'essay';
 	}
 
 	.article-hero__heading {
+		position: relative;
 		display: flex;
 		min-width: 0;
 		flex-direction: column;
 		justify-content: center;
 		padding: 54px;
-		border-block: 1px solid var(--line);
 		border-right: 1px solid var(--line);
+	}
+
+	/*
+	 * 标题区上下细线（真实元素）与文章行细线同一套静态形貌；换页时它们是
+	 * 航轨（aria7-rule-top/bottom），跟随标题飞行落位，不参与藏线与起笔。
+	 */
+	.article-hero__rule {
+		position: absolute;
+		right: 0;
+		left: 0;
+		height: 1px;
+		background: var(--line);
+	}
+
+	.article-hero__rule--top {
+		top: 0;
+	}
+
+	.article-hero__rule--bottom {
+		bottom: 0;
 	}
 
 	.article-hero__back,
@@ -512,6 +695,15 @@ const isEssay = post.data.kind === 'essay';
 	.article-layout--essay .prose h2 {
 		margin-block-start: 2.4em;
 		font-size: 1.32em;
+	}
+
+	/* 随笔的文学排版不要章节方块标记，题序自有呼吸。 */
+	.article-layout--essay .reading-prose h2 {
+		padding-inline-start: 0;
+	}
+
+	.article-layout--essay .reading-prose h2::before {
+		content: none;
 	}
 
 	.article-layout__guide {
@@ -613,6 +805,319 @@ const isEssay = post.data.kind === 'essay';
 		width: 1px;
 		background: var(--line);
 		content: '';
+	}
+
+	/*
+	 * 全站快捷导航：编号 + 竖排栏目名的制图式 Tab。悬停时纸青底色浮现、
+	 * 右缘刻度滑入、编号点亮；当前所属栏目常驻雨青色和方纸标记；右侧的
+	 * 滑动指示旗（.article-tabs__flag）由脚本驱动，在项与项之间滑行。
+	 */
+	.article-tabs {
+		position: relative;
+		display: flex;
+		min-height: 0;
+		flex-direction: column;
+		align-items: center;
+		gap: 6px;
+		padding-block: 8px;
+	}
+
+	.article-tabs__label {
+		font-family: var(--font-ui);
+		font-size: 8px;
+		writing-mode: vertical-rl;
+		letter-spacing: var(--tracking-hud);
+		color: var(--ink-muted);
+		opacity: 0.7;
+		margin-bottom: 4px;
+	}
+
+	.article-tabs__flag {
+		position: absolute;
+		top: 0;
+		right: 0;
+		z-index: 1;
+		width: 2px;
+		height: 22px;
+		background: var(--accent-strong);
+		opacity: 0;
+		pointer-events: none;
+		transition: transform var(--duration-base) var(--ease-rain), opacity var(--duration-base) ease;
+	}
+
+	.article-tabs__flag.is-on {
+		opacity: 0.85;
+	}
+
+	/*
+	 * 悬停/聚焦 = 纸面浮起：纸色底从透明变实、墨青软阴影抬起、整项朝内容
+	 * 侧轻浮——不用色块高亮，选中的感觉来自「浮出纸面」。按下时压回纸面。
+	 */
+	.article-tabs__item {
+		position: relative;
+		display: flex;
+		width: 100%;
+		min-height: 42px;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 4px;
+		padding-block: 5px;
+		border: none;
+		background: none;
+		color: var(--ink-muted);
+		font: inherit;
+		text-decoration: none;
+		cursor: pointer;
+		transition:
+			color var(--duration-base) var(--ease-rain),
+			background-color var(--duration-base) var(--ease-rain),
+			box-shadow var(--duration-base) var(--ease-rain),
+			transform var(--duration-base) var(--ease-rain);
+	}
+
+	.article-tabs__item:hover,
+	.article-tabs__item:focus-visible {
+		position: relative;
+		z-index: 1;
+		color: var(--ink);
+		background: var(--color-surface);
+		box-shadow:
+			0 12px 24px rgb(31 71 81 / 16%),
+			0 2px 6px rgb(31 71 81 / 10%);
+		transform: translate(-3px, -1px);
+	}
+
+	.article-tabs__item:active {
+		box-shadow: 0 4px 10px rgb(31 71 81 / 12%);
+		transform: translate(-3px, 0) scale(0.97);
+	}
+
+	.article-tabs__item:focus-visible {
+		outline: 1px solid var(--accent-strong);
+		outline-offset: -1px;
+	}
+
+	/* 右缘悬停刻度：自下方 4px 处滑入，与整站「纸面浮起」的微动效同语言。 */
+	.article-tabs__item::before {
+		position: absolute;
+		top: 22%;
+		right: 0;
+		width: 2px;
+		height: 56%;
+		background: var(--accent-strong);
+		opacity: 0;
+		content: '';
+		transform: translateY(5px);
+		transition: opacity var(--duration-fast) ease, transform var(--duration-base) var(--ease-drift);
+	}
+
+	.article-tabs__item:hover::before,
+	.article-tabs__item:focus-visible::before,
+	.article-tabs__item.is-current::before {
+		opacity: 0.75;
+		transform: translateY(0);
+	}
+
+	.article-tabs__index {
+		font-family: var(--font-mono);
+		font-size: 7px;
+		letter-spacing: 0.1em;
+		color: var(--ink-muted);
+		opacity: 0.4;
+		transition: color var(--duration-fast) ease, opacity var(--duration-fast) ease;
+	}
+
+	.article-tabs__item:hover .article-tabs__index,
+	.article-tabs__item:focus-visible .article-tabs__index {
+		color: var(--accent-strong);
+		opacity: 0.95;
+	}
+
+	.article-tabs__title {
+		font-family: var(--font-ui);
+		font-size: 13px;
+		line-height: 1;
+		writing-mode: vertical-rl;
+		letter-spacing: 0.2em;
+	}
+
+	.article-tabs__item.is-current {
+		color: var(--accent-strong);
+	}
+
+	.article-tabs__item.is-current .article-tabs__index {
+		color: var(--accent-strong);
+		opacity: 0.95;
+	}
+
+	/* 方纸母题：当前栏目的落点标记，钉在项的右上角。 */
+	.article-tabs__item.is-current::after {
+		position: absolute;
+		top: 5px;
+		right: 5px;
+		width: 7px;
+		height: 7px;
+		background: var(--accent-strong);
+		content: '';
+	}
+
+	/*
+	 * 天气观测窗：细线小格自成一体，与纯文字栏目 Tab 拉开层级。图形全部
+	 * CSS 手绘、1px 制图笔触，随模式换专属色（晴=暖赭 / 雨=雨青 / 夜=月白），
+	 * 静置时各自有极轻的呼吸动画，让「天气」真的是天气。
+	 */
+	.article-weather {
+		min-height: 56px;
+		gap: 7px;
+		margin-block: 4px 8px;
+		border: 1px solid var(--line);
+		background: color-mix(in srgb, var(--color-surface) 55%, transparent);
+	}
+
+	.article-weather:hover,
+	.article-weather:focus-visible {
+		border-color: var(--accent-strong);
+		background: var(--color-surface);
+		box-shadow:
+			0 12px 24px rgb(31 71 81 / 16%),
+			0 2px 6px rgb(31 71 81 / 10%);
+	}
+
+	/* 夜间阴影换深色墨，浮起才读得出来。 */
+	:global(html[data-weather-mode='night']) .article-tabs__item:hover,
+	:global(html[data-weather-mode='night']) .article-tabs__item:focus-visible,
+	:global(html[data-weather-mode='night']) .article-weather:hover,
+	:global(html[data-weather-mode='night']) .article-weather:focus-visible {
+		box-shadow:
+			0 12px 24px rgb(0 0 0 / 48%),
+			0 2px 6px rgb(0 0 0 / 32%);
+	}
+
+	.article-weather__glyph {
+		position: relative;
+		width: 18px;
+		height: 18px;
+		transition: transform var(--duration-base) var(--ease-rain);
+	}
+
+	.article-weather:hover .article-weather__glyph {
+		transform: translateY(-1px);
+	}
+
+	.article-weather__mode {
+		font-family: var(--font-ui);
+		font-size: 7px;
+		letter-spacing: var(--tracking-hud);
+		color: var(--ink-muted);
+		text-transform: uppercase;
+		transition: color var(--duration-base) ease;
+	}
+
+	/* 晴：圆日 + 八向光芒，光芒极慢旋转。 */
+	.article-weather[data-rail-weather-mode='clear'] .article-weather__glyph::before {
+		position: absolute;
+		inset: 5px;
+		border: 1px solid var(--color-warm);
+		border-radius: 50%;
+		content: '';
+	}
+
+	.article-weather[data-rail-weather-mode='clear'] .article-weather__glyph::after {
+		position: absolute;
+		inset: 0;
+		background: repeating-conic-gradient(
+			var(--color-warm) 0deg 5deg,
+			transparent 5deg 45deg
+		);
+		content: '';
+		opacity: 0.8;
+		-webkit-mask: radial-gradient(circle, transparent 52%, #000 55% 82%, transparent 85%);
+		mask: radial-gradient(circle, transparent 52%, #000 55% 82%, transparent 85%);
+		animation: article-weather-spin 26s linear infinite;
+	}
+
+	/* 雨：斜纹雨丝沿 115° 方向持续滑落。 */
+	.article-weather[data-rail-weather-mode='rain'] .article-weather__glyph {
+		background-image: linear-gradient(
+			115deg,
+			transparent 38%,
+			var(--color-rain-deep) 44% 58%,
+			transparent 64%
+		);
+		background-size: 7px 11px;
+		animation: article-weather-rain 1s linear infinite;
+	}
+
+	/* 夜：月牙 + 一粒闪烁星。 */
+	.article-weather[data-rail-weather-mode='night'] .article-weather__glyph::before {
+		position: absolute;
+		top: 3px;
+		left: 2px;
+		width: 12px;
+		height: 12px;
+		border-radius: 50%;
+		box-shadow: inset 4.5px -3px 0 0 var(--color-rain);
+		content: '';
+		transform: rotate(-16deg);
+	}
+
+	.article-weather[data-rail-weather-mode='night'] .article-weather__glyph::after {
+		position: absolute;
+		top: 1px;
+		right: 2px;
+		width: 3px;
+		height: 3px;
+		border-radius: 50%;
+		background: var(--color-rain);
+		content: '';
+		animation: article-weather-twinkle 2.4s ease-in-out infinite;
+	}
+
+	.article-weather[data-rail-weather-mode='clear'] .article-weather__mode {
+		color: var(--color-warm);
+	}
+
+	.article-weather[data-rail-weather-mode='rain'] .article-weather__mode {
+		color: var(--accent-strong);
+	}
+
+	@keyframes article-weather-spin {
+		to {
+			transform: rotate(1turn);
+		}
+	}
+
+	@keyframes article-weather-rain {
+		to {
+			background-position-y: 11px;
+		}
+	}
+
+	@keyframes article-weather-twinkle {
+		0%,
+		100% {
+			opacity: 0.2;
+		}
+
+		50% {
+			opacity: 1;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.article-weather__glyph,
+		.article-weather__glyph::before,
+		.article-weather__glyph::after {
+			animation: none;
+		}
+	}
+
+	@media (max-height: 720px) {
+		/* 矮视口先撤编号保纵深，栏目名始终完整可见。 */
+		.article-tabs__index {
+			display: none;
+		}
 	}
 
 	.article-comments {
@@ -720,6 +1225,11 @@ const isEssay = post.data.kind === 'essay';
 			gap: 8px;
 			width: auto;
 			height: auto;
+		}
+
+		/* 窄视口由折叠目录接管章节导航，右下角固定区只保留沉浸开关，Tab 一并退场。 */
+		.article-tabs {
+			display: none;
 		}
 
 		.article-focus__telemetry,
@@ -833,6 +1343,36 @@ const isEssay = post.data.kind === 'essay';
 
 		.article-layout {
 			padding-top: 52px;
+		}
+	}
+</style>
+
+<style is:global>
+	/*
+	 * 快捷导航的入场级联：换页转场期间（active）随整页藏起，落定（settled）
+	 * 后按 --rail-order 依次自右浮入，与细线起笔同属一场编排；直接访问
+	 * （无标记）时保持静态完整可见。
+	 */
+	html[data-article-nav='active'] .article-tabs__item {
+		opacity: 0;
+		transform: translateX(10px);
+	}
+
+	html[data-article-nav='settled'] .article-tabs__item {
+		animation: aria7-rail-rise 460ms var(--ease-rain, ease) backwards;
+		animation-delay: calc(240ms + var(--rail-order, 0) * 30ms);
+	}
+
+	@keyframes aria7-rail-rise {
+		from { opacity: 0; transform: translateX(10px); }
+		to { opacity: 1; transform: translateX(0); }
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		html[data-article-nav] .article-tabs__item {
+			animation: none;
+			opacity: 1;
+			transform: none;
 		}
 	}
 </style>
