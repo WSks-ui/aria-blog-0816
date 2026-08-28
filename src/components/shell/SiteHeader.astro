@@ -44,8 +44,13 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 
 	<nav class="site-nav" aria-label="主导航" data-site-nav>
 		<span class="site-nav__indicator" aria-hidden="true" data-site-nav-indicator></span>
-		{navItems.map((item) => (
-			<a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined} data-site-nav-link>
+		{navItems.map((item, index) => (
+			<a
+				href={item.href}
+				aria-current={isActive(item.href) ? 'page' : undefined}
+				data-site-nav-link
+				data-site-nav-index={index}
+			>
 				{item.label}
 			</a>
 		))}
@@ -135,6 +140,26 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 
 				moveIndicator(activeLink ?? links[0] ?? null, placeImmediately);
 			};
+
+			/*
+			 * Astro 默认只按浏览器历史判定 forward/back，普通 Tab 点击都会被当作
+			 * forward。栏目索引让“向左找前页”和“向右找后页”拥有真实的空间方向：
+			 * 这里改写 preparation.direction 后，ClientRouter 会把它传给原生快照
+			 * 以及 fallback 动画，因此两条渲染路径的进出方向始终一致。
+			 */
+			document.addEventListener('astro:before-preparation', (event) => {
+				if (event.navigationType === 'traverse') return;
+				if (!(event.sourceElement instanceof Element)) return;
+
+				const targetLink = event.sourceElement.closest<HTMLElement>('[data-site-nav-link][data-site-nav-index]');
+				if (!targetLink || !nav.contains(targetLink)) return;
+
+				const currentIndex = Number(activeLink?.dataset.siteNavIndex);
+				const targetIndex = Number(targetLink.dataset.siteNavIndex);
+				if (!Number.isFinite(currentIndex) || !Number.isFinite(targetIndex) || currentIndex === targetIndex) return;
+
+				event.direction = targetIndex < currentIndex ? 'back' : 'forward';
+			});
 
 			links.forEach((link) => {
 				link.addEventListener('pointerenter', () => moveIndicator(link, nav.dataset.navCursorVisible !== 'true'));
