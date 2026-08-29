@@ -1,0 +1,173 @@
+---
+/**
+ * 光标水痕：雨日在纸面留下顺重力缓缓下滑的小水珠，夜里换成上浮明灭的
+ * 星尘，晴日无痕——没有雨，也没有星尘可扬。canvas 经 transition:persist
+ * 跨换页存活，脚本持有的画布引用始终有效；触屏与 prefers-reduced-motion
+ * 下整组退场。
+ */
+---
+
+<canvas class="cursor-trails" data-cursor-trails transition:persist="cursor-trails" aria-hidden="true"></canvas>
+
+<style>
+	.cursor-trails {
+		position: fixed;
+		inset: 0;
+		z-index: var(--z-overlay);
+		width: 100%;
+		height: 100%;
+		pointer-events: none;
+	}
+</style>
+
+<script>
+	function initCursorTrails() {
+		const canvas = document.querySelector<HTMLCanvasElement>('[data-cursor-trails]');
+		if (!canvas || canvas.dataset.trailsReady === 'true') return;
+		if (!window.matchMedia('(pointer: fine)').matches) return;
+		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+		const ctx = canvas.getContext('2d');
+		if (!ctx) return;
+		canvas.dataset.trailsReady = 'true';
+
+		interface Trail {
+			x: number;
+			y: number;
+			vx: number;
+			vy: number;
+			r: number;
+			age: number;
+			ttl: number;
+			seed: number;
+		}
+
+		let trails: Trail[] = [];
+		let rafId = 0;
+		let lastX = -1;
+		let lastY = -1;
+		let dpr = 1;
+
+		const resize = () => {
+			dpr = Math.min(2, window.devicePixelRatio || 1);
+			canvas.width = Math.round(window.innerWidth * dpr);
+			canvas.height = Math.round(window.innerHeight * dpr);
+		};
+		resize();
+		window.addEventListener('resize', resize);
+
+		const weatherMode = () => document.documentElement.dataset.weatherMode ?? 'rain';
+
+		const spawn = (x: number, y: number) => {
+			const mode = weatherMode();
+			if (mode === 'clear') return;
+			const night = mode === 'night';
+			const trail: Trail = night
+				? {
+						x: x + (Math.random() - 0.5) * 18,
+						y: y + (Math.random() - 0.5) * 18,
+						vx: (Math.random() - 0.5) * 0.12,
+						vy: -0.14 - Math.random() * 0.22,
+						r: 0.6 + Math.random() * 1.1,
+						age: 0,
+						ttl: 1500 + Math.random() * 900,
+						seed: Math.random() * Math.PI * 2,
+					}
+				: {
+						x: x + (Math.random() - 0.5) * 8,
+						y: y + (Math.random() - 0.5) * 6,
+						vx: (Math.random() - 0.5) * 0.2,
+						vy: 0.05 + Math.random() * 0.12,
+						r: 1.4 + Math.random() * 2.1,
+						age: 0,
+						ttl: 1000 + Math.random() * 600,
+						seed: Math.random() * Math.PI * 2,
+					};
+			trails.push(trail);
+			// 粒子上限：密集晃动指针时丢掉最旧的水珠，画面保持干净。
+			if (trails.length > 90) trails = trails.slice(-90);
+			if (!rafId) rafId = window.requestAnimationFrame(tick);
+		};
+
+		window.addEventListener(
+			'pointermove',
+			(event) => {
+				if (lastX < 0) {
+					lastX = event.clientX;
+					lastY = event.clientY;
+					return;
+				}
+				// 每滑过约 26px 落下一滴，快甩指针时也不过密。
+				if (Math.hypot(event.clientX - lastX, event.clientY - lastY) < 26) return;
+				lastX = event.clientX;
+				lastY = event.clientY;
+				spawn(event.clientX, event.clientY);
+			},
+			{ passive: true },
+		);
+
+		const tick = () => {
+			rafId = 0;
+			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+			ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+			const night = weatherMode() === 'night';
+
+			trails = trails.filter((trail) => {
+				trail.age += 16.7;
+				if (trail.age >= trail.ttl) return false;
+				if (night) {
+					// 星尘：缓慢上浮，左右轻摆，透明度按生命正弦明灭。
+					trail.x += trail.vx + Math.sin(trail.age / 420 + trail.seed) * 0.14;
+					trail.y += trail.vy;
+				} else {
+					// 水珠：重力一点点占上风，沿轨迹微微拉长。
+					trail.vy = Math.min(0.85, trail.vy + 0.012);
+					trail.x += trail.vx;
+					trail.y += trail.vy;
+				}
+				const life = trail.age / trail.ttl;
+				const alpha = night
+					? Math.sin(Math.PI * Math.min(1, life * 1.15)) * 0.85
+					: (1 - life) * 0.6;
+
+				ctx.save();
+				if (night) {
+					ctx.globalCompositeOperation = 'lighter';
+					ctx.fillStyle = `rgba(207, 230, 236, ${alpha.toFixed(3)})`;
+					ctx.beginPath();
+					ctx.arc(trail.x, trail.y, trail.r, 0, Math.PI * 2);
+					ctx.fill();
+				} else {
+					// 水珠 = 深色边缘晕 + 高光芯，读作停在纸面的一滴水。
+					const stretch = 1 + Math.min(0.6, trail.vy * 0.7);
+					const gradient = ctx.createRadialGradient(
+						trail.x - trail.r * 0.3,
+						trail.y - trail.r * 0.4,
+						trail.r * 0.15,
+						trail.x,
+						trail.y,
+						trail.r * 1.15,
+					);
+					gradient.addColorStop(0, `rgba(255, 255, 255, ${(alpha * 0.75).toFixed(3)})`);
+					gradient.addColorStop(0.55, `rgba(178, 205, 212, ${(alpha * 0.34).toFixed(3)})`);
+					gradient.addColorStop(1, `rgba(31, 71, 81, ${(alpha * 0.28).toFixed(3)})`);
+					ctx.fillStyle = gradient;
+					ctx.beginPath();
+					ctx.ellipse(trail.x, trail.y, trail.r * 0.92, trail.r * stretch, Math.atan2(trail.vy, trail.vx + 0.001), 0, Math.PI * 2);
+					ctx.fill();
+				}
+				ctx.restore();
+				return true;
+			});
+
+			if (trails.length > 0) rafId = window.requestAnimationFrame(tick);
+			else ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+		};
+
+		// 切到晴日立即收干所有水痕，避免无雨的天空飘着旧水珠。
+		document.addEventListener('weather-mode-change', () => {
+			trails = [];
+		});
+	}
+
+	initCursorTrails();
+</script>

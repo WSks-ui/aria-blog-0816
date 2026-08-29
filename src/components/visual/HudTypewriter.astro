@@ -1,0 +1,84 @@
+---
+/**
+ * HUD 打字机：带 data-hud-type 的等宽小标注（ARCHIVE / TIME、SCENE / 001
+ * 这类登记条目）首次进入视口时逐字敲出，带一拍光标闪烁，像田野录音机在
+ * 登记。只对 ASCII 标注生效——中文整词敲字只会拖慢阅读。reduced-motion
+ * 与触屏环境直接跳过，标注保持原样。
+ */
+---
+
+<script>
+	interface HudEntry {
+		target: Element;
+		isIntersecting: boolean;
+	}
+
+	let observer: IntersectionObserver | null = null;
+
+	const typeOut = (element: HTMLElement) => {
+		if (element.dataset.hudTyped === 'true') return;
+		const text = element.textContent ?? '';
+		element.dataset.hudTyped = 'true';
+		// 只敲 ASCII 标注；空文本与中文直接放行。
+		if (!text.trim() || !/^[\x20-\x7e]+$/.test(text)) return;
+		element.classList.add('hud-typing');
+		let index = 0;
+		const step = () => {
+			index += 1;
+			element.textContent = text.slice(0, index);
+			if (index < text.length) {
+				window.setTimeout(step, 13 + Math.random() * 24);
+			} else {
+				element.textContent = text;
+				element.classList.remove('hud-typing');
+			}
+		};
+		element.textContent = '';
+		window.setTimeout(step, 240);
+	};
+
+	function initHudTypewriter() {
+		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+		if (!observer) {
+			observer = new IntersectionObserver((entries: HudEntry[]) => {
+				for (const entry of entries) {
+					if (!entry.isIntersecting) continue;
+					typeOut(entry.target as HTMLElement);
+					observer?.unobserve(entry.target);
+				}
+			}, { threshold: 0.6 });
+		}
+		document.querySelectorAll<HTMLElement>('[data-hud-type]').forEach((element) => {
+			if (element.dataset.hudTyped === 'true' || element.dataset.hudObserved === 'true') return;
+			element.dataset.hudObserved = 'true';
+			observer?.observe(element);
+		});
+	}
+
+	initHudTypewriter();
+	document.addEventListener('astro:page-load', initHudTypewriter);
+</script>
+
+<style is:global>
+	[data-hud-type].hud-typing::after {
+		display: inline-block;
+		width: 6px;
+		height: 1em;
+		margin-inline-start: 2px;
+		background: currentColor;
+		content: '';
+		vertical-align: text-bottom;
+		opacity: 0.8;
+		animation: hud-caret 0.85s steps(2, start) infinite;
+	}
+
+	@keyframes hud-caret {
+		50% { opacity: 0; }
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		[data-hud-type].hud-typing::after {
+			animation: none;
+		}
+	}
+</style>

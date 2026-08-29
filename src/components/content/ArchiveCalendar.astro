@@ -111,7 +111,7 @@ const listDateFormatter = (date: Date) => {
 <section class="archive-calendar" data-archive-calendar data-initial-index={initialMonthIndex}>
 	<header class="archive-calendar__header">
 		<div>
-			<p>ARCHIVE / CALENDAR</p>
+			<p data-hud-type>ARCHIVE / CALENDAR</p>
 			<h2>{heading}</h2>
 		</div>
 		{months.length > 0 && (
@@ -219,7 +219,7 @@ const listDateFormatter = (date: Date) => {
 	<section class="archive-timeline" aria-label="全部文章时间线">
 		<header class="archive-timeline__header">
 			<div>
-				<p>TIMELINE / ALL RECORDS</p>
+				<p data-hud-type>TIMELINE / ALL RECORDS</p>
 				<h3>全部记录</h3>
 			</div>
 			{months.length > 0 && (

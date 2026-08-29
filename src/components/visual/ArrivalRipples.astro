@@ -1,0 +1,109 @@
+---
+/**
+ * 抵达涟漪：雨天换页落定时，两三滴雨点落在刚铺开的纸面上，各晕开一圈
+ * 短命的椭圆水纹。只在雨天模式生效（晴夜无雨可落），reduced-motion 与
+ * 后台标签页跳过。DOM 粒子放完即拆，不留常驻循环。
+ */
+---
+
+<div class="arrival-ripples" data-arrival-ripples transition:persist="arrival-ripples" aria-hidden="true"></div>
+
+<style>
+	.arrival-ripples {
+		position: fixed;
+		inset: 0;
+		z-index: var(--z-overlay);
+		overflow: hidden;
+		pointer-events: none;
+	}
+
+	/* 落点 = 一枚下坠的小雨点 + 两圈先后扩散的椭圆水纹（透视压扁）。 */
+	.rain-ripple {
+		position: absolute;
+		width: 0;
+		height: 0;
+	}
+
+	.rain-ripple::before {
+		position: absolute;
+		top: -2px;
+		left: -1px;
+		width: 2.5px;
+		height: 5px;
+		border-radius: 2px;
+		background: rgb(31 71 81 / 42%);
+		content: '';
+		animation: ripple-drop 240ms cubic-bezier(0.55, 0, 0.85, 0.36) forwards;
+		animation-delay: var(--ripple-delay, 0ms);
+	}
+
+	.rain-ripple::after {
+		position: absolute;
+		top: -4px;
+		left: -11px;
+		width: 22px;
+		height: 8px;
+		border: 1px solid rgb(31 71 81 / 46%);
+		border-radius: 50%;
+		content: '';
+		opacity: 0;
+		transform: scale(0.16);
+		animation: ripple-spread 980ms var(--ease-rain) forwards;
+		animation-delay: calc(var(--ripple-delay, 0ms) + 200ms);
+	}
+
+	@keyframes ripple-drop {
+		from { opacity: 0; transform: translateY(-14px); }
+		60% { opacity: 0.9; }
+		to { opacity: 0; transform: translateY(0); }
+	}
+
+	@keyframes ripple-spread {
+		0% { opacity: 0; transform: scale(0.16); }
+		18% { opacity: 0.55; }
+		100% { opacity: 0; transform: scale(3.4); }
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.arrival-ripples { display: none; }
+	}
+</style>
+
+<script>
+	function initArrivalRipples() {
+		const root = document.querySelector<HTMLElement>('[data-arrival-ripples]');
+		if (!root || root.dataset.ripplesReady === 'true') return;
+		root.dataset.ripplesReady = 'true';
+
+		const spawn = () => {
+			if ((document.documentElement.dataset.weatherMode ?? 'rain') !== 'rain') return;
+			if (document.hidden) return;
+			const wide = window.innerWidth;
+			const high = window.innerHeight;
+			// 固定的呼吸点位 + 随机微扰：每次抵达的落点相似但不重样。
+			const spots = [
+				{ x: 0.3, y: 0.32, delay: 60 },
+				{ x: 0.68, y: 0.5, delay: 380 },
+				{ x: 0.47, y: 0.72, delay: 720 },
+			];
+			for (const spot of spots) {
+				const drop = document.createElement('span');
+				drop.className = 'rain-ripple';
+				drop.style.left = `${((spot.x + (Math.random() - 0.5) * 0.09) * wide).toFixed(0)}px`;
+				drop.style.top = `${((spot.y + (Math.random() - 0.5) * 0.12) * high).toFixed(0)}px`;
+				drop.style.setProperty('--ripple-delay', `${spot.delay}ms`);
+				root.append(drop);
+				window.setTimeout(() => drop.remove(), spot.delay + 1400);
+			}
+		};
+
+		// 换页抵达后等纸面落定（软入 380ms）再落雨点。
+		document.addEventListener('astro:page-load', () => {
+			window.setTimeout(spawn, 300);
+		});
+		// 直接访问的首屏也落一次，雨不挑客从哪扇门进来。
+		window.setTimeout(spawn, 1000);
+	}
+
+	initArrivalRipples();
+</script>

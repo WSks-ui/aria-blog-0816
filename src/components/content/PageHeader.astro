@@ -15,7 +15,7 @@ const { eyebrow, title, description, count, sharedTitle, variant = 'default' } =
 
 <header class:list={['page-header', variant !== 'default' && `page-header--${variant}`]}>
 	<div class="page-header__rail">
-		<span>{eyebrow}</span>
+		<span data-hud-type>{eyebrow}</span>
 		{count !== undefined && <strong>{String(count).padStart(2, '0')}</strong>}
 	</div>
 	<div class="page-header__main">
