@@ -204,18 +204,11 @@ const paperMarks = [
 		opacity: var(--trace-opacity);
 		filter: blur(.15px);
 		transform: skewX(-3deg);
-		/* 风场用独立 translate 属性注入，与下落动画的 transform 叠加互不打断。 */
-		translate: var(--wind-x, 0px) 0px;
 		animation: atmosphere-rain-fall var(--trace-duration) linear var(--trace-delay) infinite;
 		will-change: transform;
 	}
 
 	.rain-field__papers { z-index: 6; opacity: var(--weather-particle-opacity); transition: opacity var(--duration-scene) var(--ease-rain); }
-	/* 纸屑的避让位移与额外旋转同样走独立属性，浮动动画保持原样。 */
-	.rain-field__papers span {
-		translate: var(--paper-dx, 0px) var(--paper-dy, 0px);
-		rotate: var(--paper-dr, 0deg);
-	}
 
 	/* 透明度走 --weather-calm，由 html[data-reading-focus='on'] 控制（themes.css）。 */
 	.rain-field__calm {
@@ -330,112 +323,3 @@ const paperMarks = [
 		.rain-field__rain { opacity: calc(var(--weather-rain-opacity) * .36); }
 	}
 </style>
-
-<script>
-	/*
-	 * 指针风场：雨线让路，纸屑避让。指针速度换算成一阵横风，附近雨线的
-	 * 独立 translate 被推向指针行进方向再慢慢归位；纸屑在半径内被拨开、
-	 * 带一点额外旋转地弹回。全部走 CSS 变量，不打断既有动画；
-	 * reduced-motion 与触屏不启用。
-	 */
-	function initRainFieldWind() {
-		const field = document.querySelector<HTMLElement>('.rain-field');
-		if (!field || field.dataset.windReady === 'true') return;
-		if (!window.matchMedia('(pointer: fine)').matches) return;
-		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-		field.dataset.windReady = 'true';
-
-		const traces = [...field.querySelectorAll<HTMLElement>('.rain-field__rain span')].map((el) => {
-			const rect = el.getBoundingClientRect();
-			return { el, baseX: rect.left + window.scrollX, wind: 0 };
-		});
-		const papers = [...field.querySelectorAll<HTMLElement>('.rain-field__papers span')].map((el) => {
-			const rect = el.getBoundingClientRect();
-			return {
-				el,
-				cx: rect.left + rect.width / 2 + window.scrollX,
-				cy: rect.top + rect.height / 2 + window.scrollY,
-				x: 0, y: 0, r: 0, tx: 0, ty: 0, tr: 0,
-			};
-		});
-
-		let rafId = 0;
-		let lastX = -1;
-		let lastY = -1;
-		let lastT = 0;
-		let impulse = 0;
-
-		const step = () => {
-			rafId = 0;
-			let live = false;
-			impulse *= 0.88;
-
-			for (const trace of traces) {
-				// 风是纵向走廊效应：只看指针与雨线的水平距离，风大处让得多。
-				const screenX = trace.baseX - window.scrollX;
-				const distance = Math.abs(lastX - screenX);
-				const target = distance < 170 ? impulse * (1 - distance / 170) : 0;
-				trace.wind += (target - trace.wind) * 0.14;
-				if (Math.abs(trace.wind) > 0.08) {
-					trace.el.style.setProperty('--wind-x', `${trace.wind.toFixed(2)}px`);
-					live = true;
-				} else if (trace.wind !== 0) {
-					trace.wind = 0;
-					trace.el.style.removeProperty('--wind-x');
-				}
-			}
-
-			const pointerPageX = lastX + window.scrollX;
-			const pointerPageY = lastY + window.scrollY;
-			for (const paper of papers) {
-				const dx = paper.cx - pointerPageX;
-				const dy = paper.cy - pointerPageY;
-				const distance = Math.hypot(dx, dy);
-				if (distance < 190 && distance > 0.5) {
-					const push = Math.pow(1 - distance / 190, 1.5) * 26;
-					paper.tx = (dx / distance) * push;
-					paper.ty = (dy / distance) * push * 0.7;
-					paper.tr = (dx > 0 ? 1 : -1) * push * 0.5;
-				} else {
-					paper.tx = 0; paper.ty = 0; paper.tr = 0;
-				}
-				paper.x += (paper.tx - paper.x) * 0.12;
-				paper.y += (paper.ty - paper.y) * 0.12;
-				paper.r += (paper.tr - paper.r) * 0.12;
-				if (Math.abs(paper.x) > 0.1 || Math.abs(paper.y) > 0.1 || Math.abs(paper.r) > 0.1) {
-					paper.el.style.setProperty('--paper-dx', `${paper.x.toFixed(2)}px`);
-					paper.el.style.setProperty('--paper-dy', `${paper.y.toFixed(2)}px`);
-					paper.el.style.setProperty('--paper-dr', `${paper.r.toFixed(2)}deg`);
-					live = true;
-				} else if (paper.x !== 0) {
-					paper.x = 0; paper.y = 0; paper.r = 0;
-					paper.el.style.removeProperty('--paper-dx');
-					paper.el.style.removeProperty('--paper-dy');
-					paper.el.style.removeProperty('--paper-dr');
-				}
-			}
-
-			if (live) rafId = window.requestAnimationFrame(step);
-		};
-
-		window.addEventListener(
-			'pointermove',
-			(event) => {
-				const now = performance.now();
-				const dt = Math.max(8, now - lastT);
-				lastT = now;
-				if (lastX >= 0) {
-					const speed = Math.hypot(event.clientX - lastX, event.clientY - lastY) / dt;
-					// 快扫带大风（封顶），慢移只有微风。
-					impulse = Math.max(impulse * 0.5, Math.min(34, speed * 90));
-				}
-				lastX = event.clientX;
-				lastY = event.clientY;
-				if (!rafId) rafId = window.requestAnimationFrame(step);
-			},
-			{ passive: true },
-		);
-	}
-
-	initRainFieldWind();
-</script>
