@@ -177,6 +177,16 @@ export function getTutorialToolPath(tool: Pick<TutorialTool, 'id'> | string): st
 	return `/toolkit/${id}/`;
 }
 
+/**
+ * 工具共享元素转场名：目录卡片标题与讲义页 H1 各持同一名字，ClientRouter
+ * 换页时浏览器据此完成标题飞行（与文章的 getPostTransitionName 同一套约定）。
+ * 工具 id 本身是 ASCII slug，这里仍做一次同口径清洗，保证未来 id 变化时名字合法。
+ */
+export function getToolTransitionName(tool: Pick<TutorialTool, 'id'> | string): string {
+	const id = typeof tool === 'string' ? tool : tool.id;
+	return `aria7-tool-${id.replace(/[^\p{L}\p{N}_-]+/gu, '-')}`;
+}
+
 export function getTutorialToolById(id: string): TutorialTool | undefined {
 	return TUTORIAL_TOOLS.find((tool) => tool.id === id);
 }

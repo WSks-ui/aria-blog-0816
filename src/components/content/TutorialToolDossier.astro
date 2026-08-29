@@ -2,7 +2,7 @@
 import { render, type CollectionEntry } from 'astro:content';
 import { ArrowLeft, ArrowRight, ExternalLink, GitBranch } from '@lucide/astro';
 import ContentCoverScene from '@/components/visual/ContentCoverScene.astro';
-import { TUTORIAL_TOOL_STAGES, type TutorialTool } from '@/data/tutorial-tools';
+import { TUTORIAL_TOOL_STAGES, getToolTransitionName, type TutorialTool } from '@/data/tutorial-tools';
 import '@/styles/interactive.css';
 
 interface ToolNeighbor {
@@ -50,7 +50,7 @@ const tocHeadings = headings.filter((heading) => heading.depth >= 2 && heading.d
 		</div>
 
 		<div class="tool-dossier__heading">
-			<a class="tool-dossier__back" href="/types/tutorial/" data-route-transition-link data-astro-reload>
+			<a class="tool-dossier__back" href="/types/tutorial/" data-article-transition-link>
 				<ArrowLeft size={16} stroke-width={1.5} aria-hidden="true" />
 				工具导航
 			</a>
@@ -58,7 +58,8 @@ const tocHeadings = headings.filter((heading) => heading.depth >= 2 && heading.d
 				<span>{stageIndex} / {stage?.code ?? 'TOOLCHAIN'}</span>
 				<span>SYNCED GUIDE</span>
 			</div>
-			<h1>{guide.data.title}</h1>
+			<!-- 与目录卡片标题共享同名转场：从卡片进入时标题飞入讲义页头，返回时飞回原卡。 -->
+			<h1 transition:name={getToolTransitionName(tool)}>{guide.data.title}</h1>
 			<div class="tool-dossier__meta">
 				<span>{stageLabel}</span>
 				<span>ARIA-7 / FIELD GUIDE</span>
@@ -147,18 +148,18 @@ const tocHeadings = headings.filter((heading) => heading.depth >= 2 && heading.d
 
 	<nav class="tool-dossier__neighbors" aria-label="工具讲义导航">
 		{previous ? (
-			<a href={`/toolkit/${previous.tool.id}/`} data-route-transition-link data-astro-reload>
+			<a href={`/toolkit/${previous.tool.id}/`} data-article-transition-link>
 				<ArrowLeft size={16} stroke-width={1.5} aria-hidden="true" />
-				<span><small>PREVIOUS / {String(previous.index + 1).padStart(2, '0')}</small><strong>{previous.tool.name}</strong></span>
+				<span><small>PREVIOUS / {String(previous.index + 1).padStart(2, '0')}</small><strong transition:name={getToolTransitionName(previous.tool)}>{previous.tool.name}</strong></span>
 			</a>
 		) : <span class="tool-dossier__neighbor-placeholder" aria-hidden="true"></span>}
-		<a class="tool-dossier__neighbors-index" href="/types/tutorial/" data-route-transition-link data-astro-reload>
+		<a class="tool-dossier__neighbors-index" href="/types/tutorial/" data-article-transition-link>
 			<span>TOOLKIT</span>
 			<strong>{stageIndex} / {tool.code}</strong>
 		</a>
 		{next ? (
-			<a class="tool-dossier__neighbor-next" href={`/toolkit/${next.tool.id}/`} data-route-transition-link data-astro-reload>
-				<span><small>NEXT / {String(next.index + 1).padStart(2, '0')}</small><strong>{next.tool.name}</strong></span>
+			<a class="tool-dossier__neighbor-next" href={`/toolkit/${next.tool.id}/`} data-article-transition-link>
+				<span><small>NEXT / {String(next.index + 1).padStart(2, '0')}</small><strong transition:name={getToolTransitionName(next.tool)}>{next.tool.name}</strong></span>
 				<ArrowRight size={16} stroke-width={1.5} aria-hidden="true" />
 			</a>
 		) : <span class="tool-dossier__neighbor-placeholder" aria-hidden="true"></span>}

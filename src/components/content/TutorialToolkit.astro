@@ -2,6 +2,7 @@
 import { ArrowRight } from '@lucide/astro';
 import {
 	TUTORIAL_TOOL_STAGES,
+	getToolTransitionName,
 	getTutorialToolPath,
 	type TutorialTool,
 } from '@/data/tutorial-tools';
@@ -77,8 +78,9 @@ const firstTool = tools.find((tool) => tool.stage === initialStage.id) ?? tools[
 							data-tool-summary={tool.summary}
 							style={`--tool-accent: ${stage?.accent ?? 'var(--accent-strong)'}; --tool-delay: ${index * 38}ms;`}
 						>
-							<!-- 工具目录只进入站内讲义；官网与参考站链接在讲义末尾集中呈现，避免学习路径被外链打断。 -->
-							<a class="tutorial-tool__open" href={getTutorialToolPath(tool)} data-route-transition-link data-astro-reload>
+							<!-- 工具目录只进入站内讲义；官网与参考站链接在讲义末尾集中呈现，避免学习路径被外链打断。
+								data-article-transition-link 让换页进入与文章一致的软退软入编排，卡片标题与讲义 H1 配对飞行。 -->
+							<a class="tutorial-tool__open" href={getTutorialToolPath(tool)} data-article-transition-link>
 								<header>
 									<span class="tutorial-tool__index">{String(index + 1).padStart(2, '0')}</span>
 									<span class="tutorial-tool__code">{tool.code}</span>
@@ -86,7 +88,7 @@ const firstTool = tools.find((tool) => tool.stage === initialStage.id) ?? tools[
 								</header>
 								<div class="tutorial-tool__body">
 									<p>{stage?.label}</p>
-									<h3>{tool.name}</h3>
+									<h3 transition:name={getToolTransitionName(tool)}>{tool.name}</h3>
 									<span>{tool.summary}</span>
 								</div>
 								<footer>
