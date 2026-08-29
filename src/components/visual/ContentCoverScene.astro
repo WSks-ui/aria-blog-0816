@@ -208,6 +208,8 @@ const kindCode = {
 			<text x="682" y="470">FRAME / 01</text>
 		</g>
 	</svg>
+	<!-- 指针光斑：像举着放大镜看档案场景，颜色随天气。 -->
+	<i class="content-cover__lens" aria-hidden="true"></i>
 </div>
 
 <style>
@@ -453,4 +455,189 @@ const kindCode = {
 		}
 		.tutorial-scene__steps path { opacity: 1; transform: none; }
 	}
+
+	/*
+	 * 指针光斑：跟随指针的柔光斑，像举着放大镜看档案场景。颜色随天气——
+	 * 雨天玻璃反光、晴日暖尘、夜间冷月。位置由脚本写入根元素的 CSS 变量。
+	 */
+	.content-cover__lens {
+		position: absolute;
+		inset: 0;
+		z-index: 6;
+		pointer-events: none;
+		opacity: 0;
+		background: radial-gradient(
+			250px circle at var(--lens-x, 50%) var(--lens-y, 42%),
+			var(--lens-tint, rgb(255 255 255 / 9%)),
+			transparent 72%
+		);
+		mix-blend-mode: screen;
+		transition: opacity 480ms var(--ease-rain);
+	}
+
+	.content-cover:hover .content-cover__lens { opacity: 1; }
+
+	:global(html[data-weather-mode='rain']) .content-cover__lens { --lens-tint: rgb(224 240 244 / 10%); }
+	:global(html[data-weather-mode='clear']) .content-cover__lens { --lens-tint: rgb(255 244 212 / 13%); }
+	:global(html[data-weather-mode='night']) .content-cover__lens { --lens-tint: rgb(166 214 226 / 15%); }
 </style>
+
+<script>
+	/*
+	 * 场景指针干涉：程序生成的底图从此可以被拨动。场景内的构图层按深度
+	 * 随指针错位（层视差），日历格、数据柱、步骤线、节点圆在指针半径内
+	 * 被斥开、缓慢弹回。只在足够大的封面启用（小尺寸预览不动），触屏与
+	 * reduced-motion 跳过；元素中心在初始化时按页面坐标缓存一次。
+	 */
+	const SCENE_ITEM_SELECTOR = [
+		'.note-scene__cell',
+		'.tutorial-scene__steps path',
+		'.tutorial-scene__nodes > g',
+		'.project-scene__nodes circle',
+		'.photo-scene__windows rect',
+		'.photo-scene__windows circle',
+	].join(', ');
+
+	interface SceneItem {
+		el: SVGElement;
+		cx: number;
+		cy: number;
+		x: number;
+		y: number;
+		tx: number;
+		ty: number;
+	}
+
+	interface SceneLayer {
+		el: SVGGElement;
+		depth: number;
+		x: number;
+		y: number;
+		tx: number;
+		ty: number;
+	}
+
+	interface SceneField {
+		root: HTMLElement;
+		items: SceneItem[];
+		layers: SceneLayer[];
+		px: number;
+		py: number;
+		tpx: number;
+		tpy: number;
+	}
+
+	const fields: SceneField[] = [];
+	let fieldRaf = 0;
+
+	const stepField = () => {
+		fieldRaf = 0;
+		let live = false;
+
+		for (const field of fields) {
+			field.px += (field.tpx - field.px) * 0.1;
+			field.py += (field.tpy - field.py) * 0.1;
+			if (Math.abs(field.tpx - field.px) > 0.002 || Math.abs(field.tpy - field.py) > 0.002) live = true;
+
+			for (const layer of field.layers) {
+				layer.tx = field.px * -11 * layer.depth;
+				layer.ty = field.py * -8 * layer.depth;
+				layer.x += (layer.tx - layer.x) * 0.12;
+				layer.y += (layer.ty - layer.y) * 0.12;
+				if (Math.abs(layer.x) > 0.05 || Math.abs(layer.y) > 0.05) {
+					layer.el.style.transform = `translate(${layer.x.toFixed(2)}px, ${layer.y.toFixed(2)}px)`;
+					live = true;
+				} else if (layer.x !== 0) {
+					layer.x = 0; layer.y = 0;
+					layer.el.style.removeProperty('transform');
+				}
+			}
+
+			for (const item of field.items) {
+				item.x += (item.tx - item.x) * 0.16;
+				item.y += (item.ty - item.y) * 0.16;
+				if (Math.abs(item.x) > 0.05 || Math.abs(item.y) > 0.05) {
+					item.el.style.transform = `translate(${item.x.toFixed(2)}px, ${item.y.toFixed(2)}px)`;
+					live = true;
+				} else if (item.x !== 0) {
+					item.x = 0; item.y = 0;
+					item.el.style.removeProperty('transform');
+				}
+			}
+		}
+
+		if (live) fieldRaf = window.requestAnimationFrame(stepField);
+	};
+
+	const wakeField = () => {
+		if (!fieldRaf) fieldRaf = window.requestAnimationFrame(stepField);
+	};
+
+	function initScenePointerFields() {
+		if (!window.matchMedia('(pointer: fine)').matches) return;
+		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+		document.querySelectorAll<HTMLElement>('[data-content-cover]').forEach((root) => {
+			if (root.dataset.sceneFieldReady === 'true') return;
+			// 小尺寸预览（首页滚动条带等）不参与干涉，只留给大封面。
+			const rect = root.getBoundingClientRect();
+			if (rect.width < 420 || rect.height < 240) return;
+			root.dataset.sceneFieldReady = 'true';
+
+			const originX = rect.left + window.scrollX;
+			const originY = rect.top + window.scrollY;
+			const items: SceneItem[] = [...root.querySelectorAll<SVGElement>(SCENE_ITEM_SELECTOR)]
+				.map((el) => {
+					const box = el.getBoundingClientRect();
+					return {
+						el,
+						cx: box.left + box.width / 2 + window.scrollX - originX,
+						cy: box.top + box.height / 2 + window.scrollY - originY,
+						x: 0, y: 0, tx: 0, ty: 0,
+					};
+				});
+			// 场景内的构图分组按 DOM 前后赋深度：先画的是远景，动得少。
+			const layers: SceneLayer[] = [...root.querySelectorAll<SVGGElement>("g[class$='-scene'] > g")]
+				.map((el, index, all) => ({
+					el,
+					depth: 0.35 + (all.length > 1 ? index / (all.length - 1) : 0) * 0.65,
+					x: 0, y: 0, tx: 0, ty: 0,
+				}));
+
+			const field: SceneField = { root, items, layers, px: 0, py: 0, tpx: 0, tpy: 0 };
+			fields.push(field);
+
+			root.addEventListener('pointermove', (event) => {
+				const localX = event.clientX + window.scrollX - originX;
+				const localY = event.clientY + window.scrollY - originY;
+				field.tpx = localX / rect.width - 0.5;
+				field.tpy = localY / rect.height - 0.5;
+				root.style.setProperty('--lens-x', `${localX.toFixed(1)}px`);
+				root.style.setProperty('--lens-y', `${localY.toFixed(1)}px`);
+
+				for (const item of field.items) {
+					const dx = item.cx - localX;
+					const dy = item.cy - localY;
+					const distance = Math.hypot(dx, dy);
+					if (distance < 120 && distance > 0.5) {
+						const push = Math.pow(1 - distance / 120, 1.6) * 12;
+						item.tx = (dx / distance) * push;
+						item.ty = (dy / distance) * push;
+					} else {
+						item.tx = 0; item.ty = 0;
+					}
+				}
+				wakeField();
+			});
+
+			root.addEventListener('pointerleave', () => {
+				field.tpx = 0; field.tpy = 0;
+				for (const item of field.items) { item.tx = 0; item.ty = 0; }
+				wakeField();
+			});
+		});
+	}
+
+	initScenePointerFields();
+	document.addEventListener('astro:page-load', initScenePointerFields);
+</script>
