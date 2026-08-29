@@ -9,7 +9,12 @@ const posts = await getPosts();
 
 <BaseLayout title="雨日历" description="按年月浏览 Aria-7 的写作记录。">
 	<div class="page-shell">
-		<PageHeader eyebrow="ARCHIVE / TIME" title="雨日历" count={posts.length} />
+		<PageHeader
+			eyebrow="ARCHIVE / TIME"
+			title="雨日历"
+			description="按月份翻检写作档案：日历看疏密，时间线读全貌。"
+			count={posts.length}
+		/>
 		<div class="calendar-mount">
 			<ArchiveCalendar posts={posts} heading="按月份浏览" />
 		</div>
@@ -17,7 +22,12 @@ const posts = await getPosts();
 </BaseLayout>
 
 <style>
-	.page-shell { max-width: var(--content-max); margin-inline: auto; padding-inline: var(--page-gutter); }
+	.page-shell {
+		max-width: var(--content-max);
+		margin-inline: auto;
+		padding-inline: var(--page-gutter);
+		padding-bottom: 132px;
+	}
 	.calendar-mount { margin-top: 38px; }
 	@media (max-width: 760px) { .page-shell { padding-inline: 20px; } }
 </style>

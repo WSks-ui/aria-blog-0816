@@ -1,7 +1,7 @@
 ---
 import { ChevronLeft, ChevronRight } from '@lucide/astro';
 
-import { getPostPath, sortPosts, type PostEntry } from '../../lib/content';
+import { getPostPath, getPostTransitionName, sortPosts, type PostEntry } from '../../lib/content';
 
 interface Props {
 	posts: readonly PostEntry[];
@@ -84,12 +84,28 @@ if (chronologicalPosts.length > 0) {
 }
 
 const initialMonthIndex = Math.max(0, months.length - 1);
-const listDateFormatter = new Intl.DateTimeFormat('zh-CN', {
-	year: 'numeric',
-	month: '2-digit',
-	day: '2-digit',
-	timeZone: 'UTC',
-});
+
+/*
+ * 时间线按月分组、最新月份在上。与日历同源不同视图：桌面端两块同时可见，
+ * 移动端只剩时间线。注意时间线的标题不持转场名——同一篇文章在可见月份的
+ * 日历格里已有同名转场元素，重名会让 Chrome 跳过整场转场。
+ */
+const monthGroupsDesc = [...months].reverse().map((calendarMonth) => ({
+	key: calendarMonth.key,
+	label: calendarMonth.label,
+	// 格子里的文章本来就只属于当月，直接展平即可。
+	posts: calendarMonth.cells.flatMap((cell) => cell.posts),
+}));
+
+const spanLabel = months.length > 1
+	? `${months[0].label.replace(' / ', '.')} — ${months.at(-1)!.label.replace(' / ', '.')}`
+	: months[0]?.label.replace(' / ', '.') ?? '';
+
+const listDateFormatter = (date: Date) => {
+	const parts = toDateParts(date);
+	// toDateParts 沿用日历的 UTC 取值，month 是 0 起索引，展示前必须 +1。
+	return `${pad(parts.month + 1)}.${pad(parts.day)}`;
+};
 ---
 
 <section class="archive-calendar" data-archive-calendar data-initial-index={initialMonthIndex}>
@@ -125,6 +141,22 @@ const listDateFormatter = new Intl.DateTimeFormat('zh-CN', {
 		)}
 	</header>
 
+	{months.length > 1 && (
+		<div class="archive-calendar__chips" role="group" aria-label="按月份快速跳转" data-calendar-chips>
+			{months.map((calendarMonth, index) => (
+				<button
+					type="button"
+					data-calendar-chip
+					data-chip-index={index}
+					aria-pressed={index === initialMonthIndex ? 'true' : 'false'}
+					aria-label={`跳转到 ${calendarMonth.label}`}
+				>
+					{calendarMonth.label.slice(-2)}
+				</button>
+			))}
+		</div>
+	)}
+
 	{months.length > 0 ? (
 		<div class="archive-calendar__months" data-calendar-months>
 			{months.map((calendarMonth, monthIndex) => (
@@ -152,7 +184,15 @@ const listDateFormatter = new Intl.DateTimeFormat('zh-CN', {
 													{cell.posts.length > 0 && (
 														<ul>
 															{cell.posts.map((post) => (
-											<li><a href={getPostPath(post)} data-article-transition-link data-astro-reload>{post.data.title}</a></li>
+																/* 格内标题持转场名：从日历进入文章时标题飞入页头，
+																	返回时飞回原格。不再整页重载。 */
+																<li>
+																	<a
+																		href={getPostPath(post)}
+																		data-article-transition-link
+																		transition:name={getPostTransitionName(post)}
+																	>{post.data.title}</a>
+																</li>
 															))}
 														</ul>
 													)}
@@ -171,22 +211,44 @@ const listDateFormatter = new Intl.DateTimeFormat('zh-CN', {
 		<p class="archive-calendar__empty">尚无已发布文章。</p>
 	)}
 
-	<section class="archive-calendar__fallback" aria-label="文章时间列表">
-		<h3>按时间浏览</h3>
-		{visiblePosts.length > 0 ? (
-			<ol>
-				{visiblePosts.map((post) => (
-					<li>
-						<time datetime={post.data.publishedAt.toISOString()}>
-							{listDateFormatter.format(post.data.publishedAt)}
-						</time>
-					<a href={getPostPath(post)} data-article-transition-link data-astro-reload>{post.data.title}</a>
-					</li>
-				))}
-			</ol>
-		) : (
-			<p>尚无已发布文章。</p>
-		)}
+	<!--
+		时间线：与日历同源的按月分组列表，桌面端铺满日历以下的空白半场，
+		移动端（≤48rem）日历退场后它就是唯一视图。整行都是链接，命中区域
+		不再只有标题那几个字。
+	-->
+	<section class="archive-timeline" aria-label="全部文章时间线">
+		<header class="archive-timeline__header">
+			<div>
+				<p>TIMELINE / ALL RECORDS</p>
+				<h3>全部记录</h3>
+			</div>
+			{months.length > 0 && (
+				<span class="archive-timeline__meta">{spanLabel} · 共 {visiblePosts.length} 篇</span>
+			)}
+		</header>
+		{monthGroupsDesc.map((group) => (
+			<section class="archive-timeline__group" aria-label={`${group.label.replace(' / ', ' 年 ')} 月`}>
+				<p class="archive-timeline__month-label">
+					{group.label}
+					<small>{String(group.posts.length).padStart(2, '0')} 篇</small>
+				</p>
+				<ol>
+					{group.posts.map((post) => (
+						<li>
+							<a href={getPostPath(post)} data-article-transition-link>
+								<time datetime={post.data.publishedAt.toISOString()}>{listDateFormatter(post.data.publishedAt)}</time>
+								<span
+									class:list={['archive-timeline__square', { 'is-filled': post.data.kind === 'project' || post.data.kind === 'tutorial' }]}
+									aria-hidden="true"
+								></span>
+								<strong>{post.data.title}</strong>
+								<span class="archive-timeline__kind">{post.data.kind.toUpperCase()}</span>
+							</a>
+						</li>
+					))}
+				</ol>
+			</section>
+		))}
 	</section>
 </section>
 
@@ -201,12 +263,25 @@ const listDateFormatter = new Intl.DateTimeFormat('zh-CN', {
 			const previous = root.querySelector<HTMLButtonElement>('[data-calendar-previous]');
 			const next = root.querySelector<HTMLButtonElement>('[data-calendar-next]');
 			const navigation = root.querySelector<HTMLElement>('[data-calendar-navigation]');
+			const chips = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-calendar-chip]'));
 			if (panels.length === 0 || !label || !previous || !next || !navigation) return;
 
+			const pad = (value: number) => String(value).padStart(2, '0');
+			const monthStorageKey = 'aria7-archive-month';
 			let activeIndex = Math.min(
 				panels.length - 1,
 				Math.max(0, Number(root.dataset.initialIndex) || 0),
 			);
+
+			// 从本页离开又返回时，回到离开前正在看的月份，而不是永远弹回最新月。
+			try {
+				const storedKey = sessionStorage.getItem(monthStorageKey);
+				const storedIndex = panels.findIndex((panel) => panel.dataset.calendarMonth === storedKey);
+				if (storedIndex >= 0) activeIndex = storedIndex;
+			} catch {
+				// 会话存储不可用时保持默认最新月。
+			}
+
 			let monthSwitched = false;
 
 			const showMonth = (nextIndex: number) => {
@@ -223,10 +298,21 @@ const listDateFormatter = new Intl.DateTimeFormat('zh-CN', {
 				label.textContent = panels[activeIndex]?.dataset.calendarMonthLabel ?? '';
 				previous.disabled = activeIndex === 0;
 				next.disabled = activeIndex === panels.length - 1;
+				chips.forEach((chip) => {
+					chip.setAttribute('aria-pressed', String(Number(chip.dataset.chipIndex) === activeIndex));
+				});
+				try {
+					sessionStorage.setItem(monthStorageKey, panels[activeIndex]?.dataset.calendarMonth ?? '');
+				} catch {
+					// 存储不可用时只丢跨页记忆，翻页本身不受影响。
+				}
 			};
 
 			previous.addEventListener('click', () => showMonth(activeIndex - 1));
 			next.addEventListener('click', () => showMonth(activeIndex + 1));
+			chips.forEach((chip) => {
+				chip.addEventListener('click', () => showMonth(Number(chip.dataset.chipIndex)));
+			});
 			navigation.addEventListener('keydown', (event) => {
 				const destination = {
 					ArrowLeft: activeIndex - 1,
@@ -240,6 +326,11 @@ const listDateFormatter = new Intl.DateTimeFormat('zh-CN', {
 				event.preventDefault();
 				showMonth(destination);
 			});
+
+			// 今日刻度：构建产物是静态的，当天标记只能交给运行时补。
+			const now = new Date();
+			const todayKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+			root.querySelector(`td time[datetime="${todayKey}"]`)?.closest('td')?.classList.add('is-today');
 
 			showMonth(activeIndex);
 		});
@@ -285,7 +376,7 @@ const listDateFormatter = new Intl.DateTimeFormat('zh-CN', {
 	}
 
 	.archive-calendar__header p,
-	.archive-calendar__fallback h3 {
+	.archive-timeline__header p {
 		margin: 0 0 0.35rem;
 		color: var(--ink-muted);
 		font-family: var(--font-ui);
@@ -346,6 +437,39 @@ const listDateFormatter = new Intl.DateTimeFormat('zh-CN', {
 		font-size: var(--text-xs);
 	}
 
+	/* 月份速达片：月份不多时翻页太慢，一枚一枚点不如直接跳。 */
+	.archive-calendar__chips {
+		display: flex;
+		justify-content: flex-end;
+		gap: 6px;
+		margin-bottom: 14px;
+	}
+
+	.archive-calendar__chips button {
+		min-width: 2.5rem;
+		height: 2rem;
+		padding-inline: 8px;
+		border: 1px solid var(--line);
+		background: transparent;
+		color: var(--ink-muted);
+		font-family: var(--font-mono);
+		font-size: var(--text-xs);
+		cursor: pointer;
+		transition: color var(--duration-base) var(--ease-rain), background-color var(--duration-base) var(--ease-rain), border-color var(--duration-base) var(--ease-rain);
+	}
+
+	.archive-calendar__chips button:hover,
+	.archive-calendar__chips button:focus-visible {
+		color: var(--ink);
+		border-color: var(--line-strong);
+	}
+
+	.archive-calendar__chips button[aria-pressed='true'] {
+		border-color: var(--accent-strong);
+		background: var(--accent-strong);
+		color: var(--color-paper);
+	}
+
 	.archive-calendar__month[hidden] {
 		display: none;
 	}
@@ -381,12 +505,31 @@ const listDateFormatter = new Intl.DateTimeFormat('zh-CN', {
 		box-shadow: inset 2px 0 var(--accent-strong);
 	}
 
+	.archive-calendar td.has-posts > time {
+		color: var(--ink);
+		font-weight: 500;
+	}
+
 	.archive-calendar td > time {
 		display: block;
 		margin-bottom: 0.45rem;
 		color: var(--ink-muted);
 		font-family: var(--font-mono);
 		font-size: 0.625rem;
+	}
+
+	/* 今日刻度：构建期不知道"今天"，由脚本在当月补上这枚小方点。 */
+	.archive-calendar td.is-today > time {
+		color: var(--accent-strong);
+	}
+
+	.archive-calendar td.is-today > time::after {
+		display: inline-block;
+		width: 5px;
+		height: 5px;
+		margin-inline-start: 5px;
+		background: var(--accent-strong);
+		content: '';
 	}
 
 	.archive-calendar td ul {
@@ -397,83 +540,197 @@ const listDateFormatter = new Intl.DateTimeFormat('zh-CN', {
 		list-style: none;
 	}
 
+	/*
+	 * 格内标题：内边距扩出命中区域（负外边距抵消，不破坏格子排版），
+	 * 悬停沿用全站的纸面浮起——投影加深、微微上浮，不做色块。
+	 */
 	.archive-calendar td a {
 		display: -webkit-box;
 		overflow: hidden;
+		padding: 3px 6px;
+		margin: -3px -6px;
 		color: var(--ink);
 		font-family: var(--font-display);
 		font-size: 0.75rem;
 		line-height: 1.45;
 		text-decoration-color: var(--line-strong);
+		transition: color var(--duration-base) var(--ease-rain), background-color var(--duration-base) var(--ease-rain), box-shadow 420ms var(--ease-rain), transform var(--duration-base) var(--ease-drift);
 		-webkit-box-orient: vertical;
 		-webkit-line-clamp: 2;
 	}
 
 	.archive-calendar td a:hover,
 	.archive-calendar td a:focus-visible {
+		background: var(--color-surface);
 		color: var(--accent-strong);
+		box-shadow: 0 10px 20px rgb(31 71 81 / 16%), 0 2px 5px rgb(31 71 81 / 10%);
 		text-decoration-color: currentColor;
+		transform: translate(-2px, -1px);
 	}
 
-	.archive-calendar__fallback {
-		padding: 1.25rem 0;
+	/*
+	 * 时间线：桌面端在日历之下铺开全部记录，移动端是唯一视图。
+	 * 整行一枚链接，日期、方纸标记、标题与栏目代码同行排布。
+	 */
+	.archive-timeline {
+		padding: 1.25rem 0 0.5rem;
 	}
 
-	.archive-calendar__fallback ol {
+	.archive-timeline__header {
+		display: flex;
+		justify-content: space-between;
+		align-items: end;
+		gap: 1.5rem;
+		padding-bottom: 0.9rem;
+	}
+
+	.archive-timeline__header h3 {
 		margin: 0;
-		padding: 0;
-		list-style: none;
+		font-family: var(--font-display);
+		font-size: var(--text-lg);
+		font-weight: 500;
 	}
 
-	.archive-calendar__fallback li {
-		display: grid;
-		grid-template-columns: 8.5rem minmax(0, 1fr);
-		gap: 1rem;
-		padding: 0.8rem 0;
-		border-top: 1px solid var(--line);
-	}
-
-	.archive-calendar__fallback time {
+	.archive-timeline__meta {
 		color: var(--ink-muted);
 		font-family: var(--font-mono);
 		font-size: var(--text-xs);
 	}
 
-	.archive-calendar__fallback a {
-		color: var(--ink);
-		font-family: var(--font-display);
-		text-underline-offset: 0.2em;
+	.archive-timeline__group + .archive-timeline__group {
+		margin-top: 1.6rem;
 	}
 
+	.archive-timeline__month-label {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 1rem;
+		margin: 0;
+		padding-bottom: 0.5rem;
+		border-bottom: 1px solid var(--line);
+		color: var(--accent-strong);
+		font-family: var(--font-mono);
+		font-size: var(--text-xs);
+	}
+
+	.archive-timeline__month-label small {
+		color: var(--ink-muted);
+		font-size: 0.625rem;
+	}
+
+	.archive-timeline ol {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.archive-timeline li + li {
+		border-top: 1px solid color-mix(in srgb, var(--line) 62%, transparent);
+	}
+
+	.archive-timeline li a {
+		display: grid;
+		grid-template-columns: 3.4rem 7px minmax(0, 1fr) auto;
+		gap: 0.9rem;
+		align-items: center;
+		min-height: 3rem;
+		padding: 0.55rem 0.7rem;
+		margin-inline: -0.7rem;
+		color: var(--ink);
+		text-decoration: none;
+		transition: background-color var(--duration-base) var(--ease-rain), box-shadow 420ms var(--ease-rain), transform var(--duration-base) var(--ease-drift);
+	}
+
+	.archive-timeline li a:hover,
+	.archive-timeline li a:focus-visible {
+		background: var(--color-surface);
+		box-shadow: 0 12px 24px rgb(31 71 81 / 16%), 0 2px 6px rgb(31 71 81 / 10%);
+		transform: translate(-2px, -1px);
+	}
+
+	.archive-timeline li time {
+		color: var(--ink-muted);
+		font-family: var(--font-mono);
+		font-size: var(--text-xs);
+	}
+
+	/* 方纸标记与 KindLabel 同一母题：实心 = 项目/指南，空心 = 其余栏目。 */
+	.archive-timeline__square {
+		width: 7px;
+		aspect-ratio: 1;
+		border: 1px solid var(--accent-strong);
+	}
+
+	.archive-timeline__square.is-filled {
+		background: var(--accent-strong);
+	}
+
+	.archive-timeline li strong {
+		font-family: var(--font-display);
+		font-size: 0.94rem;
+		font-weight: 500;
+		line-height: 1.5;
+		overflow-wrap: anywhere;
+	}
+
+	.archive-timeline__kind {
+		color: var(--ink-muted);
+		font-family: var(--font-ui);
+		font-size: 0.625rem;
+		letter-spacing: var(--tracking-hud);
+	}
+
+	.archive-timeline__empty,
 	.archive-calendar__empty {
 		margin: 0;
 		padding: 3rem 0;
 		color: var(--ink-muted);
 	}
 
-	@media (min-width: 48.001rem) {
-		.archive-calendar[data-calendar-ready='true'] .archive-calendar__fallback {
-			display: none;
-		}
-	}
-
 	@media (max-width: 48rem) {
+		/* 移动端只剩时间线视图：日历的标题与翻页整体退场，避免出现
+		   “按月份浏览”却没有月份可看的悬空标题。 */
 		.archive-calendar__header {
-			min-height: auto;
+			display: none;
 		}
 
 		.archive-calendar__navigation,
+		.archive-calendar__chips,
 		.archive-calendar__months {
 			display: none;
 		}
 
-		.archive-calendar__fallback {
-			display: block;
+		.archive-timeline {
+			padding-top: 0.75rem;
 		}
 
-		.archive-calendar__fallback li {
-			grid-template-columns: 1fr;
-			gap: 0.25rem;
+		.archive-timeline li a {
+			grid-template-columns: 7px minmax(0, 1fr) auto;
+			min-height: 2.9rem;
+		}
+
+		.archive-timeline li time {
+			grid-column: 2;
+			grid-row: 2;
+		}
+
+		.archive-timeline li strong {
+			grid-column: 2;
+			grid-row: 1;
+		}
+
+		.archive-timeline__kind {
+			grid-column: 3;
+			grid-row: 1;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.archive-calendar td a,
+		.archive-timeline li a,
+		.archive-calendar__chips button {
+			transition: none;
 		}
 	}
 </style>
