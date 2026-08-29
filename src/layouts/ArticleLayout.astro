@@ -10,6 +10,7 @@ import PostMeta from '@/components/content/PostMeta.astro';
 import { MemoryVault, ReadingSession, SceneGuide } from '@/components/interactive';
 import CommentPanel from '@/components/interactive/CommentPanel.astro';
 import ContentCoverScene from '@/components/visual/ContentCoverScene.astro';
+import CoverVeil from '@/components/visual/CoverVeil.astro';
 import '@/styles/interactive.css';
 
 interface Props {
@@ -71,7 +72,9 @@ const isEssay = post.data.kind === 'essay';
 				) : (
 					<ContentCoverScene kind={post.data.kind} class="article-hero__cover-scene" />
 				)}
-				<div class="article-hero__scene">SCENE / 001</div>
+				<div class="article-hero__scene" data-hud-type>SCENE / 001</div>
+				<!-- 天气封面纱：雨痕/尘埃/星子按当前天气覆在玻璃上。 -->
+				<CoverVeil />
 			</div>
 			<div class="article-hero__heading">
 				<!--
@@ -167,7 +170,7 @@ const isEssay = post.data.kind === 'essay';
 				覆盖 + RainField 的 calm 层），偏好记在本机、跨文章生效。
 			-->
 			<div class="article-layout__focus">
-				<span class="article-focus__telemetry">READING / FOCUS</span>
+				<span class="article-focus__telemetry" data-hud-type>READING / FOCUS</span>
 				<button class="article-focus" type="button" aria-pressed="false" aria-label="切换沉浸阅读" data-tooltip="沉浸阅读：弱化背景干扰" data-article-focus>
 					<Focus size={18} stroke-width={1.5} aria-hidden="true" />
 				</button>
@@ -179,7 +182,7 @@ const isEssay = post.data.kind === 'essay';
 					栏目。
 				-->
 				<nav class="article-tabs" aria-label="快捷导航">
-					<span class="article-tabs__label" aria-hidden="true">NAV / QUICK</span>
+					<span class="article-tabs__label" aria-hidden="true" data-hud-type>NAV / QUICK</span>
 					<span class="article-tabs__flag" aria-hidden="true"></span>
 					<a class="article-tabs__item" href="/" style="--rail-order: 0">
 						<span class="article-tabs__index" aria-hidden="true">01</span>

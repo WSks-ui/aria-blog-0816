@@ -27,7 +27,7 @@ const firstTool = tools.find((tool) => tool.stage === initialStage.id) ?? tools[
 <section class="tutorial-toolkit" aria-labelledby="tutorial-toolkit-title" data-tutorial-toolkit>
 	<header class="tutorial-toolkit__header">
 		<div class="tutorial-toolkit__title">
-			<p>TOOLCHAIN / {String(tools.length).padStart(2, '0')}</p>
+			<p data-hud-type>TOOLCHAIN / {String(tools.length).padStart(2, '0')}</p>
 			<h2 id="tutorial-toolkit-title">必学工具</h2>
 		</div>
 		<div class="tutorial-toolkit__reference">
@@ -407,6 +407,7 @@ const firstTool = tools.find((tool) => tool.stage === initialStage.id) ?? tools[
 	.tutorial-toolkit__grid.is-stage-leaving { pointer-events: none; }
 
 	.tutorial-tool {
+		position: relative;
 		min-height: 244px;
 		overflow: hidden;
 		border: 1px solid var(--line);
@@ -429,6 +430,36 @@ const firstTool = tools.find((tool) => tool.stage === initialStage.id) ?? tools[
 		border-color: var(--tool-accent);
 		box-shadow: 0 16px 34px color-mix(in srgb, var(--tool-accent) 18%, transparent);
 		transform: translateY(-4px);
+	}
+
+	/*
+	 * 纸角折起：悬停/聚焦时卡片右上角翻出一枚折页，像翻档案时手指压住的
+	 * 那一角。折痕边用渐变做出纸的厚度，从角点 scale 展开近似掀角动作。
+	 */
+	.tutorial-tool::after {
+		position: absolute;
+		top: 0;
+		right: 0;
+		width: 24px;
+		height: 24px;
+		background: linear-gradient(
+			225deg,
+			color-mix(in srgb, var(--line) 62%, var(--color-surface)) 0%,
+			var(--color-surface) 34%,
+			color-mix(in srgb, var(--color-surface-muted) 82%, transparent) 100%
+		);
+		box-shadow: -4px 4px 9px rgb(23 48 55 / 15%);
+		clip-path: polygon(0 0, 100% 100%, 0 100%);
+		content: '';
+		transform: scale(0);
+		transform-origin: 100% 0;
+		transition: transform 300ms var(--ease-drift);
+	}
+
+	.tutorial-tool:hover::after,
+	.tutorial-tool:focus-within::after,
+	.tutorial-tool.is-active::after {
+		transform: scale(1);
 	}
 
 	.tutorial-tool__open {
@@ -502,5 +533,7 @@ const firstTool = tools.find((tool) => tool.stage === initialStage.id) ?? tools[
 		.tutorial-toolkit__source,
 		.tutorial-tool__open > footer,
 		.tutorial-tool__open > footer svg { transition: none; }
+
+		.tutorial-tool::after { transition: none; }
 	}
 </style>

@@ -1,0 +1,177 @@
+---
+/**
+ * 天气封面纱：文章封面按当前天气「换玻璃」——雨天一层细雨斜纹缓缓下坠、
+ * 三道水痕顺玻璃滑落；晴日尘埃光斑慢慢上飘；夜间星子明灭。纯 CSS 层，
+ * 由 html[data-weather-mode] 的 display 开关切换，不参与任何 JS 状态。
+ * 天气切换瞬间由 WeatherTransition 的全屏转场遮住，无需过渡动画。
+ */
+interface Props {
+	class?: string;
+}
+
+const { class: className } = Astro.props;
+
+// 固定种子的散点：构建期定死位置与节拍，两页封面不会长成一样的星空。
+const motes = [
+	{ x: '14%', y: '62%', drift: '26s', delay: '0s' },
+	{ x: '37%', y: '78%', drift: '31s', delay: '-9s' },
+	{ x: '58%', y: '48%', drift: '24s', delay: '-15s' },
+	{ x: '76%', y: '70%', drift: '34s', delay: '-4s' },
+	{ x: '88%', y: '38%', drift: '28s', delay: '-20s' },
+];
+const stars = [
+	{ x: '9%', y: '24%', tw: '3.2s', delay: '0s' },
+	{ x: '22%', y: '66%', tw: '4.1s', delay: '-1.2s' },
+	{ x: '35%', y: '18%', tw: '2.8s', delay: '-2.1s' },
+	{ x: '49%', y: '58%', tw: '3.7s', delay: '-0.6s' },
+	{ x: '63%', y: '30%', tw: '4.4s', delay: '-2.8s' },
+	{ x: '78%', y: '62%', tw: '3s', delay: '-1.7s' },
+	{ x: '90%', y: '22%', tw: '3.9s', delay: '-3.3s' },
+];
+---
+
+<div class:list={['cover-veil', className]} aria-hidden="true">
+	<i class="cover-veil__streaks"></i>
+	<i class="cover-veil__trickle"></i>
+	<i class="cover-veil__trickle cover-veil__trickle--b"></i>
+	<i class="cover-veil__trickle cover-veil__trickle--c"></i>
+	{motes.map((mote) => (
+		<i
+			class="cover-veil__mote"
+			style={`--mote-x: ${mote.x}; --mote-y: ${mote.y}; --mote-drift: ${mote.drift}; --mote-delay: ${mote.delay};`}
+		></i>
+	))}
+	{stars.map((star) => (
+		<i
+			class="cover-veil__star"
+			style={`--star-x: ${star.x}; --star-y: ${star.y}; --star-tw: ${star.tw}; --star-delay: ${star.delay};`}
+		></i>
+	))}
+</div>
+
+<style>
+	.cover-veil {
+		position: absolute;
+		inset: 0;
+		overflow: hidden;
+		pointer-events: none;
+	}
+
+	.cover-veil > i {
+		position: absolute;
+		display: block;
+	}
+
+	/* ---- 雨：玻璃上的细雨与滑落的水痕 ---- */
+	.cover-veil__streaks {
+		inset: -14%;
+		background-image: repeating-linear-gradient(
+			102deg,
+			transparent 0 11px,
+			rgb(255 255 255 / 9%) 11px 12px,
+			transparent 12px 27px
+		);
+		animation: veil-streaks-fall 2.8s linear infinite;
+	}
+
+	@keyframes veil-streaks-fall {
+		from { transform: translate3d(0, -5%, 0); }
+		to { transform: translate3d(-2.5%, 5%, 0); }
+	}
+
+	.cover-veil__trickle {
+		top: -9%;
+		left: 21%;
+		width: 2px;
+		height: 11%;
+		border-radius: 2px;
+		background: linear-gradient(
+			to bottom,
+			transparent,
+			rgb(255 255 255 / 32%) 30% 70%,
+			transparent
+		);
+		animation: veil-trickle 5.4s cubic-bezier(0.45, 0, 0.75, 0.4) infinite;
+	}
+
+	.cover-veil__trickle--b {
+		left: 57%;
+		width: 1.5px;
+		animation-delay: 2.2s;
+		animation-duration: 6.6s;
+	}
+
+	.cover-veil__trickle--c {
+		left: 82%;
+		height: 8%;
+		animation-delay: 3.8s;
+		animation-duration: 4.8s;
+	}
+
+	@keyframes veil-trickle {
+		0% { opacity: 0; transform: translateY(0) scaleY(0.6); }
+		14% { opacity: 0.85; }
+		72% { opacity: 0.7; }
+		100% { opacity: 0; transform: translateY(520%) scaleY(1.6); }
+	}
+
+	/* ---- 晴：贴着玻璃上飘的尘埃光斑 ---- */
+	.cover-veil__mote {
+		left: var(--mote-x);
+		top: var(--mote-y);
+		width: 3px;
+		height: 3px;
+		border-radius: 50%;
+		background: radial-gradient(circle, rgb(255 252 238 / 90%), transparent 72%);
+		filter: blur(0.4px);
+		animation: veil-mote-drift var(--mote-drift) linear infinite;
+		animation-delay: var(--mote-delay);
+	}
+
+	@keyframes veil-mote-drift {
+		0% { opacity: 0; transform: translate(0, 0); }
+		14% { opacity: 0.7; }
+		52% { opacity: 0.3; }
+		86% { opacity: 0.55; }
+		100% { opacity: 0; transform: translate(26px, -64px); }
+	}
+
+	/* ---- 夜：明灭的星子 ---- */
+	.cover-veil__star {
+		left: var(--star-x);
+		top: var(--star-y);
+		width: 2px;
+		height: 2px;
+		border-radius: 50%;
+		background: rgb(214 236 242 / 92%);
+		box-shadow: 0 0 6px 1px rgb(183 216 223 / 50%);
+		animation: veil-star-twinkle var(--star-tw) ease-in-out infinite;
+		animation-delay: var(--star-delay);
+	}
+
+	@keyframes veil-star-twinkle {
+		0%, 100% { opacity: 0.12; transform: scale(0.82); }
+		50% { opacity: 0.95; transform: scale(1.12); }
+	}
+
+	/* 天气开关用 display 直接摘下不相关的纱层，动画随之停摆。 */
+	:global(html:not([data-weather-mode='rain'])) .cover-veil__streaks,
+	:global(html:not([data-weather-mode='rain'])) .cover-veil__trickle {
+		display: none;
+	}
+
+	:global(html:not([data-weather-mode='clear'])) .cover-veil__mote {
+		display: none;
+	}
+
+	:global(html:not([data-weather-mode='night'])) .cover-veil__star {
+		display: none;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.cover-veil > i { animation: none; }
+		/* 静态保一层存在感：雨纱定格、星子常亮微光。 */
+		:global(html[data-weather-mode='rain']) .cover-veil__streaks { opacity: 0.6; }
+		:global(html[data-weather-mode='night']) .cover-veil__star { opacity: 0.5; }
+	}
+</style>

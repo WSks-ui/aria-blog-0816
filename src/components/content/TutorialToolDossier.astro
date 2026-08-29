@@ -2,6 +2,7 @@
 import { render, type CollectionEntry } from 'astro:content';
 import { ArrowLeft, ArrowRight, ExternalLink, GitBranch } from '@lucide/astro';
 import ContentCoverScene from '@/components/visual/ContentCoverScene.astro';
+import CoverVeil from '@/components/visual/CoverVeil.astro';
 import { TUTORIAL_TOOL_STAGES, getToolTransitionName, type TutorialTool } from '@/data/tutorial-tools';
 import '@/styles/interactive.css';
 
@@ -43,9 +44,10 @@ const tocHeadings = headings.filter((heading) => heading.depth >= 2 && heading.d
 	<header class="tool-dossier__hero">
 		<div class="tool-dossier__cover">
 			<ContentCoverScene kind="tutorial" class="tool-dossier__cover-scene" />
+			<CoverVeil />
 			<div class="tool-dossier__cover-label" aria-hidden="true">
-				<span>TOOLKIT / {tool.code}</span>
-				<span>STAGE / {stageIndex}</span>
+				<span data-hud-type>TOOLKIT / {tool.code}</span>
+				<span data-hud-type>STAGE / {stageIndex}</span>
 			</div>
 		</div>
 
@@ -85,7 +87,7 @@ const tocHeadings = headings.filter((heading) => heading.depth >= 2 && heading.d
 	<div class="tool-dossier__layout">
 		<aside class="tool-dossier__guide" aria-label="工具讲义目录">
 			<div class="tool-dossier__guide-inner">
-				<p class="tool-dossier__guide-label">CONTENTS / {tool.code}</p>
+				<p class="tool-dossier__guide-label" data-hud-type>CONTENTS / {tool.code}</p>
 				<nav aria-label={`${guide.data.title}原文目录`}>
 					{tocHeadings.length > 0 ? (
 						<ol class="tool-dossier__toc">
@@ -332,8 +334,49 @@ const tocHeadings = headings.filter((heading) => heading.depth >= 2 && heading.d
 	.tool-dossier__resources h2 { margin: 0; font-family: var(--font-display); font-size: 42px; font-weight: 500; line-height: 1.18; }
 	.tool-dossier__resources > p { max-width: 620px; margin: 30px 0 0 164px; font-size: 15px; line-height: 1.75; color: var(--ink-muted); }
 	.tool-dossier__resource-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 34px 0 0 164px; }
-	.tool-dossier__resource-grid a { display: flex; min-height: 112px; justify-content: space-between; align-items: end; gap: 16px; padding: 16px; border: 1px solid var(--line); color: var(--ink); text-decoration: none; transition: border-color var(--duration-base) var(--ease-rain), transform var(--duration-base) var(--ease-drift), background-color var(--duration-base) var(--ease-rain); }
+	.tool-dossier__resource-grid a {
+		position: relative;
+		display: flex;
+		min-height: 112px;
+		justify-content: space-between;
+		align-items: end;
+		gap: 16px;
+		padding: 16px;
+		border: 1px solid var(--line);
+		color: var(--ink);
+		text-decoration: none;
+		transition: border-color var(--duration-base) var(--ease-rain), transform var(--duration-base) var(--ease-drift), background-color var(--duration-base) var(--ease-rain);
+	}
 	.tool-dossier__resource-grid a:hover { border-color: var(--tool-dossier-accent); background: color-mix(in srgb, var(--tool-dossier-accent) 8%, transparent); transform: translateY(-3px); }
+
+	/*
+	 * 纸角折起：悬停时右上角翻出一枚折页。梯度的折痕边让翻页有厚度，
+	 * 从角点 scale 展开近似「掀角」的动作。
+	 */
+	.tool-dossier__resource-grid a::after {
+		position: absolute;
+		top: 0;
+		right: 0;
+		width: 22px;
+		height: 22px;
+		background: linear-gradient(
+			225deg,
+			color-mix(in srgb, var(--line) 62%, var(--color-surface)) 0%,
+			var(--color-surface) 34%,
+			color-mix(in srgb, var(--color-surface-muted) 82%, transparent) 100%
+		);
+		box-shadow: -4px 4px 9px rgb(23 48 55 / 15%);
+		clip-path: polygon(0 0, 100% 100%, 0 100%);
+		content: '';
+		transform: scale(0);
+		transform-origin: 100% 0;
+		transition: transform 300ms var(--ease-drift);
+	}
+
+	.tool-dossier__resource-grid a:hover::after,
+	.tool-dossier__resource-grid a:focus-visible::after {
+		transform: scale(1);
+	}
 	.tool-dossier__resource-grid a > span { display: grid; gap: 10px; min-width: 0; }
 	.tool-dossier__resource-grid small { color: var(--tool-dossier-accent); }
 	.tool-dossier__resource-grid strong { font-size: 13px; font-weight: 500; }
@@ -390,5 +433,7 @@ const tocHeadings = headings.filter((heading) => heading.depth >= 2 && heading.d
 		.tool-dossier__toc a,
 		.tool-dossier__resource-grid a,
 		.tool-dossier__neighbors > a { transition: none; }
+
+		.tool-dossier__resource-grid a::after { transition: none; }
 	}
 </style>

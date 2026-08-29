@@ -18,9 +18,18 @@ const { minutes, scenes, related = [] } = Astro.props;
 
 <footer class="night-echo" data-night-echo>
 	<div class="night-echo__status">
-		<p>THEME / NIGHT ECHO</p>
+		<p data-hud-type>THEME / NIGHT ECHO</p>
 		<strong>阅读在这里收束，线索仍向外延伸。</strong>
 	</div>
+	<!--
+		读毕归档章：读到收束（进度 ≥95% 或整段正文已收进视口）时落章。
+		墨面用 fractalNoise 蒙版咬出纸纹，混色模式让墨吃进夜色底材。
+	-->
+	<span class="night-echo__stamp" data-archive-stamp aria-hidden="true">
+		<small>ARIA-7 / RAIN ARCHIVE</small>
+		<strong>已归档</strong>
+		<span data-archive-stamp-date></span>
+	</span>
 	<dl class="night-echo__metrics">
 		<div>
 			<Clock3 size={18} stroke-width={1.5} aria-hidden="true" />
@@ -75,6 +84,110 @@ const { minutes, scenes, related = [] } = Astro.props;
 		border-radius: 50%;
 		box-shadow: 0 0 0 28px rgb(185 216 223 / 4%), 0 0 0 72px rgb(185 216 223 / 3%);
 		content: '';
+	}
+
+	/*
+	 * 读毕归档章：默认隐身，落章（is-stamped）时从 1.8 倍缩到原大，
+	 * 带回弹与一圈墨环 shockwave——橡皮章砸进纸面的顿挫。
+	 */
+	.night-echo__stamp {
+		position: absolute;
+		top: 38px;
+		right: 46px;
+		z-index: 1;
+		display: grid;
+		justify-items: center;
+		gap: 4px;
+		padding: 12px 18px;
+		border: 2px solid rgb(214 236 242 / 78%);
+		border-radius: 6px;
+		color: rgb(214 236 242 / 88%);
+		font-family: var(--font-ui);
+		letter-spacing: var(--tracking-hud);
+		text-align: center;
+		opacity: 0;
+		mix-blend-mode: screen;
+		transform: rotate(-9deg);
+		/* fractalNoise 蒙版咬掉部分墨面：像橡皮章吃纸不匀的印迹。 */
+		mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 140 90' preserveAspectRatio='none'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='3' seed='7'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='2.4' intercept='-0.28'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='140' height='90' filter='url(%23n)'/%3E%3C/svg%3E");
+		mask-size: cover;
+	}
+
+	.night-echo__stamp::before {
+		position: absolute;
+		inset: 3px;
+		border: 1px solid rgb(214 236 242 / 55%);
+		border-radius: 4px;
+		content: '';
+	}
+
+	.night-echo__stamp small {
+		font-size: 8px;
+		opacity: 0.8;
+	}
+
+	.night-echo__stamp strong {
+		font-family: var(--font-display);
+		font-size: 24px;
+		font-weight: 500;
+		letter-spacing: 0.3em;
+		text-indent: 0.3em;
+	}
+
+	.night-echo__stamp [data-archive-stamp-date] {
+		font-size: 9px;
+	}
+
+	.night-echo__stamp::after {
+		position: absolute;
+		inset: -14px;
+		border: 1px solid rgb(214 236 242 / 44%);
+		border-radius: 12px;
+		content: '';
+		opacity: 0;
+		transform: scale(1.25);
+	}
+
+	.night-echo.is-stamped .night-echo__stamp {
+		animation: archive-stamp-press 540ms cubic-bezier(0.18, 1.08, 0.32, 1) forwards;
+	}
+
+	.night-echo.is-stamped .night-echo__stamp::after {
+		animation: archive-stamp-ring 640ms var(--ease-rain) forwards;
+	}
+
+	/* 落章的瞬间整块档案区被轻轻砸得一沉。 */
+	.night-echo.is-stamped {
+		animation: archive-stamp-jolt 200ms var(--ease-drift);
+	}
+
+	@keyframes archive-stamp-press {
+		0% { opacity: 0; transform: rotate(-9deg) scale(1.8); }
+		55% { opacity: 0.95; transform: rotate(-9deg) scale(0.94); }
+		78% { transform: rotate(-9deg) scale(1.03); }
+		100% { opacity: 0.9; transform: rotate(-9deg) scale(1); }
+	}
+
+	@keyframes archive-stamp-ring {
+		0% { opacity: 0.7; transform: scale(0.9); }
+		100% { opacity: 0; transform: scale(1.45); }
+	}
+
+	@keyframes archive-stamp-jolt {
+		0%, 100% { transform: translateY(0); }
+		42% { transform: translateY(2px); }
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.night-echo.is-stamped,
+		.night-echo.is-stamped .night-echo__stamp,
+		.night-echo.is-stamped .night-echo__stamp::after {
+			animation: none;
+		}
+
+		.night-echo.is-stamped .night-echo__stamp {
+			opacity: 0.85;
+		}
 	}
 
 	.night-echo__status p,
@@ -167,5 +280,59 @@ const { minutes, scenes, related = [] } = Astro.props;
 		.night-echo__related {
 			grid-column: auto;
 		}
+
+		.night-echo__stamp {
+			top: 22px;
+			right: 20px;
+			padding: 9px 13px;
+		}
+
+		.night-echo__stamp strong {
+			font-size: 18px;
+		}
 	}
 </style>
+
+<script>
+	/*
+	 * 读毕判定：优先听 SceneGuide / ArticleLayout 广播的阅读进度（≥95%）；
+	 * 极短的文章整段不足一屏、比例永远到不了线，此时退而求其次——整段
+	 * 正文已经完整收进视口即视为读毕。每页只落一次章。
+	 */
+	function initArchiveStamp() {
+		const footer = document.querySelector<HTMLElement>('[data-night-echo]');
+		if (!footer || footer.dataset.stampReady === 'true') return;
+		footer.dataset.stampReady = 'true';
+
+		let stamped = false;
+		const stamp = () => {
+			if (stamped) return;
+			stamped = true;
+			const dateEl = footer.querySelector<HTMLElement>('[data-archive-stamp-date]');
+			if (dateEl) {
+				const now = new Date();
+				const pad = (value: number) => String(value).padStart(2, '0');
+				dateEl.textContent = `${now.getFullYear()}.${pad(now.getMonth() + 1)}.${pad(now.getDate())}`;
+			}
+			footer.classList.add('is-stamped');
+		};
+
+		document.addEventListener('aria7-reading-progress', (event) => {
+			const ratio = (event as CustomEvent<{ ratio?: number }>).detail?.ratio ?? 0;
+			if (ratio >= 0.95) stamp();
+		});
+
+		window.addEventListener(
+			'scroll',
+			() => {
+				if (stamped) return;
+				const prose = document.querySelector<HTMLElement>('.reading-prose');
+				if (prose && prose.getBoundingClientRect().bottom < window.innerHeight + 60) stamp();
+			},
+			{ passive: true },
+		);
+	}
+
+	initArchiveStamp();
+	document.addEventListener('astro:page-load', initArchiveStamp);
+</script>
