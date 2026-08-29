@@ -208,7 +208,7 @@ const kindCode = {
 			<text x="682" y="470">FRAME / 01</text>
 		</g>
 	</svg>
-	<!-- WebGL 玻璃层：着色器把场景纹理做折射/色散/镜面/涟漪，接管指针表现 -->
+	<!-- WebGL 涟漪层：指针行进时扰动场景纹理，静止后与 DOM 完全一致 -->
 	<canvas class="content-cover__glass" aria-hidden="true"></canvas>
 	<!-- 指针光斑：像举着放大镜看档案场景，颜色随天气。 -->
 	<i class="content-cover__lens" aria-hidden="true"></i>
@@ -484,9 +484,8 @@ const kindCode = {
 	:global(html[data-weather-mode='night']) .content-cover__lens { --lens-tint: rgb(166 214 226 / 15%); }
 
 	/*
-	 * WebGL 玻璃层：铺满封面、指针事件全透。着色器只在透镜圆域内画出
-	 * 折射后的场景纹理，其余像素 alpha=0，露出底下的 DOM 场景；着色器
-	 * 接管时 DOM 光斑与视差退场（data-glass-active 控制）。
+	 * WebGL 涟漪层：铺满封面、指针事件全透。着色器只在指针行进时扰动
+	 * 场景纹理（速度衰减后与 DOM 逐像素一致），柔光由 DOM 光斑负责。
 	 */
 	.content-cover__glass {
 		position: absolute;
@@ -496,16 +495,15 @@ const kindCode = {
 		height: 100%;
 		pointer-events: none;
 	}
-
-	.content-cover[data-glass-active] .content-cover__lens { display: none; }
 </style>
 
 <script>
 	/*
-	 * 场景指针干涉：程序生成的底图从此可以被拨动。场景内的构图层按深度
-	 * 随指针错位（层视差），日历格、数据柱、步骤线、节点圆在指针半径内
-	 * 被斥开、缓慢弹回。只在足够大的封面启用（小尺寸预览不动），触屏与
-	 * reduced-motion 跳过；元素中心在初始化时按页面坐标缓存一次。
+	 * 场景指针干涉：程序生成的底图从此可以被拨动。WebGL 可用时由涟漪
+	 * 着色器接管（见下方玻璃模块），这里只作为回退的矢量层——构图分组
+	 * 按深度随指针错位（层视差），日历格、数据柱、步骤线、节点圆在指针
+	 * 半径内被斥开、缓慢弹回。只在足够大的封面启用（小尺寸预览不动），
+	 * 触屏与 reduced-motion 跳过；元素中心在初始化时按页面坐标缓存一次。
 	 */
 	const SCENE_ITEM_SELECTOR = [
 		'.note-scene__cell',
@@ -702,39 +700,22 @@ float hash(vec2 p) {
 
 void main() {
 	vec2 frag = gl_FragCoord.xy;
-	vec2 baseUv = vUv + uParallax * vec2(0.010, 0.008);
+	vec2 baseUv = vUv + uParallax * vec2(0.008, 0.006);
 
 	vec2 d = frag - uPointer;
 	float dist = length(d);
-	float R = 120.0;
-	float edge = smoothstep(R, R * 0.9, dist);
-	float dome = sqrt(max(0.0, 1.0 - pow(clamp(dist / R, 0.0, 1.0), 2.0)));
 	vec2 dir = d / max(dist, 0.001);
 
-	// 指针速度激起的涟漪：一圈圈从透镜中心荡开
-	float ripple = sin(dist * 0.085 - uTime * 5.4) * exp(-dist * 0.011) * uVelocity;
+	// 涟漪：只在指针行进时存在，速度衰减后位移归零，
+	// 画面回到与 DOM 场景逐像素一致——没有可见的圆域边界。
+	float ripple = sin(dist * 0.07 - uTime * 5.2) * exp(-dist * 0.0095) * uVelocity;
+	vec2 uv = baseUv + dir * ripple * 9.0 / uRes;
 
-	// 中央放大（水珠圆顶的光路近似）+ 边缘折射
-	vec2 mag = uPointer + d * (1.0 - 0.16 * dome);
-	vec2 refr = dir * (1.0 - dome) * (30.0 + ripple * 16.0);
-	vec2 lensUv = (mag + refr) / uRes + uParallax * vec2(0.010, 0.008);
+	vec3 col = texture2D(uScene, clamp(uv, vec2(0.001), vec2(0.999))).rgb;
+	col += (hash(frag + fract(uTime) * 61.7) - 0.5) * 0.03;
 
-	// 色散：圆域边缘处 RGB 沿径向微错位
-	float ca = (1.0 - dome) * 3.4 + ripple * 1.8;
-	vec3 col;
-	col.r = texture2D(uScene, lensUv + dir * ca / uRes).r;
-	col.g = texture2D(uScene, clamp(lensUv, vec2(0.001), vec2(0.999))).g;
-	col.b = texture2D(uScene, lensUv - dir * ca / uRes).b;
-
-	// 镜面：折缘高光环 + 左上定点反光 + 圆顶下缘聚光
-	float rim = smoothstep(9.0, 0.0, abs(dist - R * 0.7)) * 0.13;
-	float glint = smoothstep(34.0, 0.0, length(d - vec2(-R * 0.34, R * 0.3))) * 0.22;
-	float underGlow = smoothstep(0.0, 1.0, dome) * smoothstep(0.62, 1.0, -dir.y) * 0.10;
-
-	col += rim + glint + underGlow;
-	col += (hash(frag + fract(uTime) * 61.7) - 0.5) * 0.035;
-
-	gl_FragColor = vec4(col * edge, edge);
+	float alpha = clamp(abs(ripple) * 2.4, 0.0, 0.9);
+	gl_FragColor = vec4(col * alpha, alpha);
 }`;
 
 	// 捕获时必须随行内样式一起进独立 SVG 文档的令牌，否则 var() 全部落空。
@@ -935,6 +916,10 @@ void main() {
 			pointerX = event.clientX;
 			pointerY = event.clientY;
 			inside = true;
+			// 柔光交还给 DOM 光斑：位置变量照常驱动，着色器只管涟漪扰动。
+			const localRect = root.getBoundingClientRect();
+			root.style.setProperty('--lens-x', `${(event.clientX - localRect.left).toFixed(1)}px`);
+			root.style.setProperty('--lens-y', `${(event.clientY - localRect.top).toFixed(1)}px`);
 			wake();
 		}, { passive: true });
 		root.addEventListener('pointerleave', () => {
