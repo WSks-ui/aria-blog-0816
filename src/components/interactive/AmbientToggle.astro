@@ -2,10 +2,10 @@
 import { Volume2, VolumeX } from '@lucide/astro';
 
 /**
- * 雨声环境音：WebAudio 现场合成——两层布朗化噪声经滤波叠出雨幕（低频
- * 远景雨势 + 窄带高频近景雨点），LFO 缓慢呼吸模拟阵风。不加载任何音频
- * 文件。默认关闭；记住偏好后，下次访问的第一次点击会自动续上（浏览器
- * 不允许无手势起声）。
+ * 雨声环境音：播放一段真实雨声录音的循环（Mixkit「Light rain looping」，
+ * Mixkit License 免署名商用，文件在本站 assets 下按需加载）。音量经
+ * rAF 缓动渐起渐歇——雨不是开关，是慢慢下起来、慢慢停住。默认关闭；
+ * 记住偏好后，下次访问的第一次手势自动续上（浏览器不允许无手势起声）。
  */
 ---
 
@@ -56,87 +56,48 @@ import { Volume2, VolumeX } from '@lucide/astro';
 			button.dataset.ambientReady = 'true';
 
 			const STORAGE_KEY = 'aria7-ambient-sound';
-			interface AmbientEngine {
-				setEnabled(on: boolean): void;
-			}
+			const TARGET_VOLUME = 0.55;
 
-			let engine: AmbientEngine | null = null;
+			// 真实录音循环：preload=none，只有打开开关才开始拉取这 2.9MB。
+			const audio = new Audio('/assets/audio/rain-loop.mp3');
+			audio.loop = true;
+			audio.preload = 'none';
 
-			const buildEngine = (): AmbientEngine | null => {
-				const Ctx = window.AudioContext
-					?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-				if (!Ctx) return null;
-				const ctx = new Ctx();
-
-				const master = ctx.createGain();
-				master.gain.value = 0;
-				master.connect(ctx.destination);
-
-				// 布朗化噪声：白噪经一阶低通积累，听感沉底，像雨幕而不是沙沙白噪。
-				const makeNoise = (seconds: number) => {
-					const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * seconds), ctx.sampleRate);
-					const data = buffer.getChannelData(0);
-					let last = 0;
-					for (let i = 0; i < data.length; i += 1) {
-						const white = Math.random() * 2 - 1;
-						last = (last + 0.02 * white) / 1.02;
-						data[i] = last * 3.4;
-					}
-					const source = ctx.createBufferSource();
-					source.buffer = buffer;
-					source.loop = true;
-					return source;
-				};
-
-				// 远景雨势：低通 + 0.08Hz 呼吸（阵风起落）。
-				const body = makeNoise(2.4);
-				const bodyFilter = ctx.createBiquadFilter();
-				bodyFilter.type = 'lowpass';
-				bodyFilter.frequency.value = 880;
-				const bodyGain = ctx.createGain();
-				bodyGain.gain.value = 0.5;
-				const bodyLfo = ctx.createOscillator();
-				bodyLfo.frequency.value = 0.08;
-				const bodyLfoGain = ctx.createGain();
-				bodyLfoGain.gain.value = 0.16;
-				bodyLfo.connect(bodyLfoGain).connect(bodyGain.gain);
-				body.connect(bodyFilter).connect(bodyGain).connect(master);
-
-				// 近景雨点：3.2kHz 窄带沙沙，更慢更浅的呼吸错开远景。
-				const patter = makeNoise(1.7);
-				const patterFilter = ctx.createBiquadFilter();
-				patterFilter.type = 'bandpass';
-				patterFilter.frequency.value = 3200;
-				patterFilter.Q.value = 0.55;
-				const patterGain = ctx.createGain();
-				patterGain.gain.value = 0.14;
-				const patterLfo = ctx.createOscillator();
-				patterLfo.frequency.value = 0.043;
-				const patterLfoGain = ctx.createGain();
-				patterLfoGain.gain.value = 0.07;
-				patterLfo.connect(patterLfoGain).connect(patterGain.gain);
-				patter.connect(patterFilter).connect(patterGain).connect(master);
-
-				body.start();
-				patter.start();
-				bodyLfo.start();
-				patterLfo.start();
-
-				return {
-					setEnabled(on: boolean) {
-						void ctx.resume();
-						const now = ctx.currentTime;
-						master.gain.cancelScheduledValues(now);
-						master.gain.setValueAtTime(Math.max(0.0001, master.gain.value), now);
-						// 1.1s 起落：雨不是开关，是慢慢下起来 / 慢慢停住。
-						master.gain.linearRampToValueAtTime(on ? 0.15 : 0.0001, now + 1.1);
-					},
-				};
+			let target = 0;
+			let fadeRaf = 0;
+			let pauseTimer = 0;
+			const fadeStep = () => {
+				fadeRaf = 0;
+				const current = audio.volume;
+				const next = current + (target - current) * 0.09;
+				audio.volume = Math.abs(target - next) < 0.015 ? target : next;
+				if (audio.volume !== target) {
+					fadeRaf = window.requestAnimationFrame(fadeStep);
+					return;
+				}
+				// 渐歇到位后真正暂停，不挂着无声的解码循环。
+				if (target === 0) {
+					window.clearTimeout(pauseTimer);
+					pauseTimer = window.setTimeout(() => {
+						if (target === 0) audio.pause();
+					}, 200);
+				}
+			};
+			const fadeTo = (value: number) => {
+				target = value;
+				if (!fadeRaf) fadeRaf = window.requestAnimationFrame(fadeStep);
 			};
 
 			const apply = (on: boolean, persist: boolean) => {
-				if (on && !engine) engine = buildEngine();
-				engine?.setEnabled(on);
+				if (on) {
+					window.clearTimeout(pauseTimer);
+					void audio.play().catch(() => {
+						// 自动播放被策略拦下时静默放弃；下一次点击开关仍可起声。
+					});
+					fadeTo(TARGET_VOLUME);
+				} else {
+					fadeTo(0);
+				}
 				button.setAttribute('aria-pressed', String(on));
 				if (persist) {
 					try {
