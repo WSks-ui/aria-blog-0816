@@ -6,7 +6,6 @@ import RainField from '@/components/visual/RainField.astro';
 import SharedTitleTransition from '@/components/visual/SharedTitleTransition.astro';
 import WeatherTransition from '@/components/visual/WeatherTransition.astro';
 import ArrivalRipples from '@/components/visual/ArrivalRipples.astro';
-import CursorTrails from '@/components/visual/CursorTrails.astro';
 import HudTypewriter from '@/components/visual/HudTypewriter.astro';
 import { ClientRouter } from 'astro:transitions';
 import { InteractionSurface, Lightbox, SearchDialog, TooltipLayer, WeatherModeControl } from '@/components/interactive';
@@ -285,7 +284,6 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 		<SiteFrame />
 		<RainField />
 		<WeatherTransition />
-		<CursorTrails />
 		<ArrivalRipples />
 		<HudTypewriter />
 		<SharedTitleTransition />
