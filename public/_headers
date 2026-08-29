@@ -1,11 +1,23 @@
-/*
- * Cloudflare Workers 静态资产在部署时会读取该文件并应用响应头
- * （https://developers.cloudflare.com/workers/static-assets/headers/）。
- * X-Frame-Options 与 nosniff 让站点无法被 iframe 嵌套或被 MIME 嗅探；
- * Referrer-Policy 只放行同源与跨源完整来源，兼顾归档页的来源统计。
- */
+# Cloudflare Workers 静态资产在部署时会读取该文件并应用响应头
+# （https://developers.cloudflare.com/workers/static-assets/headers/）。
+# _headers 只认 # 注释；历史版本用 /* */ 伪注释包裹规则，全靠解析器容错生效。
+# X-Frame-Options 与 nosniff 让站点无法被 iframe 嵌套或被 MIME 嗅探；
+# Referrer-Policy 只放行同源与跨源完整来源，兼顾归档页的来源统计。
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   X-Frame-Options: DENY
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+
+# 字体子集内容稳定、文件名即版本，按月缓存；未加 immutable，
+# 偶发的字体替换在一个月内自然过期，不依赖改名。
+/fonts/*
+  Cache-Control: public, max-age=2592000
+
+# 封面、截图与品牌图形更新频率低，按周缓存；同一批文件尚未参与
+# 内容哈希，超长缓存会让改名前的旧图持续驻留访客端。
+/assets/*
+  Cache-Control: public, max-age=604800
+
+/images/*
+  Cache-Control: public, max-age=604800
