@@ -460,6 +460,32 @@ html[data-weather-mode='night'] .reading-prose :where(:not(pre) > code) {
   content: '';
 }
 
+/*
+ * 章节锚链（由 BaseLayout 的 prose 增强脚本注入）：默认隐身，悬停章题或
+ * 键盘聚焦时显形为雨青色井号；触屏没有 hover，保持低透明度常显可点。
+ */
+.reading-prose :where(h2, h3) .prose-anchor {
+  margin-inline-start: 10px;
+  color: var(--color-rain-deep);
+  font-family: var(--font-sans);
+  font-size: 0.72em;
+  font-weight: 400;
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.reading-prose :where(h2, h3):hover .prose-anchor,
+.reading-prose :where(h2, h3) .prose-anchor:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .reading-prose :where(h2, h3) .prose-anchor {
+    opacity: 0.42;
+  }
+}
+
 .reading-prose :where(img) {
   display: block;
   width: 100%;

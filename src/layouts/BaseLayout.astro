@@ -3,7 +3,6 @@ import SiteFooter from '@/components/shell/SiteFooter.astro';
 import SiteFrame from '@/components/shell/SiteFrame.astro';
 import SiteHeader from '@/components/shell/SiteHeader.astro';
 import RainField from '@/components/visual/RainField.astro';
-import RouteTransition from '@/components/visual/RouteTransition.astro';
 import SharedTitleTransition from '@/components/visual/SharedTitleTransition.astro';
 import WeatherTransition from '@/components/visual/WeatherTransition.astro';
 import { ClientRouter } from 'astro:transitions';
@@ -56,6 +55,13 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 		<link rel="preload" href="/fonts/space-grotesk/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin />
 		<link rel="preload" href="/fonts/source-serif-4/source-serif-4-latin-opsz.woff2" as="font" type="font/woff2" crossorigin />
 		<link rel="preload" href="/fonts/noto-serif-sc/H4chBXePl9DZ0Xe7gG9cyOj7oqP0dTpxZbB9E9gjjmzKvaeKHUTtJDWv3z-us4bxD8F5og.118.woff2" as="font" type="font/woff2" crossorigin />
+		{/*
+			文章页的 LCP 元素是首屏封面：在头部抢先发起请求，解析到 <img> 前就
+			开始传输。只在 article 类型下注入，栏目页的 og:image 并非页面首屏视觉。
+		*/}
+		{type === 'article' && image && (
+			<link rel="preload" as="image" href={image} fetchpriority="high" />
+		)}
 		{/* Chromium 系浏览器对站内链接在悬停/按下时预取目标页（moderate 档），
 		    800ms 的文章转场遮罩正好把加载时间藏进去；不支持的浏览器静默忽略。 */}
 		<script
@@ -73,9 +79,7 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 			html { background-color: #ebedec; }
 			html[data-weather-mode='clear'] { background-color: #f6f7f3; }
 			html[data-weather-mode='rain'] { background-color: #ebedec; }
-			html[data-weather-mode='night'],
-			html[data-route-arrival='scene'] { background-color: #0d1216; }
-			html[data-route-arrival='scene'] body { background-color: #0d1216 !important; }
+			html[data-weather-mode='night'] { background-color: #0d1216; }
 			/* 命名标题由浏览器保存旧、新快照并插值位置；不再跨文档重建克隆节点。 */
 			::view-transition-group(aria7-title) {
 				animation-duration: var(--duration-arrival, 560ms);
@@ -257,7 +261,6 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 		<script is:inline>
 			(() => {
 				const modes = new Set(['clear', 'rain', 'night']);
-				const prefersReducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 				let saved = null;
 				try {
 					saved = localStorage.getItem('aria7-weather-mode');
@@ -271,27 +274,6 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 				document.documentElement.dataset.theme = initial === 'night' ? 'night' : 'light';
 				document.documentElement.style.colorScheme = initial === 'night' ? 'dark' : 'light';
 
-				// 只有场景转场需要先建立黑场；主导航的左右滑动沿用当前天气画布，避免
-				// 清爽的栏目切换被误切成深色闪屏。缺失 mode 的旧标记按 scene 兼容处理。
-				try {
-					const arrivalValue = sessionStorage.getItem('aria7-route-arrival');
-					if (arrivalValue) {
-						sessionStorage.removeItem('aria7-route-arrival');
-						const arrival = JSON.parse(arrivalValue);
-						const arrivalAge = typeof arrival?.createdAt === 'number'
-							? Date.now() - arrival.createdAt
-							: Number.NaN;
-						const isFresh = Number.isFinite(arrivalAge) && arrivalAge >= 0 && arrivalAge < 5000;
-						if (!prefersReducedMotion && isFresh && arrival?.pathname === location.pathname && arrival?.search === location.search) {
-							// 文章和讲义的完整场景转场仍需在新文档首帧建立黑场；
-							// 普通站内导航则由 ClientRouter 的正文快照负责，不写会话标记。
-							document.documentElement.dataset.routeArrival = 'scene';
-						}
-					}
-				} catch {
-					// 会话存储不可用或旧标记格式失效时退化为普通页面抵达，不阻断主题初始化。
-				}
-
 			})();
 		</script>
 	</head>
@@ -300,7 +282,6 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 		<SiteFrame />
 		<RainField />
 		<WeatherTransition />
-		<RouteTransition />
 		<SharedTitleTransition />
 		<InteractionSurface />
 		<TooltipLayer />
@@ -525,6 +506,19 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 					wrap.className = 'prose-table';
 					table.replaceWith(wrap);
 					wrap.append(table);
+				});
+				// 章节锚链：带 id 的 h2/h3 追加 "#" 锚点，悬停显形，供从目录外
+				// （如读者自己的笔记）精确回链到某一节。触屏没有 hover，样式里
+				// 用低透明度常显兜底。
+				document.querySelectorAll<HTMLElement>('.reading-prose h2[id], .reading-prose h3[id]').forEach((heading) => {
+					if (heading.querySelector('.prose-anchor')) return;
+					const title = (heading.textContent ?? '').trim();
+					const anchor = document.createElement('a');
+					anchor.className = 'prose-anchor';
+					anchor.href = `#${heading.id}`;
+					anchor.textContent = '#';
+					if (title) anchor.setAttribute('aria-label', `链接到「${title}」`);
+					heading.append(anchor);
 				});
 			}
 
