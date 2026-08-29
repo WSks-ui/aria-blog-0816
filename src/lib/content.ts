@@ -120,6 +120,23 @@ export async function getPostsByKind(kind: PostKind, filters: Omit<PostFilters, 
 	return getPosts({ ...filters, kind });
 }
 
+/**
+ * 同栏目内的上一篇/下一篇：沿用 sortPosts 的全站时间排序，previous 指向更早
+ * 发布的一篇，next 指向更新的一篇。草稿已被 getPosts 过滤；当前文章不存在于
+ * 列表（例如预览态）时返回空对象，页脚续读区随之整体隐藏。
+ */
+export async function getAdjacentPosts(
+	current: PostEntry,
+): Promise<{ previous?: PostEntry; next?: PostEntry }> {
+	const posts = await getPosts({ kind: current.data.kind });
+	const index = posts.findIndex((post) => post.id === current.id);
+	if (index === -1) return {};
+	return {
+		previous: index + 1 < posts.length ? posts[index + 1] : undefined,
+		next: index > 0 ? posts[index - 1] : undefined,
+	};
+}
+
 export async function getPostsByTag(tag: string, filters: Omit<PostFilters, 'tag' | 'tags'> = {}) {
 	return getPosts({ ...filters, tag });
 }

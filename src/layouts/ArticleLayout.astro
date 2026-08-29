@@ -1,5 +1,5 @@
 ---
-import { Focus, GitBranch, MoveLeft, BookmarkCheck, ListTree } from '@lucide/astro';
+import { ArrowRight, Focus, GitBranch, MoveLeft, BookmarkCheck, ListTree } from '@lucide/astro';
 import type { MarkdownHeading } from 'astro';
 import type { PostEntry } from '@/lib/content';
 import { getPostPath, getPostTransitionName } from '@/lib/content';
@@ -17,9 +17,11 @@ interface Props {
 	headings: MarkdownHeading[];
 	related: PostEntry[];
 	minutes: number;
+	previous?: PostEntry;
+	next?: PostEntry;
 }
 
-const { post, headings, related, minutes } = Astro.props;
+const { post, headings, related, minutes, previous, next } = Astro.props;
 const tocHeadings = headings.filter((heading) => heading.depth === 2 || heading.depth === 3);
 const currentKindPath = `/types/${post.data.kind}/`;
 /*
@@ -214,6 +216,35 @@ const isEssay = post.data.kind === 'essay';
 				<div class="article-focus__scale" aria-hidden="true"></div>
 			</div>
 		</div>
+
+			<!--
+				文末续读：同栏目内按发布时间取上一篇（更早）与下一篇（更新）。
+				两枚标题与目标文章的 H1 持同名转场——在页尾点走时标题直接飞入
+				新页页头；抵达时它们位于首屏折叠线以下，由到达守卫摘名，不会
+				从屏幕外飞进来。
+			-->
+			{(previous || next) && (
+				<nav class="article-neighbors" aria-label="上一篇与下一篇">
+					{previous ? (
+						<a class="article-neighbors__item" href={getPostPath(previous)} data-article-transition-link>
+							<MoveLeft size={17} stroke-width={1.5} aria-hidden="true" />
+							<span class="article-neighbors__body">
+								<small>PREVIOUS / 上一篇</small>
+								<strong transition:name={getPostTransitionName(previous)}>{previous.data.title}</strong>
+							</span>
+						</a>
+					) : <span class="article-neighbors__placeholder" aria-hidden="true"></span>}
+					{next ? (
+						<a class="article-neighbors__item is-next" href={getPostPath(next)} data-article-transition-link>
+							<span class="article-neighbors__body">
+								<small>NEXT / 下一篇</small>
+								<strong transition:name={getPostTransitionName(next)}>{next.data.title}</strong>
+							</span>
+							<ArrowRight size={17} stroke-width={1.5} aria-hidden="true" />
+						</a>
+					) : <span class="article-neighbors__placeholder" aria-hidden="true"></span>}
+				</nav>
+			)}
 
 			<NightEcho minutes={minutes} scenes={Math.max(1, headings.filter((heading) => heading.depth === 2).length)} related={relatedLinks} />
 			<!--
@@ -1173,6 +1204,81 @@ const isEssay = post.data.kind === 'essay';
 	.article-resume:focus-visible {
 		color: var(--ink);
 		border-bottom-color: var(--accent-strong);
+	}
+
+	/*
+	 * 文末续读区：细线框上下夹持的两格纸面，与工具讲义的 neighbors 同构但
+	 * 保留纸色。悬停沿用全站约定的阴影浮动——纸面上浮、投影加深，不做色块。
+	 */
+	.article-neighbors {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		margin-top: 96px;
+		border-block: 1px solid var(--line);
+	}
+
+	.article-neighbors__item {
+		position: relative;
+		display: flex;
+		gap: 14px;
+		align-items: center;
+		min-height: 104px;
+		padding: 20px 26px;
+		color: var(--ink);
+		text-decoration: none;
+		transition: transform var(--duration-base) var(--ease-drift), box-shadow 420ms var(--ease-rain), background-color var(--duration-base) var(--ease-rain);
+	}
+
+	.article-neighbors__item + .article-neighbors__item { border-left: 1px solid var(--line); }
+	.article-neighbors__item svg { flex: 0 0 auto; color: var(--ink-muted); transition: color var(--duration-base) var(--ease-rain), transform var(--duration-base) var(--ease-rain); }
+
+	.article-neighbors__body {
+		display: grid;
+		gap: 9px;
+		min-width: 0;
+	}
+
+	.article-neighbors__body small {
+		font-family: var(--font-ui);
+		font-size: 9px;
+		letter-spacing: var(--tracking-hud);
+		color: var(--ink-muted);
+	}
+
+	.article-neighbors__body strong {
+		font-family: var(--font-display);
+		font-size: 17px;
+		font-weight: 500;
+		line-height: 1.45;
+		overflow-wrap: anywhere;
+	}
+
+	.article-neighbors__item:hover,
+	.article-neighbors__item:focus-visible {
+		z-index: 1;
+		background: var(--color-surface);
+		box-shadow: 0 12px 24px rgb(31 71 81 / 16%), 0 2px 6px rgb(31 71 81 / 10%);
+		transform: translateY(-2px);
+	}
+
+	.article-neighbors__item:hover svg,
+	.article-neighbors__item:focus-visible svg { color: var(--accent-strong); }
+	.article-neighbors__item.is-next:hover svg { transform: translateX(4px); }
+	.article-neighbors__placeholder { min-width: 0; }
+
+	@media (max-width: 760px) {
+		.article-neighbors { grid-template-columns: 1fr; }
+		.article-neighbors__item { min-height: 88px; padding: 16px 20px; }
+		.article-neighbors__item + .article-neighbors__item {
+			border-left: 0;
+			border-top: 1px solid var(--line);
+		}
+		.article-neighbors__placeholder { display: none; }
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.article-neighbors__item,
+		.article-neighbors__item svg { transition: none; }
 	}
 
 	.article-toc-compact {
