@@ -204,6 +204,8 @@
 				const bounds = root.getBoundingClientRect();
 				width = Math.max(1, bounds.width);
 				height = Math.max(1, bounds.height);
+				// Hero 雨丝只使用 1px 线宽和 round lineCap，没有额外的 CSS 模糊；
+				// 保留 DPR 2 上限才能在高密度屏幕上维持细线的抗锯齿与边缘细节。
 				pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
 				canvas.width = Math.round(width * pixelRatio);
 				canvas.height = Math.round(height * pixelRatio);
