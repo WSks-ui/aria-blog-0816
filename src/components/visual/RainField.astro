@@ -2,6 +2,10 @@
 /*
  * 全站背景不再复用一张雨线平铺图，而是将纸张、远景制图、天气和碎片分开。
  * 这些数组只描述静态初始位置；循环只修改 transform / opacity，避免滚动时重排。
+ * 有 WebGL2 时整组「底渐变 + 壁画 + 纤维」交给单个片元着色器一次画完
+ * （合成器不再逐帧混合大面积正片叠底层）。雨丝仍保留在 z-index: 5 的 DOM
+ * 前景层：它只有 7 条 1px 线，却必须位于制图线与玻璃板之上，才能保持原画面的
+ * 前景雨痕与透明度语义；DOM 层同时也是 WebGL 不可用时的完整回退。
  */
 const rainTraces = [
 	{ x: '7%', length: '42vh', delay: '-5.8s', duration: '13.2s', opacity: '.42' },
@@ -21,9 +25,13 @@ const paperMarks = [
 	{ x: '72%', y: '15%', size: '18px', rotate: '8deg', delay: '-6.3s', cut: 'polygon(10% 0, 92% 8%, 100% 67%, 62% 100%, 0 82%, 7% 39%)' },
 	{ x: '86%', y: '57%', size: '9px', rotate: '-17deg', delay: '-1.5s', cut: 'polygon(0 9%, 83% 0, 100% 58%, 73% 100%, 5% 91%, 15% 46%)' },
 ];
+
 ---
 
-<div class="rain-field" aria-hidden="true">
+<div class="rain-field" aria-hidden="true" data-rain-field>
+	<!-- 着色器画布：接管大面积底材；前景雨丝保留在下方 z-index:5 的 DOM 层。 -->
+	<canvas class="rain-field__gl" data-rainfield-gl></canvas>
+
 	<!-- 底材与大面积色块保持静态，负责把参考画面中的纸感和景深带到所有页面。 -->
 	<div class="rain-field__ground"></div>
 	<div class="rain-field__mural"></div>
@@ -88,6 +96,15 @@ const paperMarks = [
 		transition: background-color 900ms var(--ease-rain);
 	}
 
+	.rain-field__gl {
+		position: absolute;
+		inset: 0;
+		z-index: 0;
+		width: 100%;
+		height: 100%;
+		display: none;
+	}
+
 	.rain-field__ground,
 	.rain-field__mural,
 	.rain-field__fiber,
@@ -100,6 +117,13 @@ const paperMarks = [
 		height: 100%;
 		pointer-events: none;
 	}
+
+	/* 着色器接管后只隐藏大面积材质；雨丝保留在原来的前景层级，避免被玻璃板
+	   模糊或被制图线覆盖。7 条 DOM 线的开销远低于再次增加一张全屏画布。 */
+	:global(html[data-rainfield='gl']) .rain-field__gl { display: block; }
+	:global(html[data-rainfield='gl']) .rain-field__ground,
+	:global(html[data-rainfield='gl']) .rain-field__mural,
+	:global(html[data-rainfield='gl']) .rain-field__fiber { display: none; }
 
 	.rain-field__ground {
 		background:
@@ -323,3 +347,578 @@ const paperMarks = [
 		.rain-field__rain { opacity: calc(var(--weather-rain-opacity) * .36); }
 	}
 </style>
+
+<script>
+	/*
+	 * 单 pass 背景材质着色器：把「底渐变 + 壁画漂移(正片叠底) + 纤维平铺(正片叠底)」
+	 * 画进一张不透明画布。此前这些全屏层各自为政，合成器在 4K 下每帧都要重新
+	 * 混合整屏；收进着色器后，每帧只有一次大面积 draw call。7 条前景雨丝仍留在
+	 * DOM 的 z-index:5 层，以保持原有的前景顺序和 CSS 渐变语义。
+	 * 回退链：无 WebGL2 或 prefers-reduced-motion → 保持原 DOM 层（本文件的
+	 * 现有行为，reduced-motion 由 CSS 冻结动画）。
+	 */
+	const VERTEX_SHADER = `#version 300 es
+	void main() {
+		vec2 positions[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0));
+		gl_Position = vec4(positions[gl_VertexID], 0.0, 1.0);
+	}`;
+
+	const FRAGMENT_SHADER = `#version 300 es
+	precision highp float;
+
+	uniform vec2 uRes;            // CSS 像素
+	uniform float uDpr;
+	uniform float uMuralOpacity;
+	uniform float uFiberOpacity;
+	uniform float uMuralAspect;
+	uniform float uFiberTile;     // 纤维平铺周期（CSS px）
+	uniform float uMuralBlend;    // 0 = multiply，1 = screen（夜间为 screen）
+	uniform float uFiberBlend;
+	uniform float uMuralScale;
+	uniform vec2 uMuralDrift;
+	uniform sampler2D uGround;
+	uniform sampler2D uMural;
+	uniform sampler2D uFiber;
+	out vec4 outColor;
+
+	// CSS mix-blend-mode 的 alpha 语义：tex.a 处混合、透明处保持底色。
+	vec3 blendLayer(vec3 base, vec4 tex, float opacity, float blend) {
+		vec3 multiplied = base * tex.rgb;
+		vec3 screened = 1.0 - (1.0 - base) * (1.0 - tex.rgb);
+		return mix(base, mix(multiplied, screened, blend), tex.a * opacity);
+	}
+
+	// background-size: cover 的 UV 映射：视口更宽时裁纵向，反之裁横向。
+	vec2 coverUV(vec2 point, float texAspect) {
+		float resAspect = uRes.x / uRes.y;
+		vec2 uv = point / uRes;
+		if (resAspect > texAspect) {
+			// 视口更宽时，图片按宽度铺满、纵向被裁切；归一化坐标要除以
+			// 图片相对视口的放大比例（texAspect / resAspect）。
+			uv.y = (uv.y - 0.5) * (texAspect / resAspect) + 0.5;
+		} else {
+			// 视口更窄时，图片按高度铺满、横向被裁切，比例同理取倒数。
+			uv.x = (uv.x - 0.5) * (resAspect / texAspect) + 0.5;
+		}
+		return uv;
+	}
+
+	void main() {
+		// uv：0-1、y 向上；point：CSS 像素、y 向下（与 CSS/纹理方向一致）。
+		vec2 uv = gl_FragCoord.xy / (uRes * uDpr);
+		vec3 col = texture(uGround, vec2(uv.x, 1.0 - uv.y)).rgb;
+
+		vec2 point = vec2(uv.x, 1.0 - uv.y) * uRes;
+		vec2 uvM = (coverUV(point, uMuralAspect) - 0.5) / uMuralScale + 0.5 - uMuralDrift;
+		vec4 mural = texture(uMural, clamp(uvM, 0.0, 1.0));
+		col = blendLayer(col, mural, uMuralOpacity, uMuralBlend);
+
+		vec4 fiber = texture(uFiber, point / uFiberTile);
+		col = blendLayer(col, fiber, uFiberOpacity, uFiberBlend);
+
+		outColor = vec4(col, 1.0);
+	}`;
+
+	type WeatherMode = 'clear' | 'rain' | 'night';
+
+	const MURAL_SOURCES: Record<WeatherMode, string> = {
+		rain: '/assets/patterns/atmosphere-rain.svg',
+		clear: '/assets/patterns/atmosphere-clear.svg',
+		night: '/assets/patterns/atmosphere-night.svg',
+	};
+	const FIBER_SOURCE = '/assets/patterns/archive-fiber.svg';
+	// 纹理按实际显示分辨率光栅化（详见 uploadTextures）。4096 能保住壁画中
+	// 1px 制图线与 SVG 噪声的锐度，同时仍给低端设备留出显存上限。
+	const TEXTURE_LONG_EDGE_CAP = 4096;
+	const GROUND_TEXTURE_LONG_EDGE = 1600;
+	// 窗口拖拽期间的重光栅化防抖。
+	const TEXTURE_REBUILD_DEBOUNCE = 180;
+	// 与 CSS background-size 保持同步（含移动端降档）。
+	const FIBER_TILE_DESKTOP = 420;
+	const FIBER_TILE_MOBILE = 340;
+	// 壁画微网格和雨丝都含细线；高 DPR 限制在 2，避免把矢量细节压成糊边。
+	const MAX_DEVICE_PIXEL_RATIO = 2;
+	// 本站自有素材：壁画 1600×1000、纤维 480×480（SVG 未写 width/height，
+	// 浏览器对无尺寸 SVG 的 naturalWidth 报告不一致，直接声明真实比例）。
+	const MURAL_ASPECT = 1.6;
+
+	// 模块级缓存：解码过的 SVG 图片跨导航复用，换页不重复拉取。
+	const muralImages = new Map<WeatherMode, HTMLImageElement>();
+	let fiberImage: HTMLImageElement | null = null;
+
+	const loadImage = (src: string) =>
+		new Promise<HTMLImageElement>((resolve, reject) => {
+			const image = new Image();
+			image.onload = () => resolve(image);
+			image.onerror = () => reject(new Error(`加载失败：${src}`));
+			image.src = src;
+		});
+
+	const hexToRgb = (hex: string): [number, number, number] => {
+		const value = hex.replace('#', '');
+		const full = value.length === 3 ? value.split('').map((ch) => ch + ch).join('') : value;
+		const int = Number.parseInt(full, 16);
+		return Number.isNaN(int) ? [1, 1, 1] : [(int >> 16) & 255, (int >> 8) & 255, int & 255];
+	};
+
+	interface WeatherTokens {
+		base: string;
+		surface: string;
+		glow: string;
+		haze: string;
+		muralOpacity: number;
+		fiberOpacity: number;
+		/** 1 = screen（夜间），0 = multiply。 */
+		muralBlend: number;
+		fiberBlend: number;
+	}
+
+	const readTokens = (root: HTMLElement): WeatherTokens => {
+		const styles = getComputedStyle(document.documentElement);
+		const read = (name: string) => styles.getPropertyValue(name).trim();
+		// 夜间壁画有更高 specificity 的 opacity 覆盖，不能只读变量；直接读取
+		// 实际元素的 computed style 才能同时覆盖夜间、FOCUS 与未来主题规则。
+		const muralStyles = getComputedStyle(root.querySelector<HTMLElement>('.rain-field__mural') ?? root);
+		const fiberStyles = getComputedStyle(root.querySelector<HTMLElement>('.rain-field__fiber') ?? root);
+		const opacity = (value: string) => Number.parseFloat(value) || 0;
+		return {
+			base: read('--weather-base') || '#ebedec',
+			surface: read('--weather-surface') || '#eef4f2',
+			glow: read('--weather-glow') || '#c9edf0',
+			haze: read('--weather-haze') || '#a8d9e2',
+			muralOpacity: opacity(muralStyles.opacity),
+			fiberOpacity: opacity(fiberStyles.opacity),
+			muralBlend: muralStyles.mixBlendMode === 'screen' ? 1 : 0,
+			fiberBlend: fiberStyles.mixBlendMode === 'screen' ? 1 : 0,
+		};
+	};
+
+	/*
+	 * 底渐变贴图：复刻 .rain-field__ground 的三层背景（含 themes.css 的夜间
+	 * 压平规则）。canvas 渐变按非预乘插值，末端色停用「同 RGB、alpha=0」
+	 * 才能对上 CSS 从有色到 transparent 的渐变路径。
+	 */
+	function makeGroundTexture(mode: WeatherMode, tokens: WeatherTokens, width: number, height: number): HTMLCanvasElement {
+		const canvas = document.createElement('canvas');
+		canvas.width = width;
+		canvas.height = height;
+		const ctx = canvas.getContext('2d');
+		if (!ctx) return canvas;
+
+		if (mode === 'night') {
+			// themes.css：夜间底材完全压平为纯 base 色。
+			ctx.fillStyle = tokens.base;
+			ctx.fillRect(0, 0, width, height);
+			return canvas;
+		}
+
+		// linear-gradient(128deg, base, surface)。CSS 角度 0deg 向上、顺时针，
+		// 方向向量 (sin θ, -cos θ)；渐变线长度 = |w·sinθ| + |h·cosθ|。
+		const radians = (128 * Math.PI) / 180;
+		const dx = Math.sin(radians);
+		const dy = -Math.cos(radians);
+		const lineLength = Math.abs(width * dx) + Math.abs(height * dy);
+		const linear = ctx.createLinearGradient(
+			width / 2 - (dx * lineLength) / 2,
+			height / 2 - (dy * lineLength) / 2,
+			width / 2 + (dx * lineLength) / 2,
+			height / 2 + (dy * lineLength) / 2,
+		);
+		linear.addColorStop(0, tokens.base);
+		linear.addColorStop(1, tokens.surface);
+		ctx.fillStyle = linear;
+		ctx.fillRect(0, 0, width, height);
+
+		// radial-gradient(ellipse at x% y%, c, transparent stop%)：
+		// farthest-corner 椭圆，rx/ry = 宽高比，穿过最远角（CSS 规范公式）。
+		const paintRadial = (px: number, py: number, hex: string, alpha: number, stopFrac: number) => {
+			const [r, g, b] = hexToRgb(hex);
+			const farX = px < width / 2 ? width : 0;
+			const farY = py < height / 2 ? height : 0;
+			const spanX = Math.abs(farX - px);
+			const spanY = Math.abs(farY - py);
+			const radiusX = Math.hypot(spanX, (spanY * width) / height);
+			const radiusY = (radiusX * height) / width;
+			ctx.save();
+			ctx.translate(px, py);
+			// Y 轴按 rx:ry 压缩后椭圆变正圆，半径 rx 的方形即覆盖整个渐变。
+			ctx.scale(1, radiusY / radiusX);
+			const radial = ctx.createRadialGradient(0, 0, 0, 0, 0, radiusX);
+			radial.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${alpha})`);
+			radial.addColorStop(stopFrac, `rgba(${r}, ${g}, ${b}, 0)`);
+			ctx.fillStyle = radial;
+			ctx.fillRect(-radiusX, -radiusX, radiusX * 2, radiusX * 2);
+			ctx.restore();
+		};
+		// CSS 多背景从后往前绘制：linear 在最底，haze 先铺，最上层才是 glow。
+		// 先画 haze 再画 glow，避免两枚光源重叠时把原有层次倒置。
+		paintRadial(width * 0.18, height * 0.88, tokens.haze, 0.28, 0.38);
+		paintRadial(width * 0.76, height * 0.12, tokens.glow, 0.42, 0.35);
+		return canvas;
+	}
+
+	function initRainFieldGL() {
+		const root = document.querySelector<HTMLElement>('[data-rain-field]');
+		if (!root || root.dataset.rainfieldReady === 'true') return;
+		root.dataset.rainfieldReady = 'true';
+		// reduced-motion 用户走 DOM 回退（CSS 已冻结其动画），不再起 GL 循环。
+		const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+		if (reduceMotion.matches) return;
+
+		const canvas = root.querySelector<HTMLCanvasElement>('[data-rainfield-gl]');
+		if (!canvas) return;
+		const gl = canvas.getContext('webgl2', {
+			alpha: false,
+			antialias: false,
+			depth: false,
+			stencil: false,
+			powerPreference: 'low-power',
+		});
+		if (!gl) return;
+
+		const compile = (type: number, source: string) => {
+			const shader = gl.createShader(type);
+			if (!shader) return null;
+			gl.shaderSource(shader, source);
+			gl.compileShader(shader);
+			if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+				console.error('[RainField] 着色器编译失败', gl.getShaderInfoLog(shader));
+				gl.deleteShader(shader);
+				return null;
+			}
+			return shader;
+		};
+
+		const vs = compile(gl.VERTEX_SHADER, VERTEX_SHADER);
+		const fs = compile(gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
+		if (!vs || !fs) return;
+		const program = gl.createProgram();
+		if (!program) return;
+		gl.attachShader(program, vs);
+		gl.attachShader(program, fs);
+		gl.linkProgram(program);
+		if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+			console.error('[RainField] 程序链接失败', gl.getProgramInfoLog(program));
+			return;
+		}
+		gl.useProgram(program);
+		// 无顶点属性的全屏三角形：绑定一个空 VAO 即可绘制。
+		gl.bindVertexArray(gl.createVertexArray());
+		// WebGL2 的最低实现通常支持 2048，但低端/省电 GPU 可能更小；
+		// 纹理长边必须服从驱动上限，否则 texImage2D 会留下不完整纹理，
+		// 采样结果直接变黑，表现为壁画细节整块消失。
+		const maxTextureSize = Math.max(
+			1,
+			Number(gl.getParameter(gl.MAX_TEXTURE_SIZE)) || TEXTURE_LONG_EDGE_CAP,
+		);
+		const muralTextureLongEdgeCap = Math.min(TEXTURE_LONG_EDGE_CAP, maxTextureSize);
+		const groundTextureLongEdge = Math.min(GROUND_TEXTURE_LONG_EDGE, maxTextureSize);
+
+		const uniform = (name: string) => gl.getUniformLocation(program, name);
+		const locations = {
+			res: uniform('uRes'),
+			dpr: uniform('uDpr'),
+			muralOpacity: uniform('uMuralOpacity'),
+			fiberOpacity: uniform('uFiberOpacity'),
+			muralAspect: uniform('uMuralAspect'),
+			fiberTile: uniform('uFiberTile'),
+			muralScale: uniform('uMuralScale'),
+			muralDrift: uniform('uMuralDrift'),
+			ground: uniform('uGround'),
+			mural: uniform('uMural'),
+			fiber: uniform('uFiber'),
+			muralBlend: uniform('uMuralBlend'),
+			fiberBlend: uniform('uFiberBlend'),
+		};
+		// sampler 的默认值都是纹理单元 0；若不显式绑定，壁画和纤维会
+		// 错误地重复采样地面贴图，表现为大面积材质细节完全消失。
+		gl.uniform1i(locations.ground, 0);
+		gl.uniform1i(locations.mural, 1);
+		gl.uniform1i(locations.fiber, 2);
+
+		const createTexture = (wrapRepeat: boolean) => {
+			const texture = gl.createTexture();
+			if (!texture) return null;
+			gl.bindTexture(gl.TEXTURE_2D, texture);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrapRepeat ? gl.REPEAT : gl.CLAMP_TO_EDGE);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrapRepeat ? gl.REPEAT : gl.CLAMP_TO_EDGE);
+			return texture;
+		};
+
+		// DOM 图像上传状态显式锁定：SVG/Canvas 的首行就是纹理 v=0，着色器已按
+		// CSS 顶部原点换算坐标；若后续上传代码遗留 flipY，会把整张壁画上下翻转。
+		gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+		// SVG 无预乘 alpha：着色器里按直 alpha 处理混合。
+		gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+
+		const muralTexture = createTexture(false);
+		const groundTexture = createTexture(false);
+		const fiberTexture = createTexture(true);
+		if (!groundTexture || !fiberTexture || !muralTexture) return;
+
+		const currentMode = (): WeatherMode => {
+			const value = document.documentElement.dataset.weatherMode;
+			return value === 'clear' || value === 'night' ? value : 'rain';
+		};
+
+		const uploadRaster = (texture: WebGLTexture, raster: HTMLCanvasElement, unit: number) => {
+			gl.activeTexture(unit);
+			gl.bindTexture(gl.TEXTURE_2D, texture);
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, raster);
+		};
+
+		const rasterizeImage = (image: HTMLImageElement, width: number, height: number) => {
+			const raster = document.createElement('canvas');
+			raster.width = Math.max(1, width);
+			raster.height = Math.max(1, height);
+			const ctx = raster.getContext('2d');
+			if (ctx) ctx.drawImage(image, 0, 0, raster.width, raster.height);
+			return raster;
+		};
+
+		/*
+		 * 按当前显示分辨率重新光栅化三张纹理。壁画里 1px 的微网格与细曲线只
+		 * 有按实际显示分辨率光栅化才保得住（DOM 版由浏览器按屏幕分辨率渲染
+		 * SVG）；纤维按平铺周期 × DPR 做 1:1 采样；底渐变按画布长宽比生成，
+		 * 保证 128° 渐变角与辉光位置在任意窗口形状下都与 CSS 一致。
+		 * 壁画必须保持 SVG 自身的 1600×1000 比例光栅化：drawImage 对无尺寸
+		 * SVG 是位图拉伸，不执行 slice 裁剪语义，按画布宽高比光栅化会把画面
+		 * 纵向压扁；cover 的裁切由着色器 coverUV 按 MURAL_ASPECT 完成。
+		 * 长边封顶 TEXTURE_LONG_EDGE_CAP 控制显存。
+		 */
+		const uploadTextures = (mode: WeatherMode = currentMode()) => {
+			if (disposed) return;
+			// cover 铺满当前画布所需的缩放（壁画 viewBox 1600×1000）。
+			const needed = Math.max(canvas.width / 1600, canvas.height / 1000);
+			const capScale = Math.min(1, muralTextureLongEdgeCap / (1600 * needed));
+			const muralImage = muralImages.get(mode);
+			if (muralImage) {
+				uploadRaster(muralTexture, rasterizeImage(
+					muralImage,
+					Math.round(1600 * needed * capScale),
+					Math.round(1000 * needed * capScale),
+				), gl.TEXTURE1);
+			}
+			if (fiberImage) {
+				const tilePx = Math.min(maxTextureSize, Math.max(1, Math.round(fiberTile() * dpr())));
+				uploadRaster(fiberTexture, rasterizeImage(fiberImage, tilePx, tilePx), gl.TEXTURE2);
+			}
+			const groundAspect = canvas.width / canvas.height;
+			const groundLongEdge = Math.max(1, Math.round(groundTextureLongEdge));
+			const ground = makeGroundTexture(
+				mode,
+				readTokens(root),
+				groundAspect >= 1 ? groundLongEdge : Math.max(1, Math.round(groundLongEdge * groundAspect)),
+				groundAspect >= 1 ? Math.max(1, Math.round(groundLongEdge / groundAspect)) : groundLongEdge,
+			);
+			uploadRaster(groundTexture, ground, gl.TEXTURE0);
+		}
+
+		let rebuildTimer = 0;
+
+		const scheduleTextureRebuild = (mode: WeatherMode = currentMode(), immediate = false) => {
+			if (disposed || !ready) return;
+			window.clearTimeout(rebuildTimer);
+			if (immediate) {
+				rebuildTimer = 0;
+				uploadTextures(mode);
+				return;
+			}
+			rebuildTimer = window.setTimeout(() => {
+				rebuildTimer = 0;
+				uploadTextures(mode);
+			}, TEXTURE_REBUILD_DEBOUNCE);
+		};
+
+		const dpr = () => Math.min(window.devicePixelRatio || 1, MAX_DEVICE_PIXEL_RATIO);
+		const fiberTile = () =>
+			window.matchMedia('(max-width: 760px)').matches ? FIBER_TILE_MOBILE : FIBER_TILE_DESKTOP;
+
+		// 与 tokens.css 中 --ease-drift 相同的三次贝塞尔求值。把 CSS 的
+		// alternate 动画进度传给 shader，避免余弦近似造成漂移速度和停顿位置变化。
+		const cubicBezier = (t: number, x1: number, y1: number, x2: number, y2: number) => {
+			const sample = (u: number, p1: number, p2: number) => {
+				const inv = 1 - u;
+				return 3 * inv * inv * u * p1 + 3 * inv * u * u * p2 + u * u * u;
+			};
+			let u = t;
+			for (let index = 0; index < 5; index += 1) {
+				const x = sample(u, x1, x2) - t;
+				const inv = 1 - u;
+				const slope = 3 * inv * inv * x1 + 6 * inv * u * (x2 - x1) + 3 * u * u * (1 - x2);
+				if (Math.abs(slope) < 0.0001) break;
+				u = Math.min(1, Math.max(0, u - x / slope));
+			}
+			return sample(u, y1, y2);
+		};
+		const muralTimelineStart = performance.now();
+		const updateMuralTransform = (now: number) => {
+			const halfCycle = 28_000;
+			const cycle = halfCycle * 2;
+			const elapsed = ((now - muralTimelineStart) % cycle + cycle) % cycle;
+			const reverse = elapsed > halfCycle;
+			// alternate 的反向段要从半周期起点重新计时；使用 cycle - elapsed
+			// 会在刚越过 28 秒时把进度从 1 突然折回 0，造成壁画瞬移。
+			const local = (reverse ? elapsed - halfCycle : elapsed) / halfCycle;
+			// CSS animation-direction: alternate 会反转 timing function 本身；
+			// 回程应求 ease(1 - local)，而不是 1 - ease(local)，后者虽然端点
+			// 连续，却会把中段速度曲线改成另一种动势。
+			const progress = reverse
+				? cubicBezier(1 - local, 0.33, 0, 0.2, 1)
+				: cubicBezier(local, 0.33, 0, 0.2, 1);
+			gl.uniform1f(locations.muralScale, 1.035 + 0.035 * progress);
+			gl.uniform2f(locations.muralDrift, -0.008 + 0.016 * progress, -0.005 + 0.012 * progress);
+		};
+
+		let uniformSyncUntil = 0;
+		const syncUniforms = () => {
+			const tokens = readTokens(root);
+			gl.uniform1f(locations.muralBlend, tokens.muralBlend);
+			gl.uniform1f(locations.fiberBlend, tokens.fiberBlend);
+			gl.uniform1f(locations.muralOpacity, tokens.muralOpacity);
+			gl.uniform1f(locations.fiberOpacity, tokens.fiberOpacity);
+		};
+		const applyMode = (mode: WeatherMode, rebuildTextures = true) => {
+			syncUniforms();
+			// CSS 的 opacity/background 过渡为 720~900ms；只在这段时间内
+			// 读取 computed style，平时帧循环不会触发布局或样式重算。
+			uniformSyncUntil = performance.now() + 960;
+			if (rebuildTextures) {
+				// 模式切换发生在转场幕布之后，直接重光栅化（一次 drawImage）。
+				scheduleTextureRebuild(mode, true);
+			}
+		};
+
+		const resize = () => {
+			const width = Math.max(1, Math.round(root.clientWidth * dpr()));
+			const height = Math.max(1, Math.round(root.clientHeight * dpr()));
+			if (canvas.width !== width || canvas.height !== height) {
+				canvas.width = width;
+				canvas.height = height;
+				gl.viewport(0, 0, width, height);
+			}
+			gl.uniform2f(locations.res, root.clientWidth, root.clientHeight);
+			gl.uniform1f(locations.dpr, dpr());
+			gl.uniform1f(locations.fiberTile, fiberTile());
+			gl.uniform1f(locations.muralAspect, MURAL_ASPECT);
+			// 分辨率变了，纹理跟着重光栅化；拖拽期间防抖。
+			scheduleTextureRebuild(currentMode());
+		};
+
+		const controller = new AbortController();
+		const { signal } = controller;
+		let disposed = false;
+		let rafId = 0;
+		let ready = false;
+		let firstFrameDrawn = false;
+		let resizeObserver: ResizeObserver | null = null;
+		let focusObserver: MutationObserver | null = null;
+
+		const drawFrame = (now: number) => {
+			if (now < uniformSyncUntil) syncUniforms();
+			updateMuralTransform(now);
+			gl.drawArrays(gl.TRIANGLES, 0, 3);
+			// 首帧落盘标记：让外部可以区分「画了黑的」和「还没画过」。
+			if (!firstFrameDrawn) {
+				firstFrameDrawn = true;
+				document.documentElement.dataset.rainfieldFrame = '1';
+			}
+		};
+		const frame = (now: number) => {
+			rafId = 0;
+			if (disposed || document.hidden || !ready) return;
+			drawFrame(now);
+			rafId = requestAnimationFrame(frame);
+		};
+		const startLoop = () => {
+			if (!rafId && !disposed && ready && !document.hidden) rafId = requestAnimationFrame(frame);
+		};
+
+		const dispose = () => {
+			if (disposed) return;
+			disposed = true;
+			if (rafId) cancelAnimationFrame(rafId);
+			rafId = 0;
+			window.clearTimeout(rebuildTimer);
+			resizeObserver?.disconnect();
+			focusObserver?.disconnect();
+			controller.abort();
+			delete document.documentElement.dataset.rainfield;
+			// 主动弃用上下文，立即归还 GPU 资源（光栅纹理 + 命令缓冲）。
+			gl.getExtension('WEBGL_lose_context')?.loseContext();
+		};
+
+		document.addEventListener('astro:before-swap', dispose, { once: true, signal });
+		document.addEventListener('visibilitychange', startLoop, { signal });
+		reduceMotion.addEventListener('change', dispose, { signal });
+		// 上下文丢失（驱动重置/省电策略等）：退回 DOM 层，页面不能黑着。
+		canvas.addEventListener('webglcontextlost', (event) => {
+			event.preventDefault();
+			console.error('[RainField] WebGL 上下文丢失，回退 DOM 层');
+			dispose();
+		}, { signal });
+		document.addEventListener('weather-mode-change', (event) => {
+			const detail = (event as CustomEvent).detail as { mode?: string } | null;
+			const mode = detail?.mode;
+			applyMode(mode === 'clear' || mode === 'rain' || mode === 'night' ? mode : currentMode());
+		}, { signal });
+
+		resizeObserver = new ResizeObserver(() => resize());
+		resizeObserver.observe(root);
+		// ResizeObserver 只保证 CSS 盒子尺寸变化时回调；跨显示器拖动或浏览器
+		// 缩放可能只改变 devicePixelRatio。窗口事件补上这个路径，确保画布物理
+		// 分辨率和壁画光栅化尺寸及时跟随，不把旧屏幕的低清纹理带到新屏幕。
+		window.addEventListener('resize', resize, { passive: true, signal });
+		// ArticleLayout 的 FOCUS 开关只修改根节点属性，不会广播天气事件；
+		// 监听该属性即可让壁画/纤维 uniform 与 CSS 纸幕同步收敛。
+		focusObserver = new MutationObserver((records) => {
+			if (records.some((record) => record.attributeName === 'data-reading-focus')) {
+				applyMode(currentMode(), false);
+			}
+		});
+		focusObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-reading-focus'] });
+
+		const loadMural = async (mode: WeatherMode) => {
+			const cached = muralImages.get(mode);
+			if (cached) return Promise.resolve(cached);
+			return loadImage(MURAL_SOURCES[mode]).then((image) => {
+				muralImages.set(mode, image);
+				return image;
+			});
+		};
+		const fiberPromise = fiberImage
+			? Promise.resolve(fiberImage)
+			: loadImage(FIBER_SOURCE).then((image) => {
+					fiberImage = image;
+					return image;
+				});
+
+		Promise.all([
+			fiberPromise,
+			loadMural('rain'),
+			loadMural('clear'),
+			loadMural('night'),
+		]).then(() => {
+			if (disposed) return;
+			const mode = currentMode();
+			applyMode(mode, false);
+			resize();
+			ready = true;
+			// 必须在 resize 之后上传，避免把默认 300×150 的画布尺寸带入
+			// 壁画光栅化，导致整页长期使用低分辨率纹理。
+			uploadTextures(mode);
+			// 先绘制有效首帧再切换：避免 canvas 刚显示时把默认黑色清屏
+			// 暴露给用户一帧；纹理就绪期间 DOM 层仍保持可见，不会出现空窗。
+			drawFrame(performance.now());
+			document.documentElement.dataset.rainfield = 'gl';
+			startLoop();
+		}).catch((error) => {
+			console.error('[RainField] 纹理装载失败，保持 DOM 回退', error);
+		});
+	}
+
+	initRainFieldGL();
+	document.addEventListener('astro:page-load', initRainFieldGL);
+</script>
