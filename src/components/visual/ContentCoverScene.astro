@@ -451,3 +451,44 @@ const kindCode = {
 	}
 
 </style>
+
+<style is:global>
+	/* 离屏暂停：视口外的封面场景（首页回环轨道克隆组、滚出视口的栏目封面）
+	   停掉全部动画，不为看不见的帧做光栅与合成。 */
+	.content-cover[data-offscreen='true'] svg *,
+	.content-cover[data-offscreen='true']::before {
+		animation-play-state: paused !important;
+	}
+</style>
+
+<script>
+	// 模块级共享观察器；换页时整体释放上一页的目标引用。
+	let coverPauseObserver: IntersectionObserver | null = null;
+
+	function initCoverPause() {
+		const covers = document.querySelectorAll<HTMLElement>('[data-content-cover]');
+		if (covers.length === 0) return;
+		if (!coverPauseObserver) {
+			coverPauseObserver = new IntersectionObserver((entries) => {
+				for (const entry of entries) {
+					(entry.target as HTMLElement).dataset.offscreen = entry.isIntersecting ? 'false' : 'true';
+				}
+			}, { rootMargin: '40px' });
+			document.addEventListener('astro:before-swap', () => {
+				coverPauseObserver?.disconnect();
+				// ClientRouter 下一页重新创建观察器与清理回调，避免旧节点长期留在观察列表。
+				coverPauseObserver = null;
+			}, { once: true });
+		}
+		// 回调闭包可能重建观察器，模块变量收窄会失效，落回局部常量。
+		const observer = coverPauseObserver;
+		covers.forEach((cover) => {
+			if (cover.dataset.pauseObserved === 'true') return;
+			cover.dataset.pauseObserved = 'true';
+			observer.observe(cover);
+		});
+	}
+
+	initCoverPause();
+	document.addEventListener('astro:page-load', initCoverPause);
+</script>
