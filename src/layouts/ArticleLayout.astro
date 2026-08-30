@@ -3,6 +3,7 @@ import { ArrowRight, Focus, GitBranch, MoveLeft, BookmarkCheck, ListTree } from 
 import type { MarkdownHeading } from 'astro';
 import type { PostEntry } from '@/lib/content';
 import { getPostPath, getPostTransitionName } from '@/lib/content';
+import { SECTION_NAV_ITEMS } from '@/data/site';
 import BaseLayout from './BaseLayout.astro';
 import KindLabel from '@/components/content/KindLabel.astro';
 import NightEcho from '@/components/content/NightEcho.astro';
@@ -27,18 +28,10 @@ const tocHeadings = headings.filter((heading) => heading.depth === 2 || heading.
 const currentKindPath = `/types/${post.data.kind}/`;
 /*
  * 右侧轨的全站快捷导航：主导航不吸顶，深读时这里就是最近的跳转入口。
- * 栏目与 SiteHeader 的 navItems 保持同一套文案；当前文章所属栏目点亮。
+ * 与 SiteHeader 共用 SECTION_NAV_ITEMS（单一出处）；当前文章所属栏目点亮。
  * 上一级按内容层级回所属栏目页（笔记文章的上级是「笔记」，不是文章池）。
  */
-const railNav = [
-	{ href: '/types/essay/', label: '随笔' },
-	{ href: '/types/note/', label: '笔记' },
-	{ href: '/types/project/', label: '项目' },
-	{ href: '/types/photo/', label: '底片' },
-	{ href: '/types/code/', label: '代码' },
-	{ href: '/types/tutorial/', label: '指南' },
-	{ href: '/archive/', label: '归档' },
-];
+const railNav = SECTION_NAV_ITEMS;
 const defaultDayCover = '/assets/covers/default-day.webp';
 const defaultNightCover = '/assets/covers/default-night.webp';
 const cover = post.data.cover ?? (post.data.kind === 'code' ? defaultNightCover : defaultDayCover);
@@ -68,7 +61,7 @@ const isEssay = post.data.kind === 'essay';
 				data-default-cover={!post.data.cover ? '' : undefined}
 			>
 				{post.data.cover ? (
-					<img src={post.data.cover} alt="" width="1600" height="900" loading="eager" fetchpriority="high" decoding="async" />
+					<img src={post.data.cover} alt={`《${post.data.title}》封面`} width="1600" height="900" loading="eager" fetchpriority="high" decoding="async" />
 				) : (
 					<ContentCoverScene kind={post.data.kind} class="article-hero__cover-scene" />
 				)}
@@ -259,13 +252,39 @@ const isEssay = post.data.kind === 'essay';
 	</BaseLayout>
 
 	<script>
+		// 客户端脚本单独引入：frontmatter 的导入只存在于服务端作用域。
+		import {
+			commitWeatherMode,
+			isWeatherMode,
+			WEATHER_MODES,
+			WEATHER_MODE_STORAGE_KEY,
+			type WeatherMode,
+		} from '@/lib/weather-mode';
+
 		interface ReadingRecord {
 			progress: number;
 			title: string;
 			updatedAt: string;
 		}
 
+		// 每次初始化前先拆掉上一实例挂在世界（document/window）上的监听，
+		// 并作废待写入的持久化定时器——否则换页后旧闭包会拿着脱离 DOM 的
+		// 旧正文以 ratio=1 污染 aria7-reading-progress，让“继续阅读”对
+		// 读过的文章永久失效。
+		let readerHelpersTeardown: (() => void) | null = null;
+
 		function initArticleReaderHelpers() {
+			readerHelpersTeardown?.();
+			const controller = new AbortController();
+			const { signal } = controller;
+			const cleanupFns: Array<() => void> = [];
+			readerHelpersTeardown = () => {
+				controller.abort();
+				cleanupFns.forEach((fn) => fn());
+				cleanupFns.length = 0;
+				readerHelpersTeardown = null;
+			};
+
 			const resume = document.querySelector<HTMLButtonElement>('[data-article-resume]');
 			const resumeValue = document.querySelector<HTMLElement>('[data-article-resume-value]');
 			const topline = document.querySelector<HTMLElement>('[data-article-topline]');
@@ -325,8 +344,11 @@ const isEssay = post.data.kind === 'essay';
 				}
 			};
 			let ticking = false;
+			cleanupFns.push(() => window.clearTimeout(persistTimer));
 			const emitRatio = () => {
 				ticking = false;
+				// 换页后 prose 脱离 DOM，几何信息归零、比例恒为 1，直接跳过。
+				if (!proseContent.isConnected) return;
 				const rect = proseContent.getBoundingClientRect();
 				const contentTop = rect.top + window.scrollY;
 				const scrollable = Math.max(1, proseContent.offsetHeight - window.innerHeight);
@@ -341,8 +363,8 @@ const isEssay = post.data.kind === 'essay';
 				if (ticking) return;
 				ticking = true;
 				window.requestAnimationFrame(emitRatio);
-			}, { passive: true });
-			window.addEventListener('pagehide', () => persistProgress(true));
+			}, { passive: true, signal });
+			window.addEventListener('pagehide', () => persistProgress(true), { signal });
 			emitRatio();
 		}
 
@@ -380,18 +402,26 @@ const isEssay = post.data.kind === 'essay';
 					applyFocus(false);
 					persistFocus(false);
 				}
-			});
+			}, { signal });
 		}
 
 		if (topline) {
 				// SceneGuide 滚动时已经算好正文比例并广播；这里只把结果接到进度线上，
 				// 不再启动第二套滚动监听。侧栏在窄视口隐藏不影响事件继续派发。
+				// 比照 ReadingSession 校验内容归属：旧页面闭包广播的 detached 正文
+				// 或别的文章的正文，不得驱动本页进度线。
 				document.addEventListener('aria7-reading-progress', (event) => {
-					const detail = (event as CustomEvent).detail as { ratio?: number } | null;
-					if (detail && typeof detail.ratio === 'number') {
+					const detail = (event as CustomEvent).detail as { content?: unknown; ratio?: unknown } | null;
+					if (!detail || typeof detail.ratio !== 'number') return;
+					if (!(detail.content instanceof HTMLElement) || !detail.content.isConnected) return;
+					const sameContent = !proseContent
+						|| detail.content === proseContent
+						|| detail.content.contains(proseContent)
+						|| proseContent.contains(detail.content);
+					if (sameContent) {
 						topline.style.setProperty('--article-progress', String(detail.ratio));
 					}
-				});
+				}, { signal });
 			}
 		}
 
@@ -423,48 +453,27 @@ const isEssay = post.data.kind === 'essay';
 
 		/*
 		 * 快捷导航里的天气切换：读取当前模式 → 循环到下一档 → 走
-		 * weather-mode-request 握手。commit 复刻 WeatherModeControl 的提交
-		 * 动作（根属性、地址栏色、存储、全局事件），并同步页头控件的单选
-		 * 状态；转场动画由 WeatherTransition 接管，缺席时立即提交。
+		 * weather-mode-request 握手。commit 与 WeatherModeControl 共用
+		 * lib/weather-mode 的同一提交实现（根属性、地址栏色、存储、全局
+		 * 事件、页头单选同步）；转场动画由 WeatherTransition 接管，缺席时
+		 * 立即提交。
 		 */
 		function initRailWeather() {
 			const button = document.querySelector<HTMLButtonElement>('[data-rail-weather]');
 			const label = document.querySelector<HTMLElement>('[data-rail-weather-label]');
 			if (!button || !label || button.dataset.railWeatherReady === 'true') return;
 			button.dataset.railWeatherReady = 'true';
-			const modes = ['clear', 'rain', 'night'] as const;
-			type Mode = (typeof modes)[number];
-			const isMode = (value: string | null): value is Mode =>
-				value !== null && (modes as readonly string[]).includes(value);
+			const modes = WEATHER_MODES;
+			type Mode = WeatherMode;
+			const isMode = isWeatherMode;
 
 			const syncLabel = (mode: Mode) => {
 				label.textContent = mode.toUpperCase();
 				button.dataset.railWeatherMode = mode;
 			};
+			// 提交动作与页头控件共用 lib/weather-mode 的同一实现。
 			const commit = (mode: Mode) => {
-				const previousMode = document.documentElement.dataset.weatherMode ?? null;
-				document.documentElement.dataset.weatherMode = mode;
-				document.documentElement.dataset.theme = mode === 'night' ? 'night' : 'light';
-				document.documentElement.style.colorScheme = mode === 'night' ? 'dark' : 'light';
-				const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]:not([media])');
-				if (themeColor) {
-					themeColor.content = mode === 'night' ? '#0d1216' : mode === 'clear' ? '#f6f7f3' : '#ebedec';
-				}
-				// 页头控件是另一组件的 DOM：同步它的单选状态，避免两处显示分叉。
-				document.querySelectorAll<HTMLElement>('[data-weather-mode-value]').forEach((control) => {
-					const selected = (control as HTMLElement).dataset.weatherModeValue === mode;
-					control.setAttribute('aria-checked', String(selected));
-					control.tabIndex = selected ? 0 : -1;
-					control.dataset.active = String(selected);
-				});
-				try {
-					localStorage.setItem('aria7-weather-mode', mode);
-				} catch {
-					// 存储不可用时偏好不落盘，本页立即生效即可。
-				}
-				document.dispatchEvent(
-					new CustomEvent('weather-mode-change', { detail: { mode, previousMode, source: 'control' } }),
-				);
+				commitWeatherMode(mode, { storageKey: WEATHER_MODE_STORAGE_KEY, source: 'control' });
 				syncLabel(mode);
 			};
 			syncLabel(isMode(document.documentElement.dataset.weatherMode ?? null)
@@ -496,6 +505,11 @@ const isEssay = post.data.kind === 'essay';
 			initArticleReaderHelpers();
 			initRailNavFlag();
 			initRailWeather();
+		});
+		// 换页与 page-load 之间的窗口期也要断供：旧页面的持久化定时器若在这时
+		// 到期，会把错误的进度写进存储，before-swap 提前拆干净。
+		document.addEventListener('astro:before-swap', () => {
+			readerHelpersTeardown?.();
 		});
 	</script>
 

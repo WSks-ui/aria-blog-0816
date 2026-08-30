@@ -1,5 +1,6 @@
 ---
 import { CloudRain, Moon, Sun } from '@lucide/astro';
+import { WEATHER_MODE_STORAGE_KEY } from '@/lib/weather-mode';
 import '@/styles/interactive.css';
 
 export type WeatherMode = 'clear' | 'rain' | 'night';
@@ -13,7 +14,7 @@ interface Props {
 const {
   class: className,
   label = '天气主题',
-  storageKey = 'aria7-weather-mode',
+  storageKey = WEATHER_MODE_STORAGE_KEY,
 } = Astro.props;
 ---
 
@@ -60,75 +61,35 @@ const {
 </div>
 
 <script>
-  type WeatherMode = 'clear' | 'rain' | 'night';
-
-  const weatherModes: WeatherMode[] = ['clear', 'rain', 'night'];
-
-  function isWeatherMode(value: string | null): value is WeatherMode {
-    return value !== null && weatherModes.includes(value as WeatherMode);
-  }
+  import {
+    commitWeatherMode,
+    isWeatherMode,
+    readStoredWeatherMode,
+    WEATHER_MODE_STORAGE_KEY,
+    type WeatherMode,
+  } from '@/lib/weather-mode';
 
   function initWeatherModeControls() {
     document.querySelectorAll<HTMLElement>('[data-weather-mode-control]').forEach((root) => {
       if (root.dataset.interactiveReady === 'true') return;
       root.dataset.interactiveReady = 'true';
 
-      const storageKey = root.dataset.storageKey || 'aria7-weather-mode';
+      const storageKey = root.dataset.storageKey || WEATHER_MODE_STORAGE_KEY;
       const buttons = Array.from(
         root.querySelectorAll<HTMLButtonElement>('[data-weather-mode-value]'),
       );
       const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
-      const readStoredMode = (): WeatherMode | null => {
-        try {
-          const value = localStorage.getItem(storageKey);
-          return isWeatherMode(value) ? value : null;
-        } catch {
-          return null;
-        }
-      };
-
       const commitMode = (mode: WeatherMode, persist = false, initial = false) => {
-        const previousMode = isWeatherMode(document.documentElement.dataset.weatherMode ?? null)
-          ? document.documentElement.dataset.weatherMode as WeatherMode
-          : null;
-        document.documentElement.dataset.weatherMode = mode;
-        document.documentElement.dataset.theme = mode === 'night' ? 'night' : 'light';
-        document.documentElement.style.colorScheme = mode === 'night' ? 'dark' : 'light';
+        // 提交动作的单一实现在 lib/weather-mode；这里只维护本实例的状态：
+        // activeMode 是换页恢复的可信来源，pendingMode 随提交作废。
+        commitWeatherMode(mode, {
+          storageKey: persist ? storageKey : undefined,
+          source: persist ? 'control' : 'system',
+          initial,
+        });
         root.dataset.activeMode = mode;
         delete root.dataset.pendingMode;
-        const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]:not([media])');
-        if (themeColor) {
-		  // 地址栏颜色必须与场景底材同步，避免主题切换时浏览器边缘闪出旧色板。
-          themeColor.content = mode === 'night' ? '#0d1216' : mode === 'clear' ? '#f6f7f3' : '#ebedec';
-        }
-
-        buttons.forEach((button) => {
-          const selected = button.dataset.weatherModeValue === mode;
-          button.setAttribute('aria-checked', String(selected));
-          // 单选组使用漫游 tabindex：只有选中项保留在 Tab 序，其余靠方向键到达。
-          button.tabIndex = selected ? 0 : -1;
-          button.dataset.active = String(selected);
-        });
-
-        document.querySelectorAll<HTMLElement>('[data-weather-theme-label]').forEach((label) => {
-          label.textContent = `THEME / ${mode.toUpperCase()}`;
-          label.dataset.weatherMode = mode;
-        });
-
-        if (persist) {
-          try {
-            localStorage.setItem(storageKey, mode);
-          } catch {
-            // 隐私模式可能禁用存储；主题仍在当前页面立即生效。
-          }
-        }
-
-        document.dispatchEvent(
-          new CustomEvent('weather-mode-change', {
-            detail: { mode, previousMode, source: persist ? 'control' : 'system', initial },
-          }),
-        );
       };
 
       const requestMode = (mode: WeatherMode, persist = false, initial = false) => {
@@ -155,7 +116,7 @@ const {
         if (document.dispatchEvent(request)) commit();
       };
 
-      const storedMode = readStoredMode();
+      const storedMode = readStoredWeatherMode(storageKey);
       // 首访默认固定为 Rain，不再跟随系统深浅色偏好；读者手动切换后才记住选择。
       requestMode(storedMode ?? 'rain', false, true);
 
@@ -168,7 +129,7 @@ const {
        */
 		const restoreModeAfterSwap = () => {
 			const activeMode = root.dataset.activeMode ?? null;
-        const mode = isWeatherMode(activeMode) ? activeMode : readStoredMode() ?? 'rain';
+        const mode = isWeatherMode(activeMode) ? activeMode : readStoredWeatherMode(storageKey) ?? 'rain';
         commitMode(mode, false);
       };
       document.addEventListener('astro:after-swap', restoreModeAfterSwap);
