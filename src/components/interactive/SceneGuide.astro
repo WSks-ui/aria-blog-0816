@@ -84,6 +84,10 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
       const expandButton = root.querySelector<HTMLButtonElement>('[data-scene-expand]');
       if (!list || !toc || !progress || !remaining || !expandButton) return;
 
+      // 显式 behavior:'smooth' 不受 CSS 的 scroll-behavior 兜底约束，
+      // reduced-motion 用户改为瞬时定位。
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
       let content: HTMLElement | null = null;
       try {
         content = document.querySelector<HTMLElement>(root.dataset.contentSelector || 'article');
@@ -212,7 +216,12 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
           const sublist = document.createElement('ol');
           sublist.className = 'scene-guide__subsections';
           sublist.setAttribute('aria-hidden', 'true');
-          currentChapter.element.append(sublist);
+          // 外层 clip 容器承载 grid-template-rows 0fr/1fr 的高度过渡，
+          // 列表本身保持 overflow:hidden，小节再多也不会被展开上限裁掉。
+          const clip = document.createElement('div');
+          clip.className = 'scene-guide__subsections-clip';
+          clip.append(sublist);
+          currentChapter.element.append(clip);
           currentChapter.sublist = sublist;
 
           toggle.addEventListener('click', () => {
@@ -268,7 +277,7 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
           const linkRect = activeLink.getBoundingClientRect();
           const tocRect = toc.getBoundingClientRect();
           if (linkRect.top < tocRect.top + 18 || linkRect.bottom > tocRect.bottom - 22) {
-            activeLink.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            activeLink.scrollIntoView({ block: 'nearest', behavior: reduceMotion.matches ? 'auto' : 'smooth' });
           }
         }
       };

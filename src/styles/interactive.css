@@ -798,9 +798,24 @@ html[data-archive-cursor='companion'] .archive-cursor[data-mode='text'] {
   transform: translateY(2px) rotate(225deg);
 }
 
-.scene-guide__subsections {
+/*
+ * 小节列表的展开高度用 grid-template-rows 0fr/1fr 过渡：列表内容多高
+ * 就展开多高，没有 max-height 上限，超长章节列表不会被静默裁掉。
+ * 列表本身保持 overflow:hidden（配合 min-height:0 允许收缩到 0）。
+ */
+.scene-guide__subsections-clip {
   display: grid;
-  max-height: 0;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 420ms var(--ease-rain);
+}
+
+.scene-guide__chapter[data-expanded='true'] .scene-guide__subsections-clip {
+  grid-template-rows: 1fr;
+}
+
+.scene-guide__subsections {
+  min-height: 0;
+  display: grid;
   gap: 1px;
   margin: 0;
   padding: 0;
@@ -809,14 +824,12 @@ html[data-archive-cursor='companion'] .archive-cursor[data-mode='text'] {
   opacity: 0;
   transform: translateY(-4px);
   transition:
-    max-height 420ms var(--ease-rain),
     padding-block 420ms var(--ease-rain),
     opacity 220ms ease,
     transform 420ms var(--ease-rain);
 }
 
 .scene-guide__chapter[data-expanded='true'] .scene-guide__subsections {
-  max-height: 960px;
   padding: 1px 0 8px 37px;
   opacity: 1;
   transform: translateY(0);
@@ -1420,6 +1433,8 @@ html[data-tooltip-layer='ready'] [data-tooltip]::after {
   .search-dialog__window { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); }
   .search-dialog__surface { max-height: calc(100dvh - 24px); padding: 20px; }
   .search-dialog__filters { grid-template-columns: repeat(4, 1fr); }
+  /* 换行边界只取决于上面的列数（4）：第 4 项是首行末尾，1-4 项是首行。
+     与栏目数量无关，增删栏目会自动重排；改列数时两行要一起改。 */
   .search-dialog__filters button:nth-child(4) { border-inline-end: 0; }
   .search-dialog__filters button:nth-child(-n + 4) { border-bottom: 1px solid var(--line); }
 }
