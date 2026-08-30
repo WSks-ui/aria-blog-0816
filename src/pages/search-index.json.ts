@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 
-import { getPostPath, getPosts } from '../lib/content';
+import { getPostPath, getPosts } from '@/lib/content';
 
 export const prerender = true;
 

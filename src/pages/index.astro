@@ -11,7 +11,13 @@ import '@/styles/home.css';
 const posts = await getPosts();
 const featured = posts.find((post) => post.data.featured) ?? posts[0];
 const recent = posts.filter((post) => post.id !== featured?.id).slice(0, 5);
-const featuredCover = featured?.data.cover && !featured.data.cover.endsWith('/hero-bg.webp')
+/*
+ * 首页自身的场景底图不再作为精选封面重复出现（hero 背景已占据首屏整幅，
+ * welcome 一文借用的正是这张图）。语义按「首页已使用的封面」登记，
+ * 不做 URL 字符串猜测；文章换了真封面会自动解除排除。
+ */
+const HOME_CHROME_COVERS: readonly string[] = ['/images/hero-bg.webp'];
+const featuredCover = featured?.data.cover && !HOME_CHROME_COVERS.includes(featured.data.cover)
 	? featured.data.cover
 	: null;
 const featuredCoverFit = featured?.data.kind === 'photo' ? 'cover' : 'contain';

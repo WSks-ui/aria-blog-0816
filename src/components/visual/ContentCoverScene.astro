@@ -97,7 +97,7 @@ const kindCode = {
 				</g>
 				<g class="note-scene__calendar">
 					{calendarCells.map((cell) => (
-						<g class:list={['note-scene__cell', cell.active && 'is-active']} style={`--i: ${cell.index}`}>
+						<g class:list={['note-scene__cell', cell.active && 'is-active']}>
 							<rect x={cell.x} y={cell.y} width="66" height="66" />
 							<text x={cell.x + 8} y={cell.y + 17}>{String(cell.index + 1).padStart(2, '0')}</text>
 						</g>
@@ -404,10 +404,6 @@ const kindCode = {
 		0% { opacity: 0; transform: translate3d(-14px, -90px, 0) rotate(0deg); }
 		18%, 78% { opacity: 0.78; }
 		100% { opacity: 0; transform: translate3d(22px, 160px, 0) rotate(80deg); }
-	}
-	@keyframes cover-pulse {
-		from { opacity: 0.28; transform: scale(0.96); }
-		to { opacity: 0.72; transform: scale(1.02); }
 	}
 	@keyframes note-marker-breathe {
 		from { opacity: 0.34; }

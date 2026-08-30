@@ -8,6 +8,15 @@ export async function getStaticPaths() {
 	const guides = await getCollection('toolGuides');
 	const guideByToolId = new Map(guides.map((guide) => [guide.data.toolId, guide]));
 
+	// 反向校验：讲义存在而工具目录缺条目时，这个 md 会被静默忽略、永不生成页面。
+	// 与上面的正向校验共同保证两侧一一对应。
+	const orphanGuides = guides.filter((guide) => !TUTORIAL_TOOLS.some((tool) => tool.id === guide.data.toolId));
+	if (orphanGuides.length > 0) {
+		throw new Error(
+			`tool-guides 中存在没有工具条目的讲义：${orphanGuides.map((guide) => guide.data.toolId).join('、')}。请在 src/data/tutorial-tools.ts 补齐对应条目。`,
+		);
+	}
+
 	return TUTORIAL_TOOLS.map((tool, index) => {
 		const guide = guideByToolId.get(tool.id);
 		// 工具目录和同步内容必须一一对应。静默跳过会让线上目录出现无法打开的卡片，

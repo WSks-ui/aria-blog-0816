@@ -11,6 +11,8 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
  */
 const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim() || 'https://github.com/WSks-ui';
 const contactEmail = import.meta.env.PUBLIC_CONTACT_EMAIL?.trim() || 'aria_7@yeah.net';
+// QQ 群分享链接里的 authKey 是群分享令牌，会过期：加群按钮失效时到 QQ 群
+// 「分享群」重新生成一条链接整体替换即可，busi_data 等参数随新链接一起换。
 const qqGroupUrl = import.meta.env.PUBLIC_QQ_GROUP_URL?.trim()
 	|| 'https://qun.qq.com/universal-share/share?ac=1&authKey=TvbAWmh4kftVoQxrUuqIXbpq8ZEFhjGMPDklklYXTbY4O4vRHmQAAdWCXd03lP9T&busi_data=eyJncm91cENvZGUiOiI3MDEyNjc1NjEiLCJ0b2tlbiI6IkxraUh5aVhLdi81dFdLOVpYK2lKOW9KWmI0aFh5Ym8yc2daaEZSdDMybVJXczNudzJnRS9oMmRZWGwxNnJXR2IiLCJ1aW4iOiIyMzgzNDAzMjA2In0=&data=FFtTF0Zb5T9pTfj3527xyXqTdWp1AAIMQ8Mg65q_ltHlV5dnwju3HWFyMl7ssQoNwUhRW-jEWFMcDIJ-9Jcbax5s-dOaYKClKi3Iwa8GtEs&svctype=5&tempid=h5_group_info';
 
