@@ -36,6 +36,11 @@
 				window.clearTimeout(cleanupTimer);
 				window.cancelAnimationFrame(primeFrame);
 				window.cancelAnimationFrame(startFrame);
+				// 归零句柄：残留的编号会让下一次 cancel 指向无关任务。
+				commitTimer = 0;
+				cleanupTimer = 0;
+				primeFrame = 0;
+				startFrame = 0;
 				root.classList.remove('is-animating');
 			};
 

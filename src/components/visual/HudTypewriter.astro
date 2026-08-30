@@ -24,6 +24,8 @@
 		element.classList.add('hud-typing');
 		let index = 0;
 		const step = () => {
+			// 换页后元素可能已脱离 DOM：终止打字链，不再为死节点排后续定时器。
+			if (!element.isConnected) return;
 			index += 1;
 			element.textContent = text.slice(0, index);
 			if (index < text.length) {
@@ -57,6 +59,11 @@
 
 	initHudTypewriter();
 	document.addEventListener('astro:page-load', initHudTypewriter);
+	// swap 会整体替换文档：先释放上一页被观察的全部元素（含未进入视口、
+	// 未打完字的），observer 单例保持复用，下一页 page-load 再观察当前元素。
+	document.addEventListener('astro:before-swap', () => {
+		observer?.disconnect();
+	});
 </script>
 
 <style is:global>

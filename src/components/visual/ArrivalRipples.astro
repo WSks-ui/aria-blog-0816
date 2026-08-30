@@ -75,9 +75,13 @@
 		if (!root || root.dataset.ripplesReady === 'true') return;
 		root.dataset.ripplesReady = 'true';
 
+		const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
 		const spawn = () => {
 			if ((document.documentElement.dataset.weatherMode ?? 'rain') !== 'rain') return;
 			if (document.hidden) return;
+			// CSS 侧已 display:none 兜底；JS 侧直接跳过，不为看不见的粒子做功。
+			if (reduceMotion.matches) return;
 			const wide = window.innerWidth;
 			const high = window.innerHeight;
 			// 固定的呼吸点位 + 随机微扰：每次抵达的落点相似但不重样。

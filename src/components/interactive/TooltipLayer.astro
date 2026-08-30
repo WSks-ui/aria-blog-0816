@@ -9,87 +9,109 @@
 	const TOOLTIP_GAP = 8;
 	const VIEWPORT_PADDING = 10;
 
-	function initTooltipLayer() {
-		if (document.querySelector('.tooltip-layer')) return;
+	/*
+	 * 模块级状态：监听只注册一次、跨导航复用。提示层挂在 body 下，而
+	 * ClientRouter 换页会整体替换 body，元素必然丢失——若随 astro:page-load
+	 * 反复 init，监听会无界累积且旧闭包引用已脱离的旧层。因此句柄统一放在
+	 * 模块变量上，每次 page-load 只负责在当前 body 里重建缺失的层。
+	 */
+	let layer: HTMLDivElement | null = null;
+	let bubble: HTMLSpanElement | null = null;
+	let anchor: HTMLElement | null = null;
+	let revealFrame = 0;
 
-		const layer = document.createElement('div');
-		layer.className = 'tooltip-layer';
-		const bubble = document.createElement('span');
-		bubble.className = 'tooltip-layer__bubble';
-		bubble.setAttribute('aria-hidden', 'true');
-		layer.append(bubble);
-		document.body.append(layer);
+	const hide = () => {
+		window.cancelAnimationFrame(revealFrame);
+		anchor = null;
+		layer?.classList.remove('is-visible');
+	};
+
+	const show = (next: HTMLElement) => {
+		if (!layer || !bubble) return;
+		const text = next.dataset.tooltip;
+		if (!text) return;
+		anchor = next;
+		bubble.textContent = text;
+
+		// opacity:0 不影响布局，直接量尺寸落位；水平方向夹在视口内。
+		const rect = next.getBoundingClientRect();
+		const width = bubble.offsetWidth;
+		const height = bubble.offsetHeight;
+		const left = Math.min(
+			Math.max(rect.left + rect.width / 2 - width / 2, VIEWPORT_PADDING),
+			Math.max(window.innerWidth - width - VIEWPORT_PADDING, VIEWPORT_PADDING),
+		);
+		const needed = height + TOOLTIP_GAP + VIEWPORT_PADDING;
+		const openBelow = window.innerHeight - rect.bottom >= needed || rect.top < needed;
+		layer.style.left = `${Math.round(left)}px`;
+		layer.style.top = `${Math.round(openBelow ? rect.bottom + TOOLTIP_GAP : rect.top - TOOLTIP_GAP - height)}px`;
+
+		// 相邻按钮间移动时保持可见直接跳位，只有首次出现才走显形动画。
+		if (layer.classList.contains('is-visible')) return;
+		revealFrame = window.requestAnimationFrame(() => {
+			if (anchor === next) layer?.classList.add('is-visible');
+		});
+	};
+
+	const anchorFrom = (target: EventTarget | null): HTMLElement | null => {
+		if (!(target instanceof Element)) return null;
+		const found = target.closest('[data-tooltip]');
+		return found instanceof HTMLElement && found.dataset.tooltip ? found : null;
+	};
+
+	const handlePointerOver = (event: PointerEvent) => {
+		// 触屏没有悬停语义，提示交给 aria-label，避免点按后粘在屏幕上。
+		if (event.pointerType === 'touch') return;
+		const next = anchorFrom(event.target);
+		if (next === anchor) return;
+		if (next) show(next);
+		else hide();
+	};
+
+	const handleFocusIn = (event: FocusEvent) => {
+		const next = anchorFrom(event.target);
+		if (next) show(next);
+	};
+
+	const handleFocusOut = (event: FocusEvent) => {
+		if (event.relatedTarget instanceof Element && event.relatedTarget.closest('[data-tooltip]')) return;
+		hide();
+	};
+
+	const ensureTooltipLayer = () => {
+		if (layer?.isConnected) return;
+		const nextLayer = document.createElement('div');
+		nextLayer.className = 'tooltip-layer';
+		const nextBubble = document.createElement('span');
+		nextBubble.className = 'tooltip-layer__bubble';
+		nextBubble.setAttribute('aria-hidden', 'true');
+		nextLayer.append(nextBubble);
+		document.body.append(nextLayer);
 		document.documentElement.dataset.tooltipLayer = 'ready';
+		layer = nextLayer;
+		bubble = nextBubble;
+	};
 
-		let anchor: HTMLElement | null = null;
-		let revealFrame = 0;
+	// 滚动或缩放视口时锚点相对视口移动，固定层会脱靶，收起等待下一次悬停。
+	let tooltipListenersBound = false;
 
-		const hide = () => {
-			window.cancelAnimationFrame(revealFrame);
-			anchor = null;
-			layer.classList.remove('is-visible');
-		};
-
-		const show = (next: HTMLElement) => {
-			const text = next.dataset.tooltip;
-			if (!text) return;
-			anchor = next;
-			bubble.textContent = text;
-
-			// opacity:0 不影响布局，直接量尺寸落位；水平方向夹在视口内。
-			const rect = next.getBoundingClientRect();
-			const width = bubble.offsetWidth;
-			const height = bubble.offsetHeight;
-			const left = Math.min(
-				Math.max(rect.left + rect.width / 2 - width / 2, VIEWPORT_PADDING),
-				Math.max(window.innerWidth - width - VIEWPORT_PADDING, VIEWPORT_PADDING),
-			);
-			const needed = height + TOOLTIP_GAP + VIEWPORT_PADDING;
-			const openBelow = window.innerHeight - rect.bottom >= needed || rect.top < needed;
-			layer.style.left = `${Math.round(left)}px`;
-			layer.style.top = `${Math.round(openBelow ? rect.bottom + TOOLTIP_GAP : rect.top - TOOLTIP_GAP - height)}px`;
-
-			// 相邻按钮间移动时保持可见直接跳位，只有首次出现才走显形动画。
-			if (layer.classList.contains('is-visible')) return;
-			revealFrame = window.requestAnimationFrame(() => {
-				if (anchor === next) layer.classList.add('is-visible');
-			});
-		};
-
-		const anchorFrom = (target: EventTarget | null): HTMLElement | null => {
-			if (!(target instanceof Element)) return null;
-			const found = target.closest('[data-tooltip]');
-			return found instanceof HTMLElement && found.dataset.tooltip ? found : null;
-		};
-
-		const handlePointerOver = (event: PointerEvent) => {
-			// 触屏没有悬停语义，提示交给 aria-label，避免点按后粘在屏幕上。
-			if (event.pointerType === 'touch') return;
-			const next = anchorFrom(event.target);
-			if (next === anchor) return;
-			if (next) show(next);
-			else hide();
-		};
-
-		const handleFocusIn = (event: FocusEvent) => {
-			const next = anchorFrom(event.target);
-			if (next) show(next);
-		};
-
-		const handleFocusOut = (event: FocusEvent) => {
-			if (event.relatedTarget instanceof Element && event.relatedTarget.closest('[data-tooltip]')) return;
-			hide();
-		};
+	const bindTooltipListeners = () => {
+		if (tooltipListenersBound) return;
+		tooltipListenersBound = true;
 
 		document.addEventListener('pointerover', handlePointerOver);
 		document.addEventListener('focusin', handleFocusIn);
 		document.addEventListener('focusout', handleFocusOut);
-		// 滚动或缩放视口时锚点相对视口移动，固定层会脱靶，收起等待下一次悬停。
 		window.addEventListener('scroll', hide, { passive: true, capture: true });
 		window.addEventListener('resize', hide);
 		document.documentElement.addEventListener('mouseleave', hide);
-	}
+		document.addEventListener('astro:before-swap', () => {
+			// body 即将被替换：收掉显形帧并复位锚点，层元素随后由 page-load 重建。
+			hide();
+		});
+	};
 
-	initTooltipLayer();
-	document.addEventListener('astro:page-load', initTooltipLayer);
+	bindTooltipListeners();
+	ensureTooltipLayer();
+	document.addEventListener('astro:page-load', ensureTooltipLayer);
 </script>

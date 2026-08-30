@@ -8,6 +8,9 @@ import '@/styles/interactive.css';
   伴随模式（重场景页标记 cursor-companion）：系统光标回归，十字环滞后跟随。
   替换模式在首次指针移动后才“武装”——武装前系统光标正常显示，避免页面
   加载完成到第一次移动之间出现两不可见的空窗。
+  生命周期：监听统一挂在本实例的 AbortController 上，astro:before-swap
+  整体拆除；ClientRouter 会用新文档的根属性覆盖当前根节点，去重不能依赖
+  documentElement 上的标记，只能靠模块级句柄（见 init 开头的拆除调用）。
 -->
 <div class="archive-cursor" data-archive-cursor aria-hidden="true" hidden>
   <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -38,11 +41,15 @@ import '@/styles/interactive.css';
     text: [-12, -12],
   };
 
-  function initInteractionSurface() {
-    const root = document.documentElement;
-    if (root.dataset.interactionSurfaceReady === 'true') return;
-    root.dataset.interactionSurfaceReady = 'true';
+  // 模块级句柄：模块脚本整个会话只执行一次，这里跨导航存活。
+  // 每次初始化前先拆除上一实例，保证任何时刻只有一套监听与一条 rAF 链。
+  let teardownInteractionSurface: (() => void) | null = null;
+  let lifecycleBound = false;
 
+  function initInteractionSurface() {
+    teardownInteractionSurface?.();
+
+    const root = document.documentElement;
     const cursorElement = document.querySelector<HTMLElement>('[data-archive-cursor]');
     if (!cursorElement) return;
     // 经过上面的存在性检查后固定为非空引用，供后续事件回调安全复用。
@@ -50,9 +57,12 @@ import '@/styles/interactive.css';
     /*
      * 高对比度与强制色彩模式依赖系统光标的原生渲染（放大跟随、高反差描边），
      * 自定义光标在这些环境下会降低可视性，因此直接回退到系统光标。
+     * reduced-motion 同理：CSS 侧已整体隐藏精灵并恢复系统光标，
+     * JS 侧不再武装，pointerrawupdate 的高频采样路径也就不会启动。
      */
     const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
     const highContrast = window.matchMedia('(prefers-contrast: more), (forced-colors: active)');
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
     let mode: CursorMode = 'default';
     let visible = false;
@@ -71,7 +81,7 @@ import '@/styles/interactive.css';
     const isCompanionPage = () => document.body.classList.contains('cursor-companion');
 
     const syncAvailability = () => {
-      const usable = armed && finePointer.matches && !highContrast.matches;
+      const usable = armed && finePointer.matches && !highContrast.matches && !reduceMotion.matches;
       root.dataset.archiveCursor = usable ? (isCompanionPage() ? 'companion' : 'enabled') : 'disabled';
       cursor.hidden = !usable;
       if (!usable) setVisible(false);
@@ -148,16 +158,19 @@ import '@/styles/interactive.css';
       setVisible(true);
     };
 
+    const controller = new AbortController();
+    const { signal } = controller;
+
     // pointerrawupdate 比 pointermove 更早派发（Chromium），只做最轻的采样缓存。
     document.addEventListener('pointerrawupdate', (event: Event) => {
       if (root.dataset.archiveCursor === 'disabled') return;
       if (event instanceof PointerEvent) samplePosition(event);
       schedule();
-    }, { passive: true });
+    }, { passive: true, signal });
 
     document.addEventListener('pointermove', (event) => {
       if (!armed) {
-        if (finePointer.matches && !highContrast.matches) arm(event);
+        if (finePointer.matches && !highContrast.matches && !reduceMotion.matches) arm(event);
         return;
       }
       if (root.dataset.archiveCursor === 'disabled') return;
@@ -168,21 +181,21 @@ import '@/styles/interactive.css';
         lastModeTarget = event.target instanceof Element ? event.target : null;
       }
       schedule();
-    }, { passive: true });
+    }, { passive: true, signal });
 
     document.addEventListener('pointerdown', (event) => {
       if (root.dataset.archiveCursor === 'disabled') return;
       cursor.dataset.pressed = 'true';
       setCursorMode(event.target);
       lastModeTarget = event.target instanceof Element ? event.target : null;
-    }, { passive: true });
+    }, { passive: true, signal });
 
     const clearPressed = () => {
       delete cursor.dataset.pressed;
     };
 
-    document.addEventListener('pointerup', clearPressed, { passive: true });
-    document.addEventListener('pointercancel', clearPressed, { passive: true });
+    document.addEventListener('pointerup', clearPressed, { passive: true, signal });
+    document.addEventListener('pointercancel', clearPressed, { passive: true, signal });
 
     /*
      * pointerout 的 relatedTarget 为 null 有两种情况：真正离开窗口，或进入
@@ -194,22 +207,44 @@ import '@/styles/interactive.css';
       if (!(event instanceof PointerEvent) || event.relatedTarget !== null) return;
       const under = document.elementFromPoint(event.clientX, event.clientY);
       if (!under || under.closest('iframe, object, embed')) setVisible(false);
-    }, { passive: true });
+    }, { passive: true, signal });
 
     document.documentElement.addEventListener('mouseleave', () => {
       setVisible(false);
-    });
+    }, { signal });
 
     window.addEventListener('blur', () => {
       setVisible(false);
       clearPressed();
-    });
+    }, { signal });
 
-    finePointer.addEventListener('change', syncAvailability);
-    highContrast.addEventListener('change', syncAvailability);
+    finePointer.addEventListener('change', syncAvailability, { signal });
+    highContrast.addEventListener('change', syncAvailability, { signal });
+    reduceMotion.addEventListener('change', syncAvailability, { signal });
     syncAvailability();
+
+    teardownInteractionSurface = () => {
+      controller.abort();
+      if (frame !== 0) {
+        window.cancelAnimationFrame(frame);
+        frame = 0;
+      }
+      // 交还系统光标：换页瞬间到新页面接管之间不能出现两不可见。
+      delete root.dataset.archiveCursor;
+      cursor.hidden = true;
+      teardownInteractionSurface = null;
+    };
   }
 
+  const bindLifecycleListeners = () => {
+    if (lifecycleBound) return;
+    lifecycleBound = true;
+    document.addEventListener('astro:before-swap', () => {
+      teardownInteractionSurface?.();
+    });
+  };
+
+  bindLifecycleListeners();
   initInteractionSurface();
   document.addEventListener('astro:page-load', initInteractionSurface);
 </script>

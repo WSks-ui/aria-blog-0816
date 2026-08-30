@@ -146,6 +146,12 @@
 			let pointerY = 0.46;
 			let pointerTargetX = pointerX;
 			let pointerTargetY = pointerY;
+			// 事件里只记原始 client 坐标；根元素的视口位置在 draw 里每帧取一次，
+			// 高轮询率指针不会在每个 pointermove 事件里强制布局。null 表示指针不在场内。
+			let pointerRawX: number | null = null;
+			let pointerRawY: number | null = null;
+			let lastDraftX = '';
+			let lastDraftY = '';
 			let rainColor = '#1887aa';
 			let drops: RainDrop[] = [];
 			let randomSeed = 0x7a11ce;
@@ -240,6 +246,12 @@
 					setBeat((beatIndex + 1) % beats.length);
 				}
 				rainEnergy += (beats[beatIndex].rain - rainEnergy) * Math.min(1, delta * 1.35);
+				if (pointerRawX !== null && pointerRawY !== null) {
+					// 每帧一次的 bounds 读取：换算指针在场景内的 0..1 归一位置。
+					const bounds = root.getBoundingClientRect();
+					pointerTargetX = Math.min(1, Math.max(0, (pointerRawX - bounds.left) / Math.max(1, bounds.width)));
+					pointerTargetY = Math.min(1, Math.max(0, (pointerRawY - bounds.top) / Math.max(1, bounds.height)));
+				}
 				pointerX += (pointerTargetX - pointerX) * Math.min(1, delta * 4.5);
 				pointerY += (pointerTargetY - pointerY) * Math.min(1, delta * 4.5);
 
@@ -267,8 +279,17 @@
 
 				context.globalAlpha = 1;
 				context.globalCompositeOperation = 'source-over';
-				root.style.setProperty('--hero-draft-x', `${(pointerX - 0.5) * -9}px`);
-				root.style.setProperty('--hero-draft-y', `${(pointerY - 0.5) * -6}px`);
+				// 指针收敛后值不再变化，跳过 setProperty，避免静止时每帧触发样式失效。
+				const draftX = ((pointerX - 0.5) * -9).toFixed(2);
+				const draftY = ((pointerY - 0.5) * -6).toFixed(2);
+				if (draftX !== lastDraftX) {
+					root.style.setProperty('--hero-draft-x', `${draftX}px`);
+					lastDraftX = draftX;
+				}
+				if (draftY !== lastDraftY) {
+					root.style.setProperty('--hero-draft-y', `${draftY}px`);
+					lastDraftY = draftY;
+				}
 
 				if (visible && !document.hidden && !reduceMotion.matches) {
 					animationFrame = requestAnimationFrame(draw);
@@ -310,11 +331,11 @@
 			};
 
 			root.addEventListener('pointermove', (event) => {
-				const bounds = root.getBoundingClientRect();
-				pointerTargetX = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
-				pointerTargetY = Math.min(1, Math.max(0, (event.clientY - bounds.top) / bounds.height));
+				pointerRawX = event.clientX;
+				pointerRawY = event.clientY;
 			}, { signal: lifecycle.signal });
 			root.addEventListener('pointerleave', () => {
+				pointerRawX = null;
 				pointerTargetX = 0.68;
 				pointerTargetY = 0.46;
 			}, { signal: lifecycle.signal });

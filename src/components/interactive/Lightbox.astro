@@ -20,38 +20,31 @@ const { class: className } = Astro.props;
 </dialog>
 
 <script>
+  function openLightboxFor(dialog: HTMLDialogElement, source: HTMLImageElement) {
+    const image = dialog.querySelector<HTMLImageElement>('[data-lightbox-image]');
+    const caption = dialog.querySelector<HTMLElement>('[data-lightbox-caption]');
+    const closeButton = dialog.querySelector<HTMLButtonElement>('[data-lightbox-close]');
+    if (!image || !caption || !closeButton) return;
+
+    // 用 currentSrc 尊 Responsive srcset 的实际选择；alt 原样作为图注。
+    image.src = source.currentSrc || source.src;
+    image.alt = source.alt || '';
+    caption.textContent = source.alt || '';
+    caption.hidden = !source.alt;
+    if (!dialog.open) {
+      if (typeof dialog.showModal === 'function') dialog.showModal();
+      else dialog.setAttribute('open', '');
+    }
+    closeButton.focus();
+  }
+
   function initLightboxes() {
     document.querySelectorAll<HTMLDialogElement>('[data-lightbox]').forEach((dialog) => {
       if (dialog.dataset.interactiveReady === 'true') return;
       dialog.dataset.interactiveReady = 'true';
 
-      const image = dialog.querySelector<HTMLImageElement>('[data-lightbox-image]');
-      const caption = dialog.querySelector<HTMLElement>('[data-lightbox-caption]');
       const closeButton = dialog.querySelector<HTMLButtonElement>('[data-lightbox-close]');
-      if (!image || !caption || !closeButton) return;
-
-      const openFor = (source: HTMLImageElement) => {
-        // 用 currentSrc 尊 Responsive srcset 的实际选择；alt 原样作为图注。
-        image.src = source.currentSrc || source.src;
-        image.alt = source.alt || '';
-        caption.textContent = source.alt || '';
-        caption.hidden = !source.alt;
-        if (!dialog.open) {
-          if (typeof dialog.showModal === 'function') dialog.showModal();
-          else dialog.setAttribute('open', '');
-        }
-        closeButton.focus();
-      };
-
-      // 只接管正文里未被链接包裹的插图：链接内的图片点击应继续跟随链接。
-      document.addEventListener('click', (event) => {
-        if (!(event.target instanceof HTMLImageElement)) return;
-        if (event.target.closest('[data-lightbox]')) return;
-        const prose = event.target.closest('.reading-prose, .article-hero__cover');
-        if (!prose || event.target.closest('a')) return;
-        event.preventDefault();
-        openFor(event.target);
-      });
+      if (!closeButton) return;
 
       closeButton.addEventListener('click', () => {
         if (typeof dialog.close === 'function') dialog.close();
@@ -61,6 +54,30 @@ const { class: className } = Astro.props;
       dialog.addEventListener('click', (event) => {
         if (event.target === dialog) dialog.close();
       });
+    });
+
+    bindLightboxDelegation();
+  }
+
+  // 只接管正文里未被链接包裹的插图：链接内的图片点击应继续跟随链接。
+  // 委托必须挂在模块级且只注册一次——ClientRouter 换页会整体替换 dialog，
+  // 若随实例重复注册，旧闭包会给脱离 DOM 的旧 <img> 赋值并对旧 <dialog>
+  // 调 showModal()。句柄在每次点击时实时解析，天然跟随当前页面。
+  let lightboxDelegationBound = false;
+
+  function bindLightboxDelegation() {
+    if (lightboxDelegationBound) return;
+    lightboxDelegationBound = true;
+
+    document.addEventListener('click', (event) => {
+      if (!(event.target instanceof HTMLImageElement)) return;
+      if (event.target.closest('[data-lightbox]')) return;
+      const prose = event.target.closest('.reading-prose, .article-hero__cover');
+      if (!prose || event.target.closest('a')) return;
+      const dialog = document.querySelector<HTMLDialogElement>('[data-lightbox]');
+      if (!dialog || dialog.dataset.interactiveReady !== 'true') return;
+      event.preventDefault();
+      openLightboxFor(dialog, event.target);
     });
   }
 

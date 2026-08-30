@@ -120,8 +120,12 @@ import { Volume2, VolumeX } from '@lucide/astro';
 			}
 			if (stored === 'on') {
 				// 上次离开时雨还在下：第一次任意手势后自动续上。
-				const resume = () => {
+				const resume = (event: Event) => {
 					window.removeEventListener('keydown', resume);
+					// 首次手势若就是点击本开关，让位给 click 处理器：resume 先把
+					// 状态拨到 on，随后的 click 会读到 aria-pressed=true 误判成
+					// 「关」，把刚起的声音停掉还写回 off 偏好。
+					if (event.target instanceof Node && button.contains(event.target)) return;
 					apply(true, false);
 				};
 				window.addEventListener('pointerdown', resume, { once: true, passive: true });
