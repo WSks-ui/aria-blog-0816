@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="780" viewBox="0 0 1400 780" role="img" aria-labelledby="title desc">
+  <title id="title">Vim三种常用模式切换图</title>
+  <desc id="desc">正常模式可以进入插入模式或末行模式，按Esc返回正常模式</desc>
+  <defs>
+    <marker id="arrowGreen" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0L12 6L0 12Z" fill="#44b678"/>
+    </marker>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0L12 6L0 12Z" fill="#4d7cc7"/>
+    </marker>
+    <marker id="arrowGray" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0L12 6L0 12Z" fill="#66717d"/>
+    </marker>
+  </defs>
+  <rect width="1400" height="780" fill="#f5f7f8"/>
+  <rect x="72" y="58" width="10" height="54" fill="#e96e5f"/>
+  <text x="108" y="86" fill="#171a1f" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="34" font-weight="700">Vim三种常用模式</text>
+  <text x="108" y="124" fill="#66717d" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="19">正常模式是操作中转点，输入、保存和退出都从这里开始切换</text>
+
+  <!-- 正常模式放在左侧中心，突出它是其余模式的共同入口 -->
+  <g transform="translate(90 252)">
+    <rect width="390" height="300" rx="8" fill="#171a1f"/>
+    <rect width="390" height="12" rx="6" fill="#ffb347"/>
+    <text x="42" y="74" fill="#ffb347" font-family="Arial, sans-serif" font-size="18" font-weight="700">NORMAL</text>
+    <text x="42" y="124" fill="#ffffff" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="32" font-weight="700">正常模式</text>
+    <text x="42" y="172" fill="#b7c0ca" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="19">移动光标</text>
+    <text x="42" y="208" fill="#b7c0ca" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="19">删除、复制、粘贴</text>
+    <text x="42" y="244" fill="#b7c0ca" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="19">撤销与重复操作</text>
+    <rect x="274" y="58" width="74" height="44" rx="6" fill="#2c333c" stroke="#ffb347" stroke-width="2"/>
+    <text x="311" y="87" text-anchor="middle" fill="#ffffff" font-family="Consolas, monospace" font-size="20">Esc</text>
+  </g>
+
+  <g transform="translate(865 176)">
+    <rect width="430" height="236" rx="8" fill="#ffffff" stroke="#bfc8d1" stroke-width="2"/>
+    <rect width="430" height="12" rx="6" fill="#44b678"/>
+    <text x="38" y="68" fill="#2f8f5b" font-family="Arial, sans-serif" font-size="18" font-weight="700">INSERT</text>
+    <text x="38" y="114" fill="#171a1f" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="30" font-weight="700">插入模式</text>
+    <text x="38" y="158" fill="#596675" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="19">输入和修改文本</text>
+    <g transform="translate(38 180)">
+      <rect width="48" height="38" rx="5" fill="#e4f6ec" stroke="#44b678"/>
+      <rect x="60" width="48" height="38" rx="5" fill="#e4f6ec" stroke="#44b678"/>
+      <rect x="120" width="48" height="38" rx="5" fill="#e4f6ec" stroke="#44b678"/>
+      <text x="24" y="26" text-anchor="middle" fill="#2f8f5b" font-family="Consolas, monospace" font-size="19">i</text>
+      <text x="84" y="26" text-anchor="middle" fill="#2f8f5b" font-family="Consolas, monospace" font-size="19">a</text>
+      <text x="144" y="26" text-anchor="middle" fill="#2f8f5b" font-family="Consolas, monospace" font-size="19">o</text>
+    </g>
+  </g>
+
+  <g transform="translate(865 482)">
+    <rect width="430" height="236" rx="8" fill="#ffffff" stroke="#bfc8d1" stroke-width="2"/>
+    <rect width="430" height="12" rx="6" fill="#4d7cc7"/>
+    <text x="38" y="68" fill="#4d7cc7" font-family="Arial, sans-serif" font-size="18" font-weight="700">COMMAND-LINE</text>
+    <text x="38" y="114" fill="#171a1f" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="30" font-weight="700">末行模式</text>
+    <text x="38" y="158" fill="#596675" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="19">保存、退出、搜索和设置</text>
+    <rect x="38" y="180" width="112" height="38" rx="5" fill="#e8eef8" stroke="#4d7cc7"/>
+    <text x="94" y="206" text-anchor="middle" fill="#345f9f" font-family="Consolas, monospace" font-size="18">:wq</text>
+    <rect x="164" y="180" width="112" height="38" rx="5" fill="#e8eef8" stroke="#4d7cc7"/>
+    <text x="220" y="206" text-anchor="middle" fill="#345f9f" font-family="Consolas, monospace" font-size="18">/word</text>
+  </g>
+
+  <!-- 去程与回程分开绘制，避免箭头和标签互相覆盖 -->
+  <path d="M480 318C640 222 724 220 846 258" fill="none" stroke="#44b678" stroke-width="4" marker-end="url(#arrowGreen)"/>
+  <rect x="604" y="206" width="148" height="48" rx="6" fill="#ffffff" stroke="#44b678" stroke-width="2"/>
+  <text x="678" y="237" text-anchor="middle" fill="#2f8f5b" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="18">按 i、a、o</text>
+
+  <path d="M865 352C720 392 630 402 498 386" fill="none" stroke="#66717d" stroke-width="4" marker-end="url(#arrowGray)"/>
+  <rect x="620" y="362" width="116" height="48" rx="6" fill="#ffffff" stroke="#aeb7c0" stroke-width="2"/>
+  <text x="678" y="393" text-anchor="middle" fill="#596675" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="18">按 Esc</text>
+
+  <path d="M480 488C630 610 714 618 846 590" fill="none" stroke="#4d7cc7" stroke-width="4" marker-end="url(#arrowBlue)"/>
+  <rect x="624" y="584" width="108" height="48" rx="6" fill="#ffffff" stroke="#4d7cc7" stroke-width="2"/>
+  <text x="678" y="615" text-anchor="middle" fill="#345f9f" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="18">按 :</text>
+
+  <path d="M865 660C724 694 628 648 492 536" fill="none" stroke="#66717d" stroke-width="4" marker-end="url(#arrowGray)"/>
+  <rect x="560" y="664" width="236" height="48" rx="6" fill="#ffffff" stroke="#aeb7c0" stroke-width="2"/>
+  <text x="678" y="695" text-anchor="middle" fill="#596675" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="18">执行命令或按 Esc</text>
+
+  <rect x="90" y="598" width="390" height="120" rx="8" fill="#fff1dc" stroke="#ffb347" stroke-width="2"/>
+  <text x="122" y="642" fill="#8b5718" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="20" font-weight="700">记忆顺序</text>
+  <text x="122" y="682" fill="#6d5538" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="18">先按 Esc 回到正常模式，再决定下一步</text>
+</svg>

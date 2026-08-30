@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1536" height="864" viewBox="0 0 1536 864" role="img" aria-labelledby="title desc">
+  <title id="title">Linux YUM与Vim学习封面</title>
+  <desc id="desc">左侧终端展示YUM软件包安装流程，右侧展示Vim代码编辑界面</desc>
+  <defs>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#111827" flood-opacity="0.16"/>
+    </filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0L10 5L0 10Z" fill="#4d7cc7"/>
+    </marker>
+  </defs>
+
+  <!-- 背景保持中性，终端、软件包和编辑器分别使用独立强调色 -->
+  <rect width="1536" height="864" fill="#f3f5f7"/>
+  <path d="M0 646H1536V864H0Z" fill="#e7ecef"/>
+  <rect x="86" y="78" width="110" height="8" fill="#44b678"/>
+  <text x="86" y="126" fill="#555f6b" font-family="Arial, sans-serif" font-size="22" font-weight="700">LINUX TOOLKIT</text>
+  <text x="86" y="190" fill="#181a1d" font-family="Arial, sans-serif" font-size="62" font-weight="800">YUM + VIM</text>
+
+  <!-- 主终端区域采用双栏结构，让两项学习内容在首屏同时可见 -->
+  <g filter="url(#shadow)">
+    <rect x="86" y="238" width="1364" height="522" rx="8" fill="#171a1f"/>
+    <rect x="86" y="238" width="1364" height="54" rx="8" fill="#252a31"/>
+    <rect x="86" y="284" width="1364" height="8" fill="#252a31"/>
+  </g>
+  <circle cx="120" cy="265" r="7" fill="#e96e5f"/>
+  <circle cx="144" cy="265" r="7" fill="#ffb347"/>
+  <circle cx="168" cy="265" r="7" fill="#44b678"/>
+  <text x="768" y="272" text-anchor="middle" fill="#aab2bd" font-family="Consolas, monospace" font-size="17">user@linux: ~/notes</text>
+
+  <line x1="768" y1="292" x2="768" y2="760" stroke="#353c45" stroke-width="2"/>
+
+  <!-- 左栏：仓库查询、依赖解析和安装进度 -->
+  <text x="132" y="342" fill="#ffb347" font-family="Arial, sans-serif" font-size="18" font-weight="700">YUM PACKAGE MANAGER</text>
+  <text x="132" y="390" fill="#8f9aa7" font-family="Consolas, monospace" font-size="20">$ yum search vim</text>
+  <text x="132" y="428" fill="#d7dde4" font-family="Consolas, monospace" font-size="20">vim-enhanced.x86_64</text>
+  <text x="132" y="476" fill="#8f9aa7" font-family="Consolas, monospace" font-size="20">$ sudo yum install -y vim</text>
+
+  <g transform="translate(132 522)">
+    <rect width="150" height="74" rx="6" fill="#29313a" stroke="#4d7cc7" stroke-width="2"/>
+    <rect x="18" y="18" width="36" height="36" fill="#4d7cc7"/>
+    <path d="M18 18L36 8L72 26L54 36Z" fill="#77a0df"/>
+    <text x="86" y="34" fill="#f4f7fa" font-family="Arial, sans-serif" font-size="15" font-weight="700">REPO</text>
+    <text x="86" y="55" fill="#9eabb8" font-family="Arial, sans-serif" font-size="13">metadata</text>
+  </g>
+  <line x1="292" y1="559" x2="346" y2="559" stroke="#4d7cc7" stroke-width="3" marker-end="url(#arrow)"/>
+  <g transform="translate(360 522)">
+    <rect width="150" height="74" rx="6" fill="#29313a" stroke="#e96e5f" stroke-width="2"/>
+    <circle cx="36" cy="37" r="18" fill="none" stroke="#e96e5f" stroke-width="4"/>
+    <circle cx="36" cy="37" r="5" fill="#e96e5f"/>
+    <text x="68" y="34" fill="#f4f7fa" font-family="Arial, sans-serif" font-size="15" font-weight="700">DEPS</text>
+    <text x="68" y="55" fill="#9eabb8" font-family="Arial, sans-serif" font-size="13">resolved</text>
+  </g>
+  <line x1="520" y1="559" x2="574" y2="559" stroke="#4d7cc7" stroke-width="3" marker-end="url(#arrow)"/>
+  <g transform="translate(588 522)">
+    <rect width="134" height="74" rx="6" fill="#29313a" stroke="#44b678" stroke-width="2"/>
+    <path d="M20 28H52V54H20Z" fill="#44b678"/>
+    <path d="M20 28L36 18L68 34L52 44Z" fill="#76d6a2"/>
+    <text x="78" y="34" fill="#f4f7fa" font-family="Arial, sans-serif" font-size="15" font-weight="700">RPM</text>
+    <text x="78" y="55" fill="#9eabb8" font-family="Arial, sans-serif" font-size="13">ready</text>
+  </g>
+
+  <text x="132" y="650" fill="#9eabb8" font-family="Consolas, monospace" font-size="17">Installing  [==================]  100%</text>
+  <rect x="132" y="674" width="590" height="8" rx="4" fill="#303741"/>
+  <rect x="132" y="674" width="590" height="8" rx="4" fill="#44b678"/>
+  <text x="132" y="718" fill="#44b678" font-family="Consolas, monospace" font-size="20">Complete</text>
+
+  <!-- 右栏：Vim正常模式中的代码编辑视图 -->
+  <text x="814" y="342" fill="#44b678" font-family="Arial, sans-serif" font-size="18" font-weight="700">VIM / NORMAL MODE</text>
+  <rect x="814" y="372" width="590" height="316" rx="6" fill="#111419" stroke="#303741" stroke-width="2"/>
+  <rect x="814" y="372" width="52" height="316" rx="6" fill="#1d2229"/>
+  <rect x="860" y="372" width="6" height="316" fill="#1d2229"/>
+  <g fill="#626d79" font-family="Consolas, monospace" font-size="17" text-anchor="end">
+    <text x="850" y="416">1</text>
+    <text x="850" y="456">2</text>
+    <text x="850" y="496">3</text>
+    <text x="850" y="536">4</text>
+    <text x="850" y="576">5</text>
+    <text x="850" y="616">6</text>
+    <text x="850" y="656">7</text>
+  </g>
+  <g font-family="Consolas, monospace" font-size="19">
+    <text x="892" y="416" fill="#e96e5f">package</text>
+    <text x="980" y="416" fill="#d7dde4">main</text>
+    <text x="1028" y="416" fill="#8f9aa7">// notes</text>
+    <text x="892" y="456" fill="#4d7cc7">func</text>
+    <text x="944" y="456" fill="#d7dde4">install</text>
+    <text x="1024" y="456" fill="#ffb347">(name string)</text>
+    <text x="892" y="496" fill="#d7dde4">resolveDependencies(name)</text>
+    <text x="892" y="536" fill="#d7dde4">downloadPackage(name)</text>
+    <text x="892" y="576" fill="#d7dde4">writeDatabase(name)</text>
+    <text x="892" y="616" fill="#44b678">return</text>
+    <text x="958" y="616" fill="#d7dde4">success</text>
+  </g>
+  <rect x="886" y="634" width="12" height="26" fill="#ffb347"/>
+  <rect x="814" y="704" width="590" height="36" rx="4" fill="#252a31"/>
+  <text x="834" y="728" fill="#44b678" font-family="Consolas, monospace" font-size="16">NORMAL</text>
+  <text x="1358" y="728" text-anchor="end" fill="#9eabb8" font-family="Consolas, monospace" font-size="16">notes.go  7L</text>
+</svg>
