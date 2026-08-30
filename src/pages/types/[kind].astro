@@ -63,7 +63,7 @@ const pageCount = isPhoto ? posts.length + IMAGE_COLLECTION.length : isTutorial 
 						<span>ARIA-7 / GUIDES</span>
 					</header>
 					<div class="page-list page-list--tutorial">
-						{posts.length > 0 ? posts.map((post, index) => <ArticleRow post={post} index={index + 1} />) : <p class="empty">这个分类还没有正式发布的内容。</p>}
+						{posts.length > 0 ? posts.map((post, index) => <ArticleRow post={post} index={index + 1} headingLevel="h3" />) : <p class="empty">这个分类还没有正式发布的内容。</p>}
 					</div>
 				</section>
 			</>

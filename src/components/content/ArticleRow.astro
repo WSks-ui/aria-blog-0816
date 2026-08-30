@@ -9,9 +9,12 @@ interface Props {
 	post: PostEntry;
 	index?: number;
 	showSummary?: boolean;
+	/** 行内标题的层级：默认 h2（列表直接挂在页头 h1 下）；列表上方已有 h2 分节时传 h3。 */
+	headingLevel?: 'h2' | 'h3';
 }
 
-const { post, index, showSummary = true } = Astro.props;
+const { post, index, showSummary = true, headingLevel = 'h2' } = Astro.props;
+const HeadingTag = headingLevel;
 // Frontmatter 日期为纯日期字符串（UTC 午夜）。格式化固定 UTC，
 // 构建结果才不依赖构建机器的时区。
 const dateText = new Intl.DateTimeFormat('zh-CN', {
@@ -29,7 +32,7 @@ const dateText = new Intl.DateTimeFormat('zh-CN', {
 	</div>
 	<div class="article-row__body">
 		<KindLabel kind={post.data.kind} />
-			<h3><a href={getPostPath(post)} data-article-transition-link transition:name={getPostTransitionName(post)}>{post.data.title}</a></h3>
+			<HeadingTag class="article-row__title"><a href={getPostPath(post)} data-article-transition-link transition:name={getPostTransitionName(post)}>{post.data.title}</a></HeadingTag>
 		{showSummary && <p>{post.data.summary}</p>}
 	</div>
 	<div class="article-row__meta">
@@ -85,7 +88,7 @@ const dateText = new Intl.DateTimeFormat('zh-CN', {
 	 * 通过定位层级保持独立可点。hover / 键盘焦点共用同一套行级反馈。
 	 */
 	.article-row:hover,
-	.article-row:has(> .article-row__body h3 a:focus-visible) {
+	.article-row:has(> .article-row__body .article-row__title a:focus-visible) {
 		background: color-mix(in srgb, var(--accent-soft) 16%, transparent);
 	}
 
@@ -105,11 +108,11 @@ const dateText = new Intl.DateTimeFormat('zh-CN', {
 	}
 
 	.article-row:hover .article-row__index,
-	.article-row:has(> .article-row__body h3 a:focus-visible) .article-row__index {
+	.article-row:has(> .article-row__body .article-row__title a:focus-visible) .article-row__index {
 		color: var(--accent-strong);
 	}
 
-	.article-row h3 {
+	.article-row .article-row__title {
 		position: relative;
 		margin: 8px 0 6px;
 		padding-left: 16px;
@@ -120,7 +123,7 @@ const dateText = new Intl.DateTimeFormat('zh-CN', {
 	}
 
 	/* 方纸母题：常驻的 7px 章节方块位，hover 时由纸面浮起为雨青实体。 */
-	.article-row h3::before {
+	.article-row .article-row__title::before {
 		position: absolute;
 		top: 0.62em;
 		left: 0;
@@ -133,25 +136,25 @@ const dateText = new Intl.DateTimeFormat('zh-CN', {
 		transition: opacity var(--duration-fast) ease, transform var(--duration-base) var(--ease-drift);
 	}
 
-	.article-row:hover h3::before,
-	.article-row:has(> .article-row__body h3 a:focus-visible) h3::before {
+	.article-row:hover .article-row__title::before,
+	.article-row:has(> .article-row__body .article-row__title a:focus-visible) .article-row__title::before {
 		opacity: 1;
 		transform: translateX(0);
 	}
 
-	.article-row h3 a {
+	.article-row .article-row__title a {
 		color: var(--ink);
 		text-decoration: none;
 	}
 
-	.article-row h3 a::after {
+	.article-row .article-row__title a::after {
 		position: absolute;
 		inset: -24px -22px;
 		content: '';
 	}
 
-	.article-row h3 a:hover,
-	.article-row h3 a:focus-visible {
+	.article-row .article-row__title a:hover,
+	.article-row .article-row__title a:focus-visible {
 		color: var(--accent-strong);
 	}
 
@@ -197,7 +200,7 @@ const dateText = new Intl.DateTimeFormat('zh-CN', {
 	}
 
 	.article-row:hover .article-row__go,
-	.article-row:has(> .article-row__body h3 a:focus-visible) .article-row__go {
+	.article-row:has(> .article-row__body .article-row__title a:focus-visible) .article-row__go {
 		color: var(--accent-strong);
 		transform: translate(2px, -2px);
 	}
@@ -208,7 +211,7 @@ const dateText = new Intl.DateTimeFormat('zh-CN', {
 			gap: 14px;
 		}
 
-		.article-row h3 a::after {
+		.article-row .article-row__title a::after {
 			inset: -24px -14px;
 		}
 

@@ -73,7 +73,7 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 						data-home-row
 						data-recent-index={String(index + 1).padStart(2, '0')}
 					>
-						<ArticleRow post={post} index={index + 1} />
+						<ArticleRow post={post} index={index + 1} headingLevel="h3" />
 					</div>
 				))}
 			</div>
