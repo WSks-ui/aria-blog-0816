@@ -1,6 +1,7 @@
 ---
 import { GitBranch, Network, Rss, Search } from '@lucide/astro';
 import AmbientToggle from '@/components/interactive/AmbientToggle.astro';
+import { SECTION_NAV_ITEMS } from '@/data/site';
 import '@/styles/interactive.css';
 
 interface Props {
@@ -11,15 +12,7 @@ const { pathname } = Astro.props;
 // 没有真实地址时隐藏入口，避免把访客带到 GitHub 首页这种“看似可用”的占位链接。
 const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim() || '';
 
-const navItems = [
-	{ href: '/types/essay/', label: '随笔' },
-	{ href: '/types/note/', label: '笔记' },
-	{ href: '/types/project/', label: '项目' },
-	{ href: '/types/photo/', label: '底片' },
-	{ href: '/types/code/', label: '代码' },
-	{ href: '/types/tutorial/', label: '指南' },
-	{ href: '/archive/', label: '归档' },
-];
+const navItems = SECTION_NAV_ITEMS;
 
 const isActive = (href: string) => pathname === href || pathname.startsWith(href.replace(/\/$/, '') + '/');
 ---
@@ -72,7 +65,7 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 		</a>
 		<AmbientToggle />
 		{githubUrl && (
-			<a class="icon-button" href={githubUrl} aria-label="GitHub" data-tooltip="GitHub" rel="noreferrer">
+			<a class="icon-button" href={githubUrl} aria-label="GitHub" data-tooltip="GitHub" data-github-link rel="noreferrer">
 				<GitBranch size={19} stroke-width={1.6} />
 			</a>
 		)}
@@ -438,9 +431,13 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 			padding-inline: 20px;
 		}
 
+		/*
+		 * 只隐品牌 meta、关系图与 GitHub。目标必须用显式标记选中：
+		 * last-of-type 之类的兄弟序数在 GitHub 链接缺席时会误伤 RSS。
+		 */
 		.site-brand__meta,
 		.site-tools > :global(a:first-child),
-		.site-tools > :global(a:last-of-type) {
+		.site-tools > :global([data-github-link]) {
 			display: none;
 		}
 

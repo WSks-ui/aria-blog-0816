@@ -1,20 +1,10 @@
 import rss from '@astrojs/rss';
 import type { APIContext } from 'astro';
 
-import { SITE, type PostKind } from '../data/site';
-import { getPostPath, getPosts } from '../lib/content';
+import { POST_KIND_META, SITE } from '@/data/site';
+import { getPostPath, getPosts } from '@/lib/content';
 
 export const prerender = true;
-
-// 分类输出中文标签，与站内 KindLabel 保持同一套说法。
-const KIND_LABELS: Record<PostKind, string> = {
-	essay: '随笔',
-	note: '学习笔记',
-	project: '项目',
-	photo: '摄影与插画',
-	code: '代码笔记',
-	tutorial: '指南',
-};
 
 export async function GET(context: APIContext) {
 	const posts = await getPosts();
@@ -29,7 +19,12 @@ export async function GET(context: APIContext) {
 			description: post.data.summary,
 			pubDate: post.data.publishedAt,
 			link: getPostPath(post),
-			categories: [KIND_LABELS[post.data.kind] ?? post.data.kind, ...post.data.tags],
+			// 分类用栏目全名（与站内 KindLabel 的中文段同源）；与栏目同名
+			// 的标签不再重复输出一份 category。
+			categories: [
+				POST_KIND_META[post.data.kind].longLabel,
+				...post.data.tags.filter((tag) => tag !== POST_KIND_META[post.data.kind].longLabel),
+			],
 		})),
 		customData: [
 			`<language>${SITE.locale}</language>`,

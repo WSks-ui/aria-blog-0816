@@ -9,6 +9,7 @@ import ArrivalRipples from '@/components/visual/ArrivalRipples.astro';
 import HudTypewriter from '@/components/visual/HudTypewriter.astro';
 import { ClientRouter } from 'astro:transitions';
 import { InteractionSurface, Lightbox, SearchDialog, TooltipLayer, WeatherModeControl } from '@/components/interactive';
+import { SITE } from '@/data/site';
 import '@/styles/global.css';
 
 interface Props {
@@ -16,18 +17,23 @@ interface Props {
 	description?: string;
 	image?: string;
 	type?: 'website' | 'article';
+	/** 站点级不收录标记：404 等无内容路由跳过 canonical 并输出 robots noindex。 */
+	noindex?: boolean;
 	className?: string;
 }
 
 const {
-	title = 'Aria-7',
-	description = 'Aria-7 的个人写作档案，记录学习、创作、项目与技术实践。',
+	title,
+	description = SITE.description,
 	image = '/assets/covers/default-day.webp',
 	type = 'website',
+	noindex = false,
 	className = '',
 } = Astro.props;
 
-const pageTitle = title === 'Aria-7' ? title : `${title} / Aria-7`;
+// 首页（未传 title）用站点全名，其余页面追加站名后缀；RSS 与 og:site_name
+// 用的都是同一份 SITE 配置，站点叫什么只有一个出处。
+const pageTitle = title ? `${title} / ${SITE.name}` : SITE.title;
 const canonical = new URL(Astro.url.pathname, Astro.site ?? Astro.url.origin);
 const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 ---
@@ -39,11 +45,14 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="generator" content={Astro.generator} />
 		<meta name="description" content={description} />
+		{noindex && <meta name="robots" content="noindex" />}
 		<meta name="theme-color" content="#ebedec" />
-		<link rel="canonical" href={canonical} />
+		{!noindex && <link rel="canonical" href={canonical} />}
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="alternate" type="application/rss+xml" title="Aria-7 RSS" href="/rss.xml" />
+		<link rel="alternate" type="application/rss+xml" title={`${SITE.name} RSS`} href="/rss.xml" />
 		<meta property="og:type" content={type} />
+		<meta property="og:site_name" content={SITE.name} />
+		<meta property="og:locale" content={SITE.locale} />
 		<meta property="og:title" content={pageTitle} />
 		<meta property="og:description" content={description} />
 		<meta property="og:url" content={canonical} />
