@@ -1,3 +1,8 @@
+# 本仓库是单包项目，但该文件会被 pnpm 识别为工作区清单；显式包含根目录，
+# 可兼容部署环境的严格校验，避免安装阶段报 "packages field missing or empty"。
+packages:
+  - '.'
+
 # 项目统一使用 pnpm；本文件同时承载 pnpm 11 的依赖构建脚本批准（allowBuilds）。
 allowBuilds:
   esbuild: true
