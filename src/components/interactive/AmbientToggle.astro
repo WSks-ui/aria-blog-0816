@@ -24,6 +24,7 @@ import { Volume2, VolumeX } from '@lucide/astro';
 	</span>
 	<span class="site-tool-button__label" aria-hidden="true">雨声</span>
 </button>
+<span class="sr-only" aria-live="polite" aria-atomic="true" data-ambient-status></span>
 
 <style>
 	.ambient-icon {
@@ -47,6 +48,39 @@ import { Volume2, VolumeX } from '@lucide/astro';
 		opacity: 1;
 		transform: scale(1);
 	}
+
+	/*
+	 * 播放中：Volume2 的两条声波弧线错相呼吸，像声音在纸面上慢慢漾开。
+	 * 图标由 @lucide/astro 子组件渲染，路径不带本组件的样式作用域，
+	 * 因此用 :global() 命中。
+	 */
+	[aria-pressed='true'] .ambient-icon--on :global(svg path:nth-of-type(2)) {
+		animation: ambient-wave 2.6s var(--ease-drift) infinite;
+	}
+
+	[aria-pressed='true'] .ambient-icon--on :global(svg path:nth-of-type(3)) {
+		animation: ambient-wave 2.6s var(--ease-drift) 0.65s infinite;
+	}
+
+	@keyframes ambient-wave {
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.3;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.ambient-icon {
+			transition: none;
+		}
+
+		[aria-pressed='true'] .ambient-icon--on :global(svg path) {
+			animation: none;
+		}
+	}
 </style>
 
 <script>
@@ -62,10 +96,28 @@ import { Volume2, VolumeX } from '@lucide/astro';
 			const audio = new Audio('/assets/audio/rain-loop.mp3');
 			audio.loop = true;
 			audio.preload = 'none';
+			// Audio 的默认音量是 1。首次播放前先归零，才能从静音平滑淡入，
+			// 避免缓存命中时在第一帧以满音量冲击听感。
+			audio.volume = 0;
 
 			let target = 0;
 			let fadeRaf = 0;
 			let pauseTimer = 0;
+			let playbackRequest = 0;
+			const status = button.parentElement?.querySelector<HTMLElement>('[data-ambient-status]') ?? null;
+
+			const announce = (message: string) => {
+				if (status) status.textContent = message;
+			};
+
+			const persistPreference = (on: boolean) => {
+				try {
+					localStorage.setItem(STORAGE_KEY, on ? 'on' : 'off');
+				} catch {
+					// 存储不可用时只丢偏好记忆。
+				}
+			};
+
 			const fadeStep = () => {
 				fadeRaf = 0;
 				const current = audio.volume;
@@ -88,25 +140,62 @@ import { Volume2, VolumeX } from '@lucide/astro';
 				if (!fadeRaf) fadeRaf = window.requestAnimationFrame(fadeStep);
 			};
 
+			/*
+			 * play() 是异步的，且可能被策略、网络或解码器拒绝。按钮可以先给出
+			 * 即时按压反馈，但失败后必须同时取消淡入、暂停媒体并回写 off，不能
+			 * 留下“图标已亮但没有声音”的假状态。playbackRequest 让旧请求的
+			 * resolve/reject 在用户快速切换后失效，最后一次操作始终优先。
+			 */
+			const failPlayback = () => {
+				playbackRequest += 1;
+				target = 0;
+				if (fadeRaf) {
+					window.cancelAnimationFrame(fadeRaf);
+					fadeRaf = 0;
+				}
+				window.clearTimeout(pauseTimer);
+				audio.pause();
+				audio.volume = 0;
+				button.setAttribute('aria-pressed', 'false');
+				persistPreference(false);
+				announce('雨声无法播放');
+			};
+
+			const startPlayback = (persist: boolean) => {
+				const request = ++playbackRequest;
+				window.clearTimeout(pauseTimer);
+				if (fadeRaf) {
+					window.cancelAnimationFrame(fadeRaf);
+					fadeRaf = 0;
+				}
+				button.setAttribute('aria-pressed', 'true');
+				if (persist) persistPreference(true);
+				announce('');
+
+				void audio.play().then(() => {
+					if (request !== playbackRequest || button.getAttribute('aria-pressed') !== 'true') return;
+					fadeTo(TARGET_VOLUME);
+				}).catch(() => {
+					if (request !== playbackRequest || button.getAttribute('aria-pressed') !== 'true') return;
+					failPlayback();
+				});
+			};
+
 			const apply = (on: boolean, persist: boolean) => {
 				if (on) {
-					window.clearTimeout(pauseTimer);
-					void audio.play().catch(() => {
-						// 自动播放被策略拦下时静默放弃；下一次点击开关仍可起声。
-					});
-					fadeTo(TARGET_VOLUME);
+					startPlayback(persist);
 				} else {
+					playbackRequest += 1;
 					fadeTo(0);
-				}
-				button.setAttribute('aria-pressed', String(on));
-				if (persist) {
-					try {
-						localStorage.setItem(STORAGE_KEY, on ? 'on' : 'off');
-					} catch {
-						// 存储不可用时只丢偏好记忆。
-					}
+					button.setAttribute('aria-pressed', 'false');
+					if (persist) persistPreference(false);
+					announce('');
 				}
 			};
+
+			audio.addEventListener('error', () => {
+				if (button.getAttribute('aria-pressed') === 'true') failPlayback();
+			});
 
 			button.addEventListener('click', () => {
 				apply(button.getAttribute('aria-pressed') !== 'true', true);
@@ -117,13 +206,22 @@ import { Volume2, VolumeX } from '@lucide/astro';
 				stored = localStorage.getItem(STORAGE_KEY);
 			} catch {
 				stored = null;
-			}
-			if (stored === 'on') {
-				// 上次离开时雨还在下：第一次任意手势后自动续上。
-				const resume = (event: Event) => {
-					window.removeEventListener('keydown', resume);
-					// 首次手势若就是点击本开关，让位给 click 处理器：resume 先把
-					// 状态拨到 on，随后的 click 会读到 aria-pressed=true 误判成
+		}
+		if (stored === 'on') {
+			// 上次离开时雨还在下：第一次任意手势后自动续上。
+			const cleanupResume = () => {
+				window.removeEventListener('pointerdown', resume);
+				window.removeEventListener('keydown', resume);
+			};
+			const resume = (event: Event) => {
+				/*
+				 * pointerdown 与 keydown 任选其一先到。两者都要解绑，尤其键盘先
+				 * 触发时不能留下 pointerdown：否则用户随后已经关掉雨声，再点页面
+				 * 任意位置仍会被旧监听器重新打开。
+				 */
+				cleanupResume();
+				// 首次手势若就是点击本开关，让位给 click 处理器：resume 先把
+				// 状态拨到 on，随后的 click 会读到 aria-pressed=true 误判成
 					// 「关」，把刚起的声音停掉还写回 off 偏好。
 					if (event.target instanceof Node && button.contains(event.target)) return;
 					apply(true, false);
