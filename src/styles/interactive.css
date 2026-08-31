@@ -263,6 +263,158 @@ html[data-archive-cursor='companion'] .archive-cursor[data-mode='text'] {
   50% { opacity: 0.55; }
 }
 
+/*
+ * 页头工具按钮族（关系图/搜索/RSS/雨声/GitHub）。放在全局样式而不是
+ * SiteHeader 的 scoped 样式里：工具按钮可能由独立组件渲染（如
+ * AmbientToggle），拿不到父组件的样式作用域，全局定义才能让整套
+ * 悬停语法对所有成员一致生效。
+ */
+.icon-button {
+  display: inline-grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--ink-muted);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.icon-button:focus-visible {
+  color: var(--accent-strong);
+}
+
+@media (hover: hover) {
+  .icon-button:hover {
+    color: var(--accent-strong);
+  }
+}
+
+/*
+ * 页眉工具入口保持固定尺寸，标签只在按钮内部显现，避免悬停时撑大
+ * .site-tools 进而重新分配页眉网格宽度。标签使用单独节点而不是全局
+ * data-tooltip，便于与天气控件保持一致的渐入、位移和底线反馈。
+ */
+.site-tool-button {
+  position: relative;
+  isolation: isolate;
+  display: inline-grid;
+  overflow: hidden;
+  place-items: center;
+  transition: color 180ms var(--ease-rain), transform 320ms var(--ease-drift), background-color 260ms var(--ease-rain);
+}
+
+.site-tool-button::after {
+  position: absolute;
+  right: 8px;
+  bottom: 4px;
+  left: 8px;
+  height: 1px;
+  background: currentColor;
+  content: '';
+  opacity: 0;
+  pointer-events: none;
+  transform: scaleX(0.2);
+  transform-origin: center;
+  transition: opacity 180ms var(--ease-rain), transform 320ms var(--ease-drift);
+}
+
+.site-tool-button svg {
+  position: relative;
+  z-index: 1;
+  transition: transform 320ms var(--ease-drift);
+}
+
+.site-tool-button__label {
+  position: absolute;
+  z-index: 1;
+  bottom: 5px;
+  left: 50%;
+  max-width: 0;
+  overflow: hidden;
+  font-family: var(--font-ui);
+  font-size: 9px;
+  line-height: 1;
+  opacity: 0;
+  transform: translate(-50%, 5px);
+  transition: max-width 320ms var(--ease-drift), opacity 160ms var(--ease-rain), transform 320ms var(--ease-drift);
+  white-space: nowrap;
+}
+
+/* 播放中：与天气控件的选中态共用同一套「已激活」语法——accent 色 + 常驻底线。 */
+.site-tool-button[aria-pressed='true'] {
+  color: var(--accent-strong);
+}
+
+.site-tool-button[aria-pressed='true']::after {
+  opacity: 0.82;
+  transform: scaleX(1);
+}
+
+@media (hover: hover) and (min-width: 1241px) {
+  .site-tool-button:hover,
+  .site-tool-button:focus-visible {
+    background: color-mix(in srgb, var(--accent-soft) 72%, transparent);
+    transform: translateY(-1px);
+  }
+
+  .site-tool-button:hover::after,
+  .site-tool-button:focus-visible::after {
+    opacity: 0.82;
+    transform: scaleX(1);
+  }
+
+  .site-tool-button:hover svg,
+  .site-tool-button:focus-visible svg {
+    transform: translateY(-5px);
+  }
+
+  .site-tool-button:hover .site-tool-button__label,
+  .site-tool-button:focus-visible .site-tool-button__label {
+    max-width: 38px;
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.site-tool-button:focus-visible {
+  outline: 1px solid var(--accent-strong);
+  outline-offset: -3px;
+  color: var(--accent-strong);
+}
+
+@media (max-width: 760px) {
+  .site-tool-button__label {
+    display: none;
+  }
+}
+
+/* 窄屏挤压：工具按钮与天气控件一起收紧，页头才能在 360–430px 视口内放下。 */
+@media (max-width: 430px) {
+  .icon-button {
+    width: 42px;
+    height: 42px;
+  }
+
+  .weather-mode-control {
+    margin-inline-start: 0;
+  }
+
+  .weather-mode-control__button {
+    flex-basis: 40px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-tool-button,
+  .site-tool-button::after,
+  .site-tool-button svg,
+  .site-tool-button__label {
+    transition: none;
+  }
+}
+
 /* 正文插图灯箱：原生 dialog 提供焦点陷阱、Esc 与背景滚动锁定。 */
 .lightbox {
   max-width: min(1200px, calc(100vw - 48px));
