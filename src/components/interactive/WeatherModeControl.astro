@@ -69,10 +69,28 @@ const {
     type WeatherMode,
   } from '@/lib/weather-mode';
 
+  /*
+   * 每个控件实例挂在 document/window 上的监听统一放进一个 AbortController：
+   * 控件被 transition:persist 保留时，这些监听理应跨换页存活；一旦控件在
+   * 非持久化上下文中被换页丢弃，下一次初始化会回收已脱离文档实例的监听，
+   * 避免旧闭包在换页后把天气模式改回旧值或重复提交。
+   */
+  const controlTeardowns = new Map<HTMLElement, AbortController>();
+
   function initWeatherModeControls() {
+    controlTeardowns.forEach((controller, root) => {
+      if (!root.isConnected) {
+        controller.abort();
+        controlTeardowns.delete(root);
+      }
+    });
     document.querySelectorAll<HTMLElement>('[data-weather-mode-control]').forEach((root) => {
       if (root.dataset.interactiveReady === 'true') return;
       root.dataset.interactiveReady = 'true';
+
+      const controller = new AbortController();
+      controlTeardowns.get(root)?.abort();
+      controlTeardowns.set(root, controller);
 
       const storageKey = root.dataset.storageKey || WEATHER_MODE_STORAGE_KEY;
       const buttons = Array.from(
@@ -132,7 +150,7 @@ const {
         const mode = isWeatherMode(activeMode) ? activeMode : readStoredWeatherMode(storageKey) ?? 'rain';
         commitMode(mode, false);
       };
-      document.addEventListener('astro:after-swap', restoreModeAfterSwap);
+      document.addEventListener('astro:after-swap', restoreModeAfterSwap, { signal: controller.signal });
 
       buttons.forEach((button) => {
         button.addEventListener('click', () => {
@@ -165,7 +183,7 @@ const {
         if (event.key !== storageKey && event.key !== null) return;
         const mode = isWeatherMode(event.newValue) ? event.newValue : null;
         requestMode(mode ?? 'rain');
-      });
+      }, { signal: controller.signal });
     });
   }
 

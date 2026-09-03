@@ -20,6 +20,10 @@ const { class: className } = Astro.props;
 </dialog>
 
 <script>
+  // 记录每次打开的触发图，关闭时把焦点还给它——<dialog> 关闭不会自动归还
+  // 焦点，键盘用户否则会掉回 body 丢失阅读位置。
+  const lightboxTriggers = new WeakMap<HTMLDialogElement, HTMLElement>();
+
   function openLightboxFor(dialog: HTMLDialogElement, source: HTMLImageElement) {
     const image = dialog.querySelector<HTMLImageElement>('[data-lightbox-image]');
     const caption = dialog.querySelector<HTMLElement>('[data-lightbox-caption]');
@@ -31,6 +35,7 @@ const { class: className } = Astro.props;
     image.alt = source.alt || '';
     caption.textContent = source.alt || '';
     caption.hidden = !source.alt;
+    lightboxTriggers.set(dialog, source);
     if (!dialog.open) {
       if (typeof dialog.showModal === 'function') dialog.showModal();
       else dialog.setAttribute('open', '');
@@ -53,6 +58,16 @@ const { class: className } = Astro.props;
 
       dialog.addEventListener('click', (event) => {
         if (event.target === dialog) dialog.close();
+      });
+
+      // 关闭（含 Esc 与点遮罩两条路径）后焦点归还触发图；图片本不可聚焦，
+      // 临时补 tabindex=-1 使其可编程聚焦，不进入 Tab 序列。
+      dialog.addEventListener('close', () => {
+        const trigger = lightboxTriggers.get(dialog);
+        if (trigger && trigger.isConnected) {
+          trigger.tabIndex = -1;
+          trigger.focus({ preventScroll: true });
+        }
       });
     });
 

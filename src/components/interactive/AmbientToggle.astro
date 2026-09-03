@@ -84,7 +84,21 @@ import { Volume2, VolumeX } from '@lucide/astro';
 </style>
 
 <script>
+	/*
+	 * 换页回收：按钮挂在 document/window 之外的资源（Audio 实例、渐变色环、
+	 * 延迟暂停、续播监听）随实例登记。按钮被 transition:persist 保留时一切
+	 * 照旧；一旦在非持久化上下文中被换页丢弃，下一次初始化统一回收已脱离
+	 * 文档的实例，避免旧雨声在后台继续播放或与新实例叠成双声道。
+	 */
+	const ambientTeardowns = new Map<HTMLElement, () => void>();
+
 	function initAmbientToggle() {
+		ambientTeardowns.forEach((teardown, button) => {
+			if (!button.isConnected) {
+				teardown();
+				ambientTeardowns.delete(button);
+			}
+		});
 		document.querySelectorAll<HTMLButtonElement>('[data-ambient-toggle]').forEach((button) => {
 			if (button.dataset.ambientReady === 'true') return;
 			button.dataset.ambientReady = 'true';
@@ -207,12 +221,10 @@ import { Volume2, VolumeX } from '@lucide/astro';
 			} catch {
 				stored = null;
 		}
+		// 续播监听登记在外层作用域：回收函数需要在 stored 非 on 的分支里也能安全调用。
+		let cleanupResume = () => {};
 		if (stored === 'on') {
 			// 上次离开时雨还在下：第一次任意手势后自动续上。
-			const cleanupResume = () => {
-				window.removeEventListener('pointerdown', resume);
-				window.removeEventListener('keydown', resume);
-			};
 			const resume = (event: Event) => {
 				/*
 				 * pointerdown 与 keydown 任选其一先到。两者都要解绑，尤其键盘先
@@ -222,13 +234,33 @@ import { Volume2, VolumeX } from '@lucide/astro';
 				cleanupResume();
 				// 首次手势若就是点击本开关，让位给 click 处理器：resume 先把
 				// 状态拨到 on，随后的 click 会读到 aria-pressed=true 误判成
-					// 「关」，把刚起的声音停掉还写回 off 偏好。
-					if (event.target instanceof Node && button.contains(event.target)) return;
-					apply(true, false);
-				};
-				window.addEventListener('pointerdown', resume, { once: true, passive: true });
-				window.addEventListener('keydown', resume, { once: true });
+				// 「关」，把刚起的声音停掉还写回 off 偏好。
+				if (event.target instanceof Node && button.contains(event.target)) return;
+				apply(true, false);
+			};
+			cleanupResume = () => {
+				window.removeEventListener('pointerdown', resume);
+				window.removeEventListener('keydown', resume);
+			};
+			window.addEventListener('pointerdown', resume, { once: true, passive: true });
+			window.addEventListener('keydown', resume, { once: true });
+		}
+
+		// 登记回收动作：让未决的播放请求失效、停掉渐变与延迟暂停、摘掉续播
+		// 监听并卸载媒体源。按钮仍连着文档时此函数永不被调用。
+		ambientTeardowns.get(button)?.();
+		ambientTeardowns.set(button, () => {
+			playbackRequest += 1;
+			if (fadeRaf) {
+				window.cancelAnimationFrame(fadeRaf);
+				fadeRaf = 0;
 			}
+			window.clearTimeout(pauseTimer);
+			cleanupResume();
+			audio.pause();
+			audio.removeAttribute('src');
+			audio.load();
+		});
 		});
 	}
 
