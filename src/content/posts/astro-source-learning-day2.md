@@ -14,14 +14,15 @@ cover: /images/astro-learning/astro-logo.png
 readingWeather: null
 ---
 
-## build主流程
+## build 主流程
 
-顺着`pnpm build`日志找到源码入口
+顺着 `pnpm build` 日志找到源码入口
 
-**CLI入口** → `packages/astro/src/cli/build/index.ts`<br>
+**CLI 入口** → `packages/astro/src/cli/build/index.ts`
+
 **核心构建** → `packages/astro/src/core/build/index.ts`
 
-核心是`AstroBuilder`类
+核心是 `AstroBuilder` 类
 
 ```
 pnpm build
@@ -33,7 +34,7 @@ AstroBuilder.run()
   └─ build()  构建阶段
 ```
 
-`run()`统一入口,先setup再build,顺序固定
+`run()` 统一入口，先 `setup` 再 `build`，顺序固定
 
 ## 日志对应源码
 
@@ -41,23 +42,24 @@ AstroBuilder.run()
 |------|------|
 | `[types]` | `core/sync/index.ts` |
 | `[build]` | `core/build/index.ts` |
-| `[vite]` | Vite自己输出 |
+| `[vite]` | Vite 自己输出 |
 | `generating static routes` | `core/build/generate.ts` |
 
-注意:`[vite]`不是Astro打的,是Vite自己的日志,说明Astro建立在Vite之上
+注意：`[vite]` 不是 Astro 打的，是 Vite 自己的日志，说明 Astro 建立在 Vite 之上
 
 ## core vs integration
 
-**core/build/index.ts**:Astro核心,负责调度整个构建流程<br>
-**integrations/sitemap/index.ts**:插件,监听hook在合适时机执行自己的逻辑
+**core/build/index.ts**：Astro 核心，负责调度整个构建流程
 
-类比:core是总指挥,integration是外挂功能
+**integrations/sitemap/index.ts**：插件，监听 hook，在合适时机执行自己的逻辑
 
-sitemap插件的作用:构建完成后收集所有页面URL生成网站地图给搜索引擎用
+类比：core 是总指挥，integration 是外挂功能
 
-## hook机制
+sitemap 插件的作用：构建完成后收集所有页面 URL，生成网站地图给搜索引擎用
 
-本质:事件通知
+## hook 机制
+
+本质：事件通知
 
 插件在返回对象里声明想监听哪些时刻
 
@@ -71,29 +73,29 @@ return {
 }
 ```
 
-核心代码在合适时机遍历所有integration调用对应hook
+核心代码在合适时机遍历所有 integration，调用对应 hook
 
-源码:`packages/astro/src/integrations/hooks.ts`
+源码：`packages/astro/src/integrations/hooks.ts`
 
 ## 几个容易混淆的概念
 
-**Vite**:前端构建工具,Astro底下的施工队,负责dev server和模块打包
+**Vite**：前端构建工具，Astro 底下的施工队，负责 dev server 和模块打包
 
-**SSR**:Server-Side Rendering服务端渲染,回答”HTML在哪里生成”
+**SSR**：Server-Side Rendering（服务端渲染），回答“HTML 在哪里生成”
 
-**岛屿架构**:回答”JS加载到多细的粒度”,只给需要交互的局部组件加载JS
+**岛屿架构**：回答“JS 加载到多细的粒度”，只给需要交互的局部组件加载 JS
 
-**hydrate**:给已有HTML接上交互能力,让静态按钮变成可点击的按钮
+**hydrate**：给已有 HTML 接上交互能力，让静态按钮变成可点击的按钮
 
-这些不冲突,可以组合使用:
-- 静态生成+岛屿架构
-- SSR+岛屿架构
+这些不冲突，可以组合使用：
+- 静态生成 + 岛屿架构
+- SSR + 岛屿架构
 
 ## 岛屿的直观理解
 
-页面里大部分是静态HTML(海洋),少数交互组件(评论框/搜索框/点赞按钮)是岛屿
+页面里大部分是静态 HTML（海洋），少数交互组件（评论框/搜索框/点赞按钮）是岛屿
 
-岛屿在浏览器里hydrate后才能交互
+岛屿在浏览器里 hydrate 后才能交互
 
 ## 执行链路
 

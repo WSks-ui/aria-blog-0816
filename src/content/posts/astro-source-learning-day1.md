@@ -17,14 +17,14 @@ readingWeather: null
 ## 核心概念
 
 **岛屿架构**
-- 默认输出纯HTML,零JavaScript
-- 只在需要交互的地方按需注入JS
+- 默认输出纯 HTML，零 JavaScript
+- 只在需要交互的地方按需注入 JS
 
-**三个执行上下文**(读源码的基础)
+**三个执行上下文**（读源码的基础）
 
-| 位置 | 何时运行 | NodeAPI |
+| 位置 | 何时运行 | Node API |
 |------|---------|---------|
-| `core/` | build/dev命令 | 能用 |
+| `core/` | build/dev 命令 | 能用 |
 | `runtime/server/` | 页面渲染 | 禁用 |
 | `runtime/client/` | 浏览器 | 禁用 |
 
@@ -39,9 +39,9 @@ packages/astro/src/
 └── types/           类型定义
 ```
 
-## .astro文件
+## .astro 文件
 
-两部分:frontmatter(服务器端JS) + HTML模板
+两部分：frontmatter（服务器端 JS）+ HTML 模板
 
 ```astro
 ---
@@ -53,13 +53,13 @@ const title = '我的页面'
 </html>
 ```
 
-- `---`之间的代码在服务器端跑
-- `{}`插值把JS表达式的值输出到HTML
-- 构建后变成纯HTML,frontmatter代码消失
+- `---` 之间的代码在服务器端跑
+- `{}` 插值把 JS 表达式的值输出到 HTML
+- 构建后变成纯 HTML，frontmatter 代码消失
 
 ## 文件系统路由
 
-`src/pages/`目录结构直接映射URL
+`src/pages/` 目录结构直接映射 URL
 
 ```
 src/pages/index.astro      →  /
@@ -92,7 +92,7 @@ generating static routes
   ├─ /index.html
 ```
 
-产物:`dist/`里只有HTML,没有JS文件
+产物：`dist/` 里只有 HTML，没有 JS 文件
 
 ## 日志对应源码
 
@@ -100,4 +100,4 @@ generating static routes
 - `[build]` → `core/build/`
 - `generating static routes` → 路由系统
 
-下节课顺着这些线索看build流程
+下节课顺着这些线索看 build 流程
