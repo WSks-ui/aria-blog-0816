@@ -1,101 +1,21 @@
 /*
- * 档案光标 v2（制图风）：箭头 / 十字 / 光标线三态画在同一张内联 SVG 上，
- * 两级描边（纸色晕圈 + 墨色细线）保证任何底色上可读。位置由脚本每帧直写
- * transform，不经过 CSS 变量与过渡；形态与按压只动用子元素，永远不拖累位置。
+ * 原生档案光标：此前以 fixed DOM 节点追随 pointermove，渲染一定会晚于系统
+ * 硬件光标至少一个合成帧。这里改由浏览器原生 cursor 管线绘制，默认箭头与
+ * 操作十字保留原来的双描边视觉；文字编辑面保留系统 I-beam，以保证选择文本
+ * 时的热点与平台行为。首页 companion 模式只显示系统光标，不再渲染滞后副本。
  */
-.archive-cursor {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: var(--z-cursor);
-  width: 24px;
-  height: 24px;
-  pointer-events: none;
-  opacity: 0;
-  transform: translate3d(-100px, -100px, 0);
-  will-change: transform, opacity;
-  --cursor-ink: color-mix(in srgb, var(--ink) 92%, #001c24);
-  --cursor-paper: color-mix(in srgb, var(--paper-0) 84%, white 16%);
-}
-
-.archive-cursor[data-visible='true'] {
-  opacity: 1;
-}
-
-.archive-cursor svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  transform-origin: center;
-  transition: transform 90ms ease;
-}
-
-.archive-cursor .cursor-halo {
-  stroke: var(--cursor-paper);
-  stroke-width: 3;
-  stroke-linecap: square;
-}
-
-.archive-cursor .cursor-ink {
-  stroke: var(--cursor-ink);
-  stroke-width: 1.2;
-  stroke-linecap: square;
-}
-
-.archive-cursor .cursor-fill {
-  fill: var(--accent-strong);
-}
-
-/* 形态切换：只有透明度过渡（100ms），位置层不受影响。 */
-.archive-cursor [data-cursor-sprite] {
-  opacity: 0;
-  transition: opacity 100ms ease;
-}
-
-.archive-cursor[data-mode='default'] [data-cursor-sprite='default'],
-.archive-cursor[data-mode='action'] [data-cursor-sprite='action'],
-.archive-cursor[data-mode='text'] [data-cursor-sprite='text'] {
-  opacity: 1;
-}
-
-/* 按压回缩只作用于 svg 子层；箭头以尖端为缩放原点，避免按压时尖端漂移。 */
-.archive-cursor[data-mode='default'] svg {
-  transform-origin: 2px 2px;
-}
-
-.archive-cursor[data-pressed='true'] svg {
-  transform: scale(0.86);
-}
-
-/*
- * 伴随模式（body 标记 cursor-companion 的重场景页，如首页雨幕）：系统光标
- * 回归，自定义层退居其后——十字环以低透明度滞后跟随，进入文字区域时让位隐藏。
- */
-html[data-archive-cursor='companion'] .archive-cursor {
-  opacity: 0.9;
-}
-
-html[data-archive-cursor='companion'] .archive-cursor [data-cursor-sprite] {
-  opacity: 0;
-  transition: none;
-}
-
-html[data-archive-cursor='companion'] .archive-cursor [data-cursor-sprite='action'] {
-  opacity: 0.5;
-  transform: scale(0.78);
-  transform-origin: center;
-  transform-box: view-box;
-}
-
-html[data-archive-cursor='companion'] .archive-cursor[data-mode='text'] {
-  opacity: 0;
-}
-
 @media (hover: hover) and (pointer: fine) {
   html[data-archive-cursor='enabled'],
   html[data-archive-cursor='enabled'] * {
-    cursor: none !important;
+    cursor: url('/assets/cursors/archive-default.svg') 2 2, auto !important;
+  }
+
+  html[data-archive-cursor='enabled'] :is(a, button, select, summary, [role='button'], [data-cursor='action']) {
+    cursor: url('/assets/cursors/archive-action.svg') 12 12, pointer !important;
+  }
+
+  html[data-archive-cursor='enabled'] :is(input, textarea, [contenteditable]:not([contenteditable='false'])) {
+    cursor: text !important;
   }
 
   html[data-archive-cursor='companion'],
@@ -610,7 +530,7 @@ html[data-archive-cursor='companion'] .archive-cursor[data-mode='text'] {
 
 .search-dialog__filters button {
   min-width: 0;
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 8px;
   border: 0;
   border-inline-end: 1px solid var(--line);
@@ -1577,7 +1497,7 @@ html[data-tooltip-layer='ready'] [data-tooltip]::after {
 }
 
 @media (max-width: 760px) {
-  .weather-mode-control__button { flex-basis: 42px; }
+  .weather-mode-control__button { flex-basis: 44px; }
   .scene-guide--desktop { display: none; }
   .memory-vault { right: 12px; bottom: 12px; }
   .memory-vault__save span, .memory-vault__toggle > span:not(.memory-vault__count) { display: none; }
@@ -1596,7 +1516,6 @@ html[data-tooltip-layer='ready'] [data-tooltip]::after {
   html[data-archive-cursor='enabled'] *,
   html[data-archive-cursor='companion'],
   html[data-archive-cursor='companion'] * { cursor: auto !important; }
-  .archive-cursor { display: none; }
   [data-tooltip]::after,
   .tooltip-layer__bubble { transition: none; }
   .reading-session__meter::-webkit-progress-value { transition: none; }

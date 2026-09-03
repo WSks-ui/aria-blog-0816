@@ -2,47 +2,17 @@
 import '@/styles/interactive.css';
 ---
 
-<!--
-  档案光标 v2.1：制图风三态精灵（箭头/十字/光标线）。
-  替换模式：rAF 每帧一次直写 transform，pointerrawupdate 采样，位置零过渡。
-  伴随模式（重场景页标记 cursor-companion）：系统光标回归，十字环滞后跟随。
-  替换模式在首次指针移动后才“武装”——武装前系统光标正常显示，避免页面
-  加载完成到第一次移动之间出现两不可见的空窗。
-  生命周期：监听统一挂在本实例的 AbortController 上，astro:before-swap
-  整体拆除；ClientRouter 会用新文档的根属性覆盖当前根节点，去重不能依赖
-  documentElement 上的标记，只能靠模块级句柄（见 init 开头的拆除调用）。
--->
-<div class="archive-cursor" data-archive-cursor aria-hidden="true" hidden>
-  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <g data-cursor-sprite="default">
-      <path class="cursor-halo" d="M2 2 L2 13 M2 2 L10.5 5.5 M2 2 L5.5 10.5" />
-      <path class="cursor-ink" d="M2 2 L2 13 M2 2 L10.5 5.5 M2 2 L5.5 10.5" />
-      <rect class="cursor-fill" x="1.1" y="1.1" width="1.8" height="1.8" />
-    </g>
-    <g data-cursor-sprite="action">
-      <path class="cursor-halo" d="M12 3 V9 M12 15 V21 M3 12 H9 M15 12 H21" />
-      <path class="cursor-ink" d="M12 3 V9 M12 15 V21 M3 12 H9 M15 12 H21" />
-      <rect class="cursor-fill" x="11.1" y="11.1" width="1.8" height="1.8" />
-    </g>
-    <g data-cursor-sprite="text">
-      <path class="cursor-halo" d="M12 4 V20 M8.5 4 H15.5 M8.5 20 H15.5" />
-      <path class="cursor-ink" d="M12 4 V20 M8.5 4 H15.5 M8.5 20 H15.5" />
-    </g>
-  </svg>
-</div>
-
 <script>
-  type CursorMode = 'default' | 'action' | 'text';
-
-  // 每种形态的热点偏移：箭头尖端 (2,2)、十字与光标线以 (12,12) 为中心。
-  const CURSOR_HOTSPOT: Record<CursorMode, [number, number]> = {
-    default: [-2, -2],
-    action: [-12, -12],
-    text: [-12, -12],
-  };
-
-  // 模块级句柄：模块脚本整个会话只执行一次，这里跨导航存活。
-  // 每次初始化前先拆除上一实例，保证任何时刻只有一套监听与一条 rAF 链。
+  /*
+   * 原生光标开关：DOM 跟随光标的坐标只能在主线程收到 PointerEvent 后再写入
+   * transform，必然落后于操作系统直接合成的硬件光标。视觉光标改为 CSS
+   * cursor:url(...) 后，本组件只负责根据设备能力给 <html> 挂状态，不再
+   * 创建或更新任何跟随节点。这样鼠标轨迹、点击与首页场景都不会有额外延迟。
+   *
+   * companion 保留为首页的表现分支：它明确使用系统光标，而非再绘制一个
+   * 低透明度的延迟副本。高对比度、强制色彩和 reduced-motion 一律回退原生
+   * 系统光标，避免影响平台提供的可访问性能力。
+   */
   let teardownInteractionSurface: (() => void) | null = null;
   let lifecycleBound = false;
 
@@ -50,173 +20,18 @@ import '@/styles/interactive.css';
     teardownInteractionSurface?.();
 
     const root = document.documentElement;
-    const cursorElement = document.querySelector<HTMLElement>('[data-archive-cursor]');
-    if (!cursorElement) return;
-    // 经过上面的存在性检查后固定为非空引用，供后续事件回调安全复用。
-    const cursor = cursorElement;
-    /*
-     * 高对比度与强制色彩模式依赖系统光标的原生渲染（放大跟随、高反差描边），
-     * 自定义光标在这些环境下会降低可视性，因此直接回退到系统光标。
-     * reduced-motion 同理：CSS 侧已整体隐藏精灵并恢复系统光标，
-     * JS 侧不再武装，pointerrawupdate 的高频采样路径也就不会启动。
-     */
     const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
     const highContrast = window.matchMedia('(prefers-contrast: more), (forced-colors: active)');
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-
-    let mode: CursorMode = 'default';
-    let visible = false;
-    let lastModeTarget: Element | null = null;
-    // 武装标记：只有拿到过真实指针位置后才允许隐藏系统光标。
-    let armed = false;
-
-    // 位置状态：target 为指针最新采样，pos 为元素当前落点（伴随模式下两者分离）。
-    let targetX = -100;
-    let targetY = -100;
-    let posX = -100;
-    let posY = -100;
-    let frame = 0;
-    let lastTick = 0;
-
-    const isCompanionPage = () => document.body.classList.contains('cursor-companion');
-
-    const syncAvailability = () => {
-      const usable = armed && finePointer.matches && !highContrast.matches && !reduceMotion.matches;
-      root.dataset.archiveCursor = usable ? (isCompanionPage() ? 'companion' : 'enabled') : 'disabled';
-      cursor.hidden = !usable;
-      if (!usable) setVisible(false);
-    };
-
-    function setVisible(next: boolean) {
-      if (visible === next) return;
-      visible = next;
-      cursor.dataset.visible = String(next);
-    }
-
-    function setMode(next: CursorMode) {
-      if (mode === next) return;
-      mode = next;
-      cursor.dataset.mode = next;
-    }
-
-    const setCursorMode = (target: EventTarget | null) => {
-      if (!(target instanceof Element)) return;
-      const isTextInput = target.closest('input, textarea, [contenteditable]:not([contenteditable="false"])');
-      const isAction = target.closest('a, button, select, summary, [role="button"], [data-cursor="action"]');
-      const isProse = target.closest('.reading-prose, .prose');
-      const isTextSurface = Boolean(isTextInput && !isAction) || Boolean(isProse && !isAction);
-      setMode(isTextSurface ? 'text' : (isAction ? 'action' : 'default'));
-    };
-
-    const samplePosition = (event: PointerEvent) => {
-      // 合并采样取最后一个点：高轮询率鼠标在一个帧间隔内上报多次时，用最新位置。
-      const coalesced = typeof event.getCoalescedEvents === 'function' ? event.getCoalescedEvents() : [];
-      const latest = coalesced.length > 0 ? coalesced[coalesced.length - 1] : event;
-      targetX = latest.clientX;
-      targetY = latest.clientY;
-    };
-
-    const tick = (now: number) => {
-      frame = 0;
-      const delta = lastTick > 0 ? Math.min(100, now - lastTick) : 16.7;
-      lastTick = now;
-
-      if (root.dataset.archiveCursor === 'companion') {
-        // 伴随模式：指数平滑滞后跟随（时间常数 80ms），延迟本身成为设计语言。
-        const smoothing = 1 - Math.exp(-delta / 80);
-        posX += (targetX - posX) * smoothing;
-        posY += (targetY - posY) * smoothing;
-      } else {
-        posX = targetX;
-        posY = targetY;
-      }
-
-      const [offsetX, offsetY] = CURSOR_HOTSPOT[mode];
-      cursor.style.transform = `translate3d(${(posX + offsetX).toFixed(2)}px, ${(posY + offsetY).toFixed(2)}px, 0)`;
-
-      // 静止且已贴合目标时停帧；伴随模式保留亚像素缓动直到收敛。
-      const settled = Math.abs(targetX - posX) < 0.4 && Math.abs(targetY - posY) < 0.4;
-      if (!settled) {
-        frame = window.requestAnimationFrame(tick);
-      }
-    };
-
-    const schedule = () => {
-      if (frame === 0) {
-        frame = window.requestAnimationFrame(tick);
-      }
-    };
-
-    const arm = (event: PointerEvent) => {
-      armed = true;
-      // 先定好初始形态再解除 hidden，首帧就是完整箭头，而不是空容器闪一下。
-      cursor.dataset.mode = 'default';
-      samplePosition(event);
-      posX = targetX;
-      posY = targetY;
-      syncAvailability();
-      setVisible(true);
-    };
-
     const controller = new AbortController();
     const { signal } = controller;
 
-    // pointerrawupdate 比 pointermove 更早派发（Chromium），只做最轻的采样缓存。
-    document.addEventListener('pointerrawupdate', (event: Event) => {
-      if (root.dataset.archiveCursor === 'disabled') return;
-      if (event instanceof PointerEvent) samplePosition(event);
-      schedule();
-    }, { passive: true, signal });
-
-    document.addEventListener('pointermove', (event) => {
-      if (!armed) {
-        if (finePointer.matches && !highContrast.matches && !reduceMotion.matches) arm(event);
-        return;
-      }
-      if (root.dataset.archiveCursor === 'disabled') return;
-      samplePosition(event);
-      setVisible(true);
-      if (event.target !== lastModeTarget) {
-        setCursorMode(event.target);
-        lastModeTarget = event.target instanceof Element ? event.target : null;
-      }
-      schedule();
-    }, { passive: true, signal });
-
-    document.addEventListener('pointerdown', (event) => {
-      if (root.dataset.archiveCursor === 'disabled') return;
-      cursor.dataset.pressed = 'true';
-      setCursorMode(event.target);
-      lastModeTarget = event.target instanceof Element ? event.target : null;
-    }, { passive: true, signal });
-
-    const clearPressed = () => {
-      delete cursor.dataset.pressed;
+    const syncAvailability = () => {
+      const usable = finePointer.matches && !highContrast.matches && !reduceMotion.matches;
+      root.dataset.archiveCursor = usable
+        ? (document.body.classList.contains('cursor-companion') ? 'companion' : 'enabled')
+        : 'disabled';
     };
-
-    document.addEventListener('pointerup', clearPressed, { passive: true, signal });
-    document.addEventListener('pointercancel', clearPressed, { passive: true, signal });
-
-    /*
-     * pointerout 的 relatedTarget 为 null 有两种情况：真正离开窗口，或进入
-     * 跨文档目标（giscus 评论区等 iframe）。用 elementFromPoint 复核命中位置，
-     * 只有指针确实离开文档、或压在 iframe 上（iframe 内是系统光标）才隐藏。
-     */
-    document.addEventListener('pointerout', (event) => {
-      if (root.dataset.archiveCursor === 'disabled') return;
-      if (!(event instanceof PointerEvent) || event.relatedTarget !== null) return;
-      const under = document.elementFromPoint(event.clientX, event.clientY);
-      if (!under || under.closest('iframe, object, embed')) setVisible(false);
-    }, { passive: true, signal });
-
-    document.documentElement.addEventListener('mouseleave', () => {
-      setVisible(false);
-    }, { signal });
-
-    window.addEventListener('blur', () => {
-      setVisible(false);
-      clearPressed();
-    }, { signal });
 
     finePointer.addEventListener('change', syncAvailability, { signal });
     highContrast.addEventListener('change', syncAvailability, { signal });
@@ -225,13 +40,7 @@ import '@/styles/interactive.css';
 
     teardownInteractionSurface = () => {
       controller.abort();
-      if (frame !== 0) {
-        window.cancelAnimationFrame(frame);
-        frame = 0;
-      }
-      // 交还系统光标：换页瞬间到新页面接管之间不能出现两不可见。
       delete root.dataset.archiveCursor;
-      cursor.hidden = true;
       teardownInteractionSurface = null;
     };
   }

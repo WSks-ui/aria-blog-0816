@@ -160,10 +160,12 @@ function onSelectStart(e) { e.preventDefault(); }
 
 ## 完整代码
 
-当前站点实际实现已演进为单 DOM 光标 + 三态样式，完整代码在：
+当前站点实际实现已改为浏览器原生 SVG 光标，避免 DOM 跟随元素天然晚于系统
+硬件光标一帧以上。完整代码在：
 
-- `src/styles/interactive.css` — 自定义光标样式（`.archive-cursor` 相关段落）
-- `src/components/interactive/InteractionSurface.astro` — JS逻辑和Astro组件封装
+- `public/assets/cursors/` — 默认箭头与可点击十字的 SVG 光标资源
+- `src/styles/interactive.css` — 原生 `cursor: url(...)` 的三态规则
+- `src/components/interactive/InteractionSurface.astro` — 根据设备能力与可访问性偏好切换状态
 
 在 `BaseLayout.astro` 中已经全局引入；如果要在其他布局中使用：
 
@@ -173,4 +175,5 @@ import { InteractionSurface } from "@/components/interactive";
 <InteractionSurface />
 ```
 
-实现时建议直接从 `transform` 方案开始。SVG光标和div元素走的是两套渲染坐标系，直接对齐很难，需要在JS里加一个偏移量来手动校正
+需要带有拖尾、粒子或物理效果时，才建议额外叠加 DOM 视觉层；基础指针应始终由
+原生 `cursor` 渲染，避免与系统硬件光标竞争帧时序。
