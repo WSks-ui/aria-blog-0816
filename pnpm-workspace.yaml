@@ -6,3 +6,8 @@ packages:
 # 项目统一使用 pnpm；本文件同时承载 pnpm 11 的依赖构建脚本批准（allowBuilds）。
 allowBuilds:
   esbuild: true
+
+# 安全例外：fast-uri@3.1.6 已修复 URI 规范化相关的 4 个高危告警；
+# 允许其跳过发布年龄策略，使锁文件能立即采用经审计确认的补丁版本。
+minimumReleaseAgeExclude:
+  - fast-uri@3.1.6
