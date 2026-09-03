@@ -124,6 +124,8 @@ small,
   margin-inline: 0;
   padding: var(--space-4) var(--space-5);
   border-inline-start: 2px solid var(--color-rain);
+  /* 正文承载面先给静态主题色，支持 color-mix 时再使用原有透明层次。 */
+  background: var(--color-surface-muted);
   background: color-mix(in srgb, var(--color-surface-muted), transparent 58%);
   color: var(--color-ink-muted);
   font-style: normal;
@@ -154,6 +156,7 @@ small,
 .reading-prose :where(:not(pre) > code) {
   padding: 0.12em 0.35em;
   border: var(--border-hairline);
+  background: var(--color-surface-muted);
   background: color-mix(in srgb, var(--color-surface-muted), transparent 32%);
 }
 
@@ -162,6 +165,7 @@ small,
   overflow-x: auto;
   padding: var(--space-5);
   border: var(--border-hairline);
+  background: var(--color-surface);
   background: color-mix(in srgb, var(--color-surface), var(--color-rain-pale) 18%);
   font-variant-numeric: tabular-nums;
   font-variant-ligatures: contextual;
@@ -179,6 +183,7 @@ small,
 .reading-prose .prose-code {
   margin-block: 0 var(--space-5);
   border: var(--border-hairline);
+  background: var(--color-surface);
   background: color-mix(in srgb, var(--color-surface), var(--color-rain-pale) 18%);
 }
 
@@ -242,6 +247,7 @@ small,
 
 .reading-prose .prose-code__copy.is-copied {
   border-color: var(--accent-strong);
+  background: var(--color-rain-pale);
   background: color-mix(in srgb, var(--color-rain-pale) 42%, transparent);
   color: var(--accent-strong);
 }
@@ -302,10 +308,12 @@ html[data-weather-mode='night'] .reading-prose pre span {
 
 html[data-weather-mode='night'] .reading-prose pre {
   background-color: var(--shiki-dark-bg, var(--night-1)) !important;
+  border-color: var(--color-line);
   border-color: color-mix(in srgb, var(--night-text), transparent 84%);
 }
 
 html[data-weather-mode='night'] .reading-prose .prose-code {
+  border-color: var(--color-line);
   border-color: color-mix(in srgb, var(--night-text), transparent 84%);
 }
 
@@ -314,6 +322,7 @@ html[data-weather-mode='night'] .reading-prose .prose-code pre.astro-code {
 }
 
 html[data-weather-mode='night'] .reading-prose :where(:not(pre) > code) {
+  background: var(--night-1);
   background: color-mix(in srgb, var(--night-1), var(--night-text) 8%);
 }
 
@@ -337,6 +346,7 @@ html[data-weather-mode='night'] .reading-prose :where(:not(pre) > code) {
 
 .reading-prose :where(th, td) {
   padding: 9px 14px;
+  border-block-end: 1px solid var(--color-line);
   border-block-end: 1px solid color-mix(in srgb, var(--color-line), transparent 52%);
   text-align: left;
   vertical-align: top;
@@ -344,6 +354,7 @@ html[data-weather-mode='night'] .reading-prose :where(:not(pre) > code) {
 
 .reading-prose :where(thead th) {
   border-block-end: 1px solid var(--color-line);
+  background: var(--color-surface-muted);
   background: color-mix(in srgb, var(--color-surface-muted), transparent 42%);
   font-family: var(--font-ui);
   font-size: var(--text-xs);
@@ -354,10 +365,12 @@ html[data-weather-mode='night'] .reading-prose :where(:not(pre) > code) {
 }
 
 .reading-prose :where(tbody tr:nth-child(even)) {
+  background: var(--color-surface-muted);
   background: color-mix(in srgb, var(--color-surface-muted), transparent 76%);
 }
 
 .reading-prose :where(tbody tr:hover) {
+  background: var(--color-rain-pale);
   background: color-mix(in srgb, var(--color-rain-pale) 30%, transparent);
 }
 
@@ -436,6 +449,7 @@ html[data-weather-mode='night'] .reading-prose :where(:not(pre) > code) {
 
 .reading-prose :where(mark) {
   padding: 0 0.18em;
+  background: var(--color-rain-pale);
   background: color-mix(in srgb, var(--color-rain-pale) 75%, transparent);
   color: inherit;
 }

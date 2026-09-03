@@ -8,7 +8,7 @@
   --color-surface: #f6f7f5;
   --color-surface-muted: #d7e6e8;
   --color-ink: #26383e;
-  --color-ink-muted: #5b7176;
+  --color-ink-muted: #53686d;
   --color-line: #9fbcc2;
   --color-line-strong: #5c838b;
   --color-rain: #73d0e2;
@@ -54,7 +54,8 @@
   --color-surface: #fffdf8;
   --color-surface-muted: #e5efed;
   --color-ink: #293a3d;
-  --color-ink-muted: #687b7d;
+  /* 比原值更深，确保晴天纸面、画布与浅色分区上的辅助文本均达到 4.5:1。 */
+  --color-ink-muted: #5b6f71;
   --color-line: #b7c9ca;
   --color-line-strong: #68878b;
   --color-rain: #7bcbd9;

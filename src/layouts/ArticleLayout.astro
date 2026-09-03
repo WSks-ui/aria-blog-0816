@@ -796,6 +796,7 @@ const isEssay = post.data.kind === 'essay';
 		height: 44px;
 		place-items: center;
 		border: 1px solid var(--line);
+		/* 侧栏按钮先给静态纸面色，支持 color-mix 时再恢复半透明玻璃层。 */
 		background: var(--paper-0);
 		background: color-mix(in srgb, var(--paper-0) 72%, transparent);
 		backdrop-filter: blur(3px);
@@ -816,6 +817,7 @@ const isEssay = post.data.kind === 'essay';
 	.article-focus[aria-pressed='true'] {
 		border-color: var(--accent-strong);
 		color: var(--accent-strong);
+		background: var(--accent-soft);
 		background: color-mix(in srgb, var(--accent-strong) 12%, transparent);
 	}
 
@@ -838,6 +840,11 @@ const isEssay = post.data.kind === 'essay';
 	.article-focus__scale {
 		position: relative;
 		width: 9px;
+		background: repeating-linear-gradient(
+			to bottom,
+			var(--line) 0 1px,
+			transparent 1px 64px
+		);
 		background: repeating-linear-gradient(
 			to bottom,
 			color-mix(in srgb, var(--line) 85%, transparent) 0 1px,
@@ -1021,6 +1028,7 @@ const isEssay = post.data.kind === 'essay';
 		gap: 7px;
 		margin-block: 4px 8px;
 		border: 1px solid var(--line);
+		background: var(--color-surface);
 		background: color-mix(in srgb, var(--color-surface) 55%, transparent);
 	}
 

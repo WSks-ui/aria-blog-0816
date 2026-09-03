@@ -6,7 +6,8 @@
   --color-surface: #f6f7f5;
   --color-surface-muted: #d7e6e8;
   --color-ink: #26383e;
-  --color-ink-muted: #5b7176;
+  /* 浅色天气下承担信息的辅助文本需在纸面与浅色分区上保持至少 4.5:1 对比度。 */
+  --color-ink-muted: #53686d;
   --color-line: #9fbcc2;
   --color-line-strong: #5c838b;
   --color-rain: #73d0e2;
@@ -66,10 +67,12 @@
   --header-height: 4.5rem;
   --frame-inset: clamp(0.75rem, 2vw, 1.5rem);
 
-  /* 不支持 color-mix() 的浏览器（Safari <16.2 / 旧安卓 WebView）会丢弃整条声明，
-     基础令牌必须先给静态回退值，再让 color-mix 覆盖。 */
+  /*
+   * 这里故意只保留一个静态边框令牌。不把同一自定义属性写成“静态值 +
+   * color-mix() 值”：生产构建的压缩阶段可能合并或丢弃后一个声明，旧浏览器
+   * 便会失去整条 border。需要混合色时应在具体属性或独立 @supports 规则中处理。
+   */
   --border-hairline: 1px solid var(--color-line);
-  --border-hairline: 1px solid color-mix(in srgb, var(--color-line), transparent 24%);
   --border-strong: 1px solid var(--color-line-strong);
   --shadow-paper: 0 1.25rem 3.5rem rgb(31 71 81 / 10%);
   --shadow-night: 0 1.5rem 4rem rgb(0 0 0 / 32%);

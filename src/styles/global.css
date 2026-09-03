@@ -57,6 +57,7 @@ body {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 1px;
+  /* 结构线先给静态值；支持 color-mix 的浏览器再恢复更轻的视觉层级。 */
   background: var(--color-line);
   background: color-mix(in srgb, var(--color-line), transparent 38%);
   border: var(--border-hairline);
@@ -117,6 +118,7 @@ body {
 }
 
 .paper-panel {
+  /* 纸面先给静态值；混合声明只作为支持 color-mix 时的透明增强。 */
   background-color: var(--color-surface);
   background-color: color-mix(in srgb, var(--color-surface), transparent 4%);
   background-image: url("/assets/patterns/paper-drift.svg");
