@@ -47,7 +47,7 @@ const relatedLinks = related.map((entry) => ({
 const isEssay = post.data.kind === 'essay';
 ---
 
-<BaseLayout title={post.data.title} description={post.data.summary} image={cover} type="article" className="article-page">
+<BaseLayout title={post.data.title} description={post.data.summary} image={cover} preloadImage={post.data.cover ?? undefined} type="article" className="article-page">
 	<div class="article-topline" aria-hidden="true"><span data-article-topline></span></div>
 	<div class="article-shell">
 		<header class="article-hero">
@@ -796,6 +796,7 @@ const isEssay = post.data.kind === 'essay';
 		height: 44px;
 		place-items: center;
 		border: 1px solid var(--line);
+		background: var(--paper-0);
 		background: color-mix(in srgb, var(--paper-0) 72%, transparent);
 		backdrop-filter: blur(3px);
 		color: var(--ink-muted);

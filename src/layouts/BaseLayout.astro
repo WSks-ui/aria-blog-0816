@@ -16,6 +16,12 @@ interface Props {
 	title?: string;
 	description?: string;
 	image?: string;
+	/**
+	 * 首屏 LCP 图的真实地址：仅当页面实际渲染该图时才传入并注入 preload。
+	 * 文章页无自定义封面时首屏是 CSS 场景，传 image（og 用）而不传 preloadImage，
+	 * 避免预载一张从不显示的默认封面。
+	 */
+	preloadImage?: string;
 	type?: 'website' | 'article';
 	/** 站点级不收录标记：404 等无内容路由跳过 canonical 并输出 robots noindex。 */
 	noindex?: boolean;
@@ -26,6 +32,7 @@ const {
 	title,
 	description = SITE.description,
 	image = '/assets/covers/default-day.webp',
+	preloadImage,
 	type = 'website',
 	noindex = false,
 	className = '',
@@ -43,7 +50,6 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<meta name="generator" content={Astro.generator} />
 		<meta name="description" content={description} />
 		{noindex && <meta name="robots" content="noindex" />}
 		<meta name="theme-color" content="#ebedec" />
@@ -57,21 +63,27 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 		<meta property="og:description" content={description} />
 		<meta property="og:url" content={canonical} />
 		<meta property="og:image" content={socialImage} />
+		<meta property="og:image:width" content="1600" />
+		<meta property="og:image:height" content="900" />
 		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content={pageTitle} />
+		<meta name="twitter:description" content={description} />
+		<meta name="twitter:image" content={socialImage} />
 		<title>{pageTitle}</title>
 		{/*
-			首屏只预载最常出现的三个字形子集：UI拉丁、正文拉丁与中文常用字。
-			其余Noto分片仍由unicode-range按需请求，JetBrains Mono留给代码/HUD按需加载。
+			首屏只预载最常出现的两组拉丁字形子集：UI 与正文。
+			中文载体是 HarmonyOS Sans SC 分片（unicode-range 按需请求）；
+			Noto Serif SC 仅是生僻字兜底，预载其分片几乎不会命中，故不预载。
+			JetBrains Mono 留给代码/HUD 按需加载。
 		*/}
 		<link rel="preload" href="/fonts/space-grotesk/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin />
 		<link rel="preload" href="/fonts/source-serif-4/source-serif-4-latin-opsz.woff2" as="font" type="font/woff2" crossorigin />
-		<link rel="preload" href="/fonts/noto-serif-sc/H4chBXePl9DZ0Xe7gG9cyOj7oqP0dTpxZbB9E9gjjmzKvaeKHUTtJDWv3z-us4bxD8F5og.118.woff2" as="font" type="font/woff2" crossorigin />
 		{/*
-			文章页的 LCP 元素是首屏封面：在头部抢先发起请求，解析到 <img> 前就
-			开始传输。只在 article 类型下注入，栏目页的 og:image 并非页面首屏视觉。
+			文章页的 LCP 元素是首屏封面：preloadImage 由调用方在「页面确实渲染
+			这张图」时传入（目前是带自定义封面的文章页），在头部抢先发起请求。
 		*/}
-		{type === 'article' && image && (
-			<link rel="preload" as="image" href={image} fetchpriority="high" />
+		{preloadImage && (
+			<link rel="preload" as="image" href={preloadImage} fetchpriority="high" />
 		)}
 		{/* Chromium 系浏览器对站内链接在悬停/按下时预取目标页（moderate 档），
 		    800ms 的文章转场遮罩正好把加载时间藏进去；不支持的浏览器静默忽略。 */}
