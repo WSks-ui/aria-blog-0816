@@ -66,6 +66,9 @@
   --header-height: 4.5rem;
   --frame-inset: clamp(0.75rem, 2vw, 1.5rem);
 
+  /* 不支持 color-mix() 的浏览器（Safari <16.2 / 旧安卓 WebView）会丢弃整条声明，
+     基础令牌必须先给静态回退值，再让 color-mix 覆盖。 */
+  --border-hairline: 1px solid var(--color-line);
   --border-hairline: 1px solid color-mix(in srgb, var(--color-line), transparent 24%);
   --border-strong: 1px solid var(--color-line-strong);
   --shadow-paper: 0 1.25rem 3.5rem rgb(31 71 81 / 10%);

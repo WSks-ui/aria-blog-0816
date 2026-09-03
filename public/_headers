@@ -21,3 +21,7 @@
 
 /images/*
   Cache-Control: public, max-age=604800
+
+# Astro 的内容哈希产物（JS/CSS/优化图片）：文件名即版本，安全地按年缓存并标记 immutable。
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable

@@ -217,8 +217,11 @@ small,
 }
 
 .reading-prose .prose-code__copy {
+  /* min-height 把触屏热区抬过 WCAG 2.2 AA 的 24px 下限，视觉密度不变。 */
+  min-height: 28px;
   padding: 3px 11px;
   border: var(--border-hairline);
+  background: var(--color-surface);
   background: color-mix(in srgb, var(--color-surface) 72%, transparent);
   font-family: var(--font-ui);
   font-size: 10px;

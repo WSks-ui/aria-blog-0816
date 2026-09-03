@@ -57,6 +57,7 @@ body {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 1px;
+  background: var(--color-line);
   background: color-mix(in srgb, var(--color-line), transparent 38%);
   border: var(--border-hairline);
 }
@@ -116,6 +117,7 @@ body {
 }
 
 .paper-panel {
+  background-color: var(--color-surface);
   background-color: color-mix(in srgb, var(--color-surface), transparent 4%);
   background-image: url("/assets/patterns/paper-drift.svg");
   background-position: right top;
