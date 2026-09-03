@@ -123,9 +123,22 @@ const resultsId = `${dialogId}-results`;
   }
 
   const externalSearchTriggerCleanups = new WeakMap<HTMLElement, () => void>();
+  const searchDialogCleanups = new Map<HTMLElement, () => void>();
+  let searchDialogLifecycleReady = false;
   let activeSearchShortcutController: AbortController | null = null;
 
+  const cleanupAllSearchDialogs = () => {
+    Array.from(searchDialogCleanups.values()).forEach((cleanup) => cleanup());
+  };
+
+  const bindSearchDialogLifecycle = () => {
+    if (searchDialogLifecycleReady) return;
+    searchDialogLifecycleReady = true;
+    document.addEventListener('astro:before-swap', cleanupAllSearchDialogs);
+  };
+
   function initSearchDialogs() {
+    bindSearchDialogLifecycle();
     document.querySelectorAll<HTMLElement>('[data-search-dialog-root]').forEach((root) => {
       if (root.dataset.interactiveReady === 'true') return;
       root.dataset.interactiveReady = 'true';
@@ -146,6 +159,7 @@ const resultsId = `${dialogId}-results`;
       const externalTriggers = Array.from(
         document.querySelectorAll<HTMLElement>('[data-search-trigger]'),
       );
+      const ownExternalTriggerCleanups = new Map<HTMLElement, () => void>();
       const allTriggers: HTMLElement[] = [trigger, ...externalTriggers];
       const fallbackTrigger = externalTriggers[0] ?? trigger;
       let lastOpenTrigger: HTMLElement = fallbackTrigger;
@@ -155,6 +169,11 @@ const resultsId = `${dialogId}-results`;
       let loadState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
       // 输入防抖与“显示更多”共用这一组渲染状态；查询词变化时展开档位回到初始值。
       let renderDebounceTimer: number | undefined;
+      const clearRenderDebounceTimer = () => {
+        if (renderDebounceTimer === undefined) return;
+        window.clearTimeout(renderDebounceTimer);
+        renderDebounceTimer = undefined;
+      };
       let activeLimit = resultLimit;
       let lastRenderedQuery: string | null = null;
       const kindLabels = new Map(
@@ -467,6 +486,8 @@ const resultsId = `${dialogId}-results`;
       };
 
       const closeDialog = () => {
+        // 关闭后不再需要处理旧输入；清掉排队渲染，避免换页或重新打开时写入过期结果。
+        clearRenderDebounceTimer();
         if (!dialog.open) return;
         if (typeof dialog.close === 'function') dialog.close();
         else {
@@ -489,11 +510,10 @@ const resultsId = `${dialogId}-results`;
           event.preventDefault();
           void openDialog(externalTrigger);
         };
+        const cleanupExternalOpen = () => externalTrigger.removeEventListener('click', handleExternalOpen);
         externalTrigger.addEventListener('click', handleExternalOpen);
-        externalSearchTriggerCleanups.set(
-          externalTrigger,
-          () => externalTrigger.removeEventListener('click', handleExternalOpen),
-        );
+        ownExternalTriggerCleanups.set(externalTrigger, cleanupExternalOpen);
+        externalSearchTriggerCleanups.set(externalTrigger, cleanupExternalOpen);
       });
       closeButton.addEventListener('click', closeDialog);
       input.addEventListener('input', () => {
@@ -572,6 +592,7 @@ const resultsId = `${dialogId}-results`;
         if (event.target === dialog) closeDialog();
       });
       dialog.addEventListener('close', () => {
+		clearRenderDebounceTimer();
 		updateKeyboardResult(null);
         updateTriggerState(false);
         restoreTriggerFocus();
@@ -594,6 +615,24 @@ const resultsId = `${dialogId}-results`;
 			closeDialog();
 		}
       }, { signal: shortcutController.signal });
+
+      searchDialogCleanups.set(root, () => {
+        clearRenderDebounceTimer();
+        shortcutController.abort();
+        if (activeSearchShortcutController === shortcutController) {
+          activeSearchShortcutController = null;
+        }
+        ownExternalTriggerCleanups.forEach((cleanup, externalTrigger) => {
+          // 多个弹窗实例可能共享同一持久化触发器；只清理仍由本实例持有的监听，
+          // 避免旧实例换页时误删新实例刚接管的 click handler。
+          if (externalSearchTriggerCleanups.get(externalTrigger) !== cleanup) return;
+          cleanup();
+          externalSearchTriggerCleanups.delete(externalTrigger);
+        });
+        ownExternalTriggerCleanups.clear();
+        searchDialogCleanups.delete(root);
+        delete root.dataset.interactiveReady;
+      });
     });
   }
 

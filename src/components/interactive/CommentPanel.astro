@@ -65,6 +65,9 @@ const titleId = `comment-panel-${Math.random().toString(36).slice(2, 10)}`;
         <p class="comment-panel__status" data-comment-status aria-live="polite">
           正在加载评论区……
         </p>
+        <button class="comment-panel__retry" type="button" data-comment-retry hidden>
+          重新加载评论区
+        </button>
         <noscript>请启用 JavaScript 以加载评论区。</noscript>
       </div>
     ) : (
@@ -74,7 +77,22 @@ const titleId = `comment-panel-${Math.random().toString(36).slice(2, 10)}`;
 </section>
 
 <script>
+  const COMMENT_LOAD_TIMEOUT_MS = 12_000;
+  const commentPanelCleanups = new Map<HTMLElement, () => void>();
+  let commentPanelLifecycleReady = false;
+
+  const cleanupAllCommentPanels = () => {
+    Array.from(commentPanelCleanups.values()).forEach((cleanup) => cleanup());
+  };
+
+  const bindCommentPanelLifecycle = () => {
+    if (commentPanelLifecycleReady) return;
+    commentPanelLifecycleReady = true;
+    document.addEventListener('astro:before-swap', cleanupAllCommentPanels);
+  };
+
   function initCommentPanels() {
+    bindCommentPanelLifecycle();
     document.querySelectorAll<HTMLElement>('[data-comment-panel]').forEach((root) => {
       if (root.dataset.interactiveReady === 'true') return;
       root.dataset.interactiveReady = 'true';
@@ -82,12 +100,8 @@ const titleId = `comment-panel-${Math.random().toString(36).slice(2, 10)}`;
       if (root.dataset.configured !== 'true') return;
       const container = root.querySelector<HTMLElement>('[data-comment-container]');
       const status = root.querySelector<HTMLElement>('[data-comment-status]');
+      const retryButton = root.querySelector<HTMLButtonElement>('[data-comment-retry]');
       if (!container) return;
-
-      const script = document.createElement('script');
-      script.src = 'https://giscus.app/client.js';
-      script.async = true;
-      script.crossOrigin = 'anonymous';
 
       // Giscus 通过 script 的 data-* 属性读取配置，保持此处映射与官方参数名一致。
       const config: Record<string, string | undefined> = {
@@ -105,16 +119,87 @@ const titleId = `comment-panel-${Math.random().toString(36).slice(2, 10)}`;
         loading: root.dataset.loading,
       };
 
-      Object.entries(config).forEach(([key, value]) => {
-        if (value) script.setAttribute(`data-${key}`, value);
+      let loadTimeout: number | undefined;
+      let currentScript: HTMLScriptElement | null = null;
+      let loadAttempt = 0;
+      let disposed = false;
+
+      const clearLoadTimeout = () => {
+        if (loadTimeout === undefined) return;
+        window.clearTimeout(loadTimeout);
+        loadTimeout = undefined;
+      };
+
+      const showRetryPrompt = (message: string) => {
+        if (status) status.textContent = message;
+        if (retryButton) retryButton.hidden = false;
+        root.dataset.loadError = 'true';
+      };
+
+      const loadGiscus = () => {
+        if (disposed) return;
+        clearLoadTimeout();
+        currentScript?.remove();
+        const attempt = ++loadAttempt;
+        const script = document.createElement('script');
+        script.src = 'https://giscus.app/client.js';
+        script.async = true;
+        script.crossOrigin = 'anonymous';
+        currentScript = script;
+        root.dataset.loadState = 'loading';
+        delete root.dataset.loadError;
+        if (status) status.textContent = '正在加载评论区……';
+        if (retryButton) retryButton.hidden = true;
+
+        Object.entries(config).forEach(([key, value]) => {
+          if (value) script.setAttribute(`data-${key}`, value);
+        });
+
+        script.addEventListener('load', () => {
+          if (disposed || attempt !== loadAttempt) return;
+          clearLoadTimeout();
+          root.dataset.loadState = 'ready';
+          retryButton?.setAttribute('hidden', '');
+          status?.remove();
+        }, { once: true });
+        script.addEventListener('error', () => {
+          if (disposed || attempt !== loadAttempt) return;
+          clearLoadTimeout();
+          root.dataset.loadState = 'error';
+          showRetryPrompt('评论区加载失败，请检查网络后重试。');
+        }, { once: true });
+        container.append(script);
+
+        // 外部脚本卡住时既不触发 load 也不触发 error，单靠事件会让“正在加载”永久存在；
+        // 超时提供明确的恢复入口，并在 Astro 换页清理时取消计时器。
+        loadTimeout = window.setTimeout(() => {
+          loadTimeout = undefined;
+          if (disposed || attempt !== loadAttempt || root.dataset.loadState !== 'loading') return;
+          root.dataset.loadState = 'timeout';
+          showRetryPrompt('评论区加载时间较长，请检查网络后重试。');
+        }, COMMENT_LOAD_TIMEOUT_MS);
+      };
+
+      const retry = () => {
+        if (root.dataset.loadState === 'loading') return;
+        container.querySelectorAll('iframe.giscus-frame').forEach((frame) => frame.remove());
+        loadGiscus();
+      };
+
+      retryButton?.addEventListener('click', retry);
+
+      commentPanelCleanups.set(root, () => {
+        if (disposed) return;
+        disposed = true;
+        clearLoadTimeout();
+        loadAttempt += 1;
+        currentScript?.remove();
+        retryButton?.removeEventListener('click', retry);
+        commentPanelCleanups.delete(root);
+        delete root.dataset.interactiveReady;
       });
 
-      script.addEventListener('load', () => status?.remove(), { once: true });
-      script.addEventListener('error', () => {
-        if (status) status.textContent = '评论区加载失败，请稍后重试。';
-        root.dataset.loadError = 'true';
-      }, { once: true });
-      container.append(script);
+      loadGiscus();
     });
   }
 

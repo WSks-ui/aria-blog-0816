@@ -319,6 +319,9 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
       }
       const controller = new AbortController();
       let resizeObserver: ResizeObserver | undefined;
+      // abort 只能移除 scroll/resize 监听，已经排队的帧仍可能在换页后执行并
+      // 闭包引用旧正文；保存句柄后由 cleanup 显式取消，避免旧页面继续广播进度。
+      let progressFrame: number | undefined;
 
       const updateProgress = () => {
         const rect = content.getBoundingClientRect();
@@ -345,7 +348,10 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
       const requestProgressUpdate = () => {
         if (ticking) return;
         ticking = true;
-        requestAnimationFrame(updateProgress);
+        progressFrame = window.requestAnimationFrame(() => {
+          progressFrame = undefined;
+          updateProgress();
+        });
       };
 
       window.addEventListener('scroll', requestProgressUpdate, { passive: true, signal: controller.signal });
@@ -359,6 +365,11 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
       // Astro 的页面切换会替换正文节点；统一释放观察器和事件，避免旧文章继续驱动新页面目录。
       sceneGuideCleanups.set(root, () => {
         controller.abort();
+        if (progressFrame !== undefined) {
+          window.cancelAnimationFrame(progressFrame);
+          progressFrame = undefined;
+          ticking = false;
+        }
         resizeObserver?.disconnect();
         observer.disconnect();
         sceneGuideCleanups.delete(root);
