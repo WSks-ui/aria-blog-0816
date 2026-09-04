@@ -7,7 +7,7 @@ HarmonyOS Sans SC 可变字体（wght 40-900）切成同区间的小 woff2 分�
 浏览器只下载页面实际用到的字形区间。生成产物：
 
   public/fonts/harmonyos-sans-sc/HarmonyOS_Sans_SC.<n>.woff2
-  src/styles/harmonyos-sans.css（@font-face 清单，import 进 global.css）
+  public/fonts/harmonyos-sans.css（@font-face 清单，由 BaseLayout 以 <link> 全站下发）
 
 用法：python scripts/build_harmonyos_sans.py [HarmonyOS_Sans_SC.ttf 路径]
 缺省路径为本机下载目录；源字体更换后重跑一次即可。
@@ -21,8 +21,8 @@ from fontTools.subset import Options, Subsetter, load_font, save_font
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TTF = Path(r"C:\Users\v2383\Downloads\HarmonyOS+Sans\HarmonyOS Sans\HarmonyOS_Sans_SC.ttf")
 OUT_DIR = ROOT / "public" / "fonts" / "harmonyos-sans-sc"
-CSS_OUT = ROOT / "src" / "styles" / "harmonyos-sans.css"
-FONTS_CSS = ROOT / "src" / "styles" / "fonts.css"
+CSS_OUT = ROOT / "public" / "fonts" / "harmonyos-sans.css"
+FONTS_CSS = ROOT / "public" / "fonts" / "fonts.css"
 
 # 源字体的 wght 轴范围，写入每条 @font-face 的 font-weight 描述符。
 WEIGHT_RANGE = "40 900"

@@ -1,6 +1,6 @@
 @import "./tokens.css";
-@import "./fonts.css";
-@import "./harmonyos-sans.css";
+/* 字体声明清单（fonts.css / harmonyos-sans.css）已迁至 public/fonts/，
+   由 BaseLayout 以独立 <link> 全站下发，不再经过 Astro 样式管线。 */
 @import "./reset.css";
 @import "./typography.css";
 @import "./themes.css";

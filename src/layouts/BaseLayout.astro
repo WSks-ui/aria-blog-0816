@@ -79,6 +79,14 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 		<link rel="preload" href="/fonts/space-grotesk/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin />
 		<link rel="preload" href="/fonts/source-serif-4/source-serif-4-latin-opsz.woff2" as="font" type="font/woff2" crossorigin />
 		{/*
+			字体声明清单以独立静态样式表下发（public/fonts/，纯 @font-face 无级联依赖），
+			不经 Astro 样式管线：避免约 220KB 声明被复制进每个页面的服务端样式集
+			（dev 下每页产生数 MB 模块字符串），浏览器端亦可跨页缓存同一份清单。
+			声明仍随全站每页下发，字体栈回退行为与原 @import 方案一致。
+		*/}
+		<link rel="stylesheet" href="/fonts/fonts.css" />
+		<link rel="stylesheet" href="/fonts/harmonyos-sans.css" />
+		{/*
 			文章页的 LCP 元素是首屏封面：preloadImage 由调用方在「页面确实渲染
 			这张图」时传入（目前是带自定义封面的文章页），在头部抢先发起请求。
 		*/}

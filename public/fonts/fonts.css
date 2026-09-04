@@ -3,6 +3,13 @@
  * 代码与HUD使用JetBrains Mono。文件只保留首屏和文章常用的Latin/Latin-ext子集；
  * 中文载体为 harmonyos-sans.css 的 HarmonyOS Sans SC 分片（站长指定），
  * 下方 Noto Serif SC 分片保留作衬线回退与缺失字形兜底。
+ *
+ * 已知债务（2026-09-04，审计 L2）：103 条 Noto Serif SC 的 @font-face 声明
+ * 使共享 CSS 增加约 100KB（gzip 前）。声明必须随全局 CSS 下发，字体栈中的
+ * 回退才生效，无法按页面拆分注入；unicode-range 保证字体文件本身不被下载，
+ * 因此这里只有声明体积开销。若未来确定放弃衬线回退，应从 tokens.css 的
+ * --font-serif / --font-display 栈中移除 Noto Serif SC 并同步删除本文件
+ * 对应分片与 /fonts/noto-serif-sc/ 目录，而非仅删除声明。
  */
 @font-face {
   font-family: 'Space Grotesk';
