@@ -299,9 +299,19 @@ const { minutes, scenes, related = [] } = Astro.props;
 	 * 极短的文章整段不足一屏、比例永远到不了线，此时退而求其次——整段
 	 * 正文已经完整收进视口即视为读毕。每页只落一次章。
 	 */
+	let disposeArchiveStamp: (() => void) | undefined;
+
 	function initArchiveStamp() {
+		// ClientRouter 的 page-load 会在每次文章切换后再次运行这里。先释放上一页
+		// 挂在 document/window 上的监听器，否则旧 footer 虽然已经脱离 DOM，旧闭包
+		// 仍会继续响应滚动和阅读进度事件，最终形成与文章数量成正比的监听器泄漏。
+		disposeArchiveStamp?.();
+		disposeArchiveStamp = undefined;
+
 		const footer = document.querySelector<HTMLElement>('[data-night-echo]');
-		if (!footer || footer.dataset.stampReady === 'true') return;
+		if (!footer) return;
+		const controller = new AbortController();
+		const { signal } = controller;
 		footer.dataset.stampReady = 'true';
 
 		let stamped = false;
@@ -320,7 +330,7 @@ const { minutes, scenes, related = [] } = Astro.props;
 		document.addEventListener('aria7-reading-progress', (event) => {
 			const ratio = (event as CustomEvent<{ ratio?: number }>).detail?.ratio ?? 0;
 			if (ratio >= 0.95) stamp();
-		});
+		}, { signal });
 
 		window.addEventListener(
 			'scroll',
@@ -329,10 +339,18 @@ const { minutes, scenes, related = [] } = Astro.props;
 				const prose = document.querySelector<HTMLElement>('.reading-prose');
 				if (prose && prose.getBoundingClientRect().bottom < window.innerHeight + 60) stamp();
 			},
-			{ passive: true },
+			{ passive: true, signal },
 		);
+
+		disposeArchiveStamp = () => {
+			controller.abort();
+			// 允许同一节点在导航被保留后重新初始化，避免 ready 标记阻断新一轮监听绑定。
+			if (footer.isConnected) delete footer.dataset.stampReady;
+		};
 	}
 
 	initArchiveStamp();
 	document.addEventListener('astro:page-load', initArchiveStamp);
+	// 在文档交换前先切断旧文章的全局监听，缩短旧闭包继续运行的窗口。
+	document.addEventListener('astro:before-swap', () => disposeArchiveStamp?.());
 </script>

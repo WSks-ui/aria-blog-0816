@@ -83,6 +83,7 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 
 <script>
 	let disposeRecentStage: (() => void) | undefined;
+	let pauseRecentStage: (() => void) | undefined;
 
 	function initRecentStage() {
 		// View Transitions 或未来的客户端路由会再次触发 page-load。先回收旧观察器和 RAF，
@@ -110,6 +111,7 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 		let activeRecentIndex = -1;
 		let pointerPaused = false;
 		let focusPaused = false;
+		let pageTransitioning = false;
 		let streamIsVisible = false;
 		let streamPosition = 0;
 		let previousFrameTime = 0;
@@ -143,7 +145,7 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 		};
 
 		const normalizeRecentScroll = () => {
-			if (!recentViewport || loopDistance <= 0) return recentViewport?.scrollTop ?? 0;
+			if (pageTransitioning || !recentViewport || loopDistance <= 0) return recentViewport?.scrollTop ?? 0;
 			const normalizedPosition = recentViewport.scrollTop % loopDistance;
 			// 从复制组无缝回到原始组。两组内容完全一致，所以这里不会产生视觉跳跃。
 			if (Math.abs(recentViewport.scrollTop - normalizedPosition) > 0.5) recentViewport.scrollTop = normalizedPosition;
@@ -151,7 +153,7 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 		};
 
 		const syncRecentHighlight = () => {
-			if (!recentViewport || primaryRecentPreviews.length === 0 || recentCardStep <= 0 || loopDistance <= 0) return;
+			if (pageTransitioning || !recentViewport || primaryRecentPreviews.length === 0 || recentCardStep <= 0 || loopDistance <= 0) return;
 			// 用测量阶段缓存的首卡中心和固定卡距推导焦点，滚动期间不再逐卡读取布局。
 			const viewportFocus = normalizeRecentScroll() + recentViewport.clientHeight * 0.26;
 			const cycleOffset = ((viewportFocus - firstRecentCardCenter) % loopDistance + loopDistance) % loopDistance;
@@ -160,9 +162,10 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 		};
 
 		const queueRecentHighlight = () => {
-			if (recentHighlightFrame) return;
+			if (pageTransitioning || recentHighlightFrame) return;
 			recentHighlightFrame = requestAnimationFrame(() => {
 				recentHighlightFrame = 0;
+				if (pageTransitioning) return;
 				syncRecentHighlight();
 			});
 		};
@@ -175,6 +178,7 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 
 		const canAdvanceRecentStream = () => (
 			!reduceMotion
+			&& !pageTransitioning
 			&& streamIsVisible
 			&& !document.hidden
 			&& !pointerPaused
@@ -210,16 +214,40 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 		};
 
 		const queueRecentStreamVisibility = () => {
-			if (recentVisibilityFrame) return;
+			if (pageTransitioning || recentVisibilityFrame) return;
 			recentVisibilityFrame = requestAnimationFrame(() => {
 				recentVisibilityFrame = 0;
+				if (pageTransitioning) return;
 				refreshRecentStreamVisibility();
 			});
 		};
 
+		const pauseForPageTransition = () => {
+			// before-preparation 早于 before-swap，期间旧页面仍可能接收观察器回调；
+			// 状态门闩让这些回调即使到达，也不能重新申请 RAF 或改写 scrollTop。
+			pageTransitioning = true;
+			stopRecentStream();
+			if (recentHighlightFrame) cancelAnimationFrame(recentHighlightFrame);
+			recentHighlightFrame = 0;
+			if (focusOutFrame) cancelAnimationFrame(focusOutFrame);
+			focusOutFrame = 0;
+			if (recentVisibilityFrame) cancelAnimationFrame(recentVisibilityFrame);
+			recentVisibilityFrame = 0;
+			window.clearTimeout(manualResumeTimer);
+			manualResumeTimer = 0;
+		};
+		pauseRecentStage = pauseForPageTransition;
+
 		// 移动端已经隐藏预览窗口，继续维持无限 RAF 只会白白占用电量；
 		// 记录列表本身仍然保留，因此窄屏不需要这条桌面滚动舞台。
-		const compactViewport = window.matchMedia('(max-width: 760px)').matches;
+		// 断点判定不能只取一次：移动端旋转到桌面宽度（或反向）后需要整体重建
+		// 舞台，复制组、测量与 RAF 随 dispose/init 一撤一建，行为始终匹配当前宽度。
+		const compactQuery = window.matchMedia('(max-width: 760px)');
+		compactQuery.addEventListener('change', () => {
+			if (pageTransitioning) return;
+			initRecentStage();
+		}, { signal });
+		const compactViewport = compactQuery.matches;
 		const ensureDuplicateRecentGroup = () => {
 			const track = recentViewport?.querySelector<HTMLElement>('.recent-stage__track');
 			const primary = recentGroups[0];
@@ -274,6 +302,7 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 				startRecentStream();
 			}, { signal });
 			recentViewport.addEventListener('wheel', () => {
+				if (pageTransitioning) return;
 				// 滚轮输入优先交给访客。静置 1.4 秒后从当前阅读位置继续推进，
 				// 期间直接停止 RAF，而不是让空循环持续检查时间。
 				stopRecentStream();
@@ -285,13 +314,16 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 				stopRecentStream();
 			}, { signal });
 			recentViewport.addEventListener('focusout', () => {
+				if (pageTransitioning) return;
 				focusOutFrame = requestAnimationFrame(() => {
 					focusOutFrame = 0;
+					if (pageTransitioning) return;
 					focusPaused = recentViewport.contains(document.activeElement);
 					startRecentStream();
 				});
 			}, { signal });
 			recentViewport.addEventListener('scroll', () => {
+				if (pageTransitioning) return;
 				const normalizedPosition = normalizeRecentScroll();
 				// 自动写入会产生细小的像素量化差；只有明显偏差才视为访客的滚轮或滚动条输入。
 				if (Math.abs(normalizedPosition - streamPosition) > 2) streamPosition = normalizedPosition;
@@ -304,6 +336,7 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 			});
 
 			const refreshRecentMeasurements = () => {
+				if (pageTransitioning) return;
 				measureRecentStream();
 				streamPosition = normalizeRecentScroll();
 				queueRecentHighlight();
@@ -339,9 +372,14 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 				if (document.hidden) stopRecentStream();
 				else startRecentStream();
 			}, { signal });
+		} else if (recentViewport && recentGroups.length > 1) {
+			// 从桌面宽度旋转进窄屏时，上一阶段克隆的回环复制组已不再需要，
+			// 移除以免遗留无意义的 inert DOM。
+			recentGroups.slice(1).forEach((group) => group.remove());
 		}
 
 		disposeRecentStage = () => {
+			pauseForPageTransition();
 			controller.abort();
 			recentVisibilityObserver?.disconnect();
 			recentResizeObserver?.disconnect();
@@ -350,11 +388,16 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 			if (focusOutFrame) cancelAnimationFrame(focusOutFrame);
 			if (recentVisibilityFrame) cancelAnimationFrame(recentVisibilityFrame);
 			window.clearTimeout(manualResumeTimer);
+			manualResumeTimer = 0;
+			if (pauseRecentStage === pauseForPageTransition) pauseRecentStage = undefined;
+			if (disposeRecentStage) disposeRecentStage = undefined;
 		};
 	}
 
 	initRecentStage();
 	document.addEventListener('astro:page-load', initRecentStage);
+	// 先于 swap 停止滚动舞台，避免旧页面在准备新文档时继续写 scrollTop。
+	document.addEventListener('astro:before-preparation', () => pauseRecentStage?.());
 	document.addEventListener('astro:before-swap', () => disposeRecentStage?.());
 </script>
 
