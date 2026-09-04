@@ -132,12 +132,16 @@
 			let disposed = false;
 			let resizeObserver: ResizeObserver | undefined;
 			let visibilityObserver: IntersectionObserver | undefined;
+			let routeObserver: MutationObserver | undefined;
 			const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 			let width = 1;
 			let height = 1;
+			let sceneDocumentLeft = 0;
+			let sceneDocumentTop = 0;
 			let pixelRatio = 1;
 			let animationFrame = 0;
 			let visible = true;
+			let routePaused = false;
 			let lastTime = performance.now();
 			let beatIndex = 0;
 			let beatElapsed = -1200;
@@ -146,8 +150,8 @@
 			let pointerY = 0.46;
 			let pointerTargetX = pointerX;
 			let pointerTargetY = pointerY;
-			// 事件里只记原始 client 坐标；根元素的视口位置在 draw 里每帧取一次，
-			// 高轮询率指针不会在每个 pointermove 事件里强制布局。null 表示指针不在场内。
+			// 事件里只记原始 client 坐标；根元素边界由 ResizeObserver 批量刷新，
+			// draw 不再每帧 getBoundingClientRect。null 表示指针不在场内。
 			let pointerRawX: number | null = null;
 			let pointerRawY: number | null = null;
 			let lastDraftX = '';
@@ -200,10 +204,21 @@
 				}
 			};
 
+			// 扫描线固定在 8% 基准位，只改变合成层位移；四拍目标分别对应
+			// 原先的 top: 8% / 36% / 72% / 92%。高度只在 resize 时重新换算。
+			const scanlineOffsets = [0, 0.28, 0.64, 0.84] as const;
+			const syncScanlinePosition = () => {
+				root.style.setProperty('--hero-scan-y', `${height * scanlineOffsets[beatIndex]}px`);
+			};
+
 			const resize = () => {
 				const bounds = root.getBoundingClientRect();
 				width = Math.max(1, bounds.width);
 				height = Math.max(1, bounds.height);
+				// 缓存文档坐标而非视口坐标；滚动时只需叠加 scrollX/scrollY，
+				// 不必为每个动画帧或滚动事件重新读取 getBoundingClientRect。
+				sceneDocumentLeft = bounds.left + window.scrollX;
+				sceneDocumentTop = bounds.top + window.scrollY;
 				// Hero 雨丝只使用 1px 线宽和 round lineCap，没有额外的 CSS 模糊；
 				// 保留 DPR 2 上限才能在高密度屏幕上维持细线的抗锯齿与边缘细节。
 				pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
@@ -213,6 +228,7 @@
 				canvas.style.height = `${height}px`;
 				context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
 				syncRainDensity();
+				syncScanlinePosition();
 			};
 
 			const updateColors = () => {
@@ -224,6 +240,7 @@
 			const setBeat = (nextBeat: number, restart = false) => {
 				beatIndex = nextBeat;
 				root.dataset.beat = String(beatIndex);
+				syncScanlinePosition();
 				if (restart) beatElapsed = 0;
 				if (!beat) return;
 				beat.textContent = beats[beatIndex].label;
@@ -249,10 +266,8 @@
 				}
 				rainEnergy += (beats[beatIndex].rain - rainEnergy) * Math.min(1, delta * 1.35);
 				if (pointerRawX !== null && pointerRawY !== null) {
-					// 每帧一次的 bounds 读取：换算指针在场景内的 0..1 归一位置。
-					const bounds = root.getBoundingClientRect();
-					pointerTargetX = Math.min(1, Math.max(0, (pointerRawX - bounds.left) / Math.max(1, bounds.width)));
-					pointerTargetY = Math.min(1, Math.max(0, (pointerRawY - bounds.top) / Math.max(1, bounds.height)));
+					pointerTargetX = Math.min(1, Math.max(0, (pointerRawX + window.scrollX - sceneDocumentLeft) / width));
+					pointerTargetY = Math.min(1, Math.max(0, (pointerRawY + window.scrollY - sceneDocumentTop) / height));
 				}
 				pointerX += (pointerTargetX - pointerX) * Math.min(1, delta * 4.5);
 				pointerY += (pointerTargetY - pointerY) * Math.min(1, delta * 4.5);
@@ -293,7 +308,7 @@
 					lastDraftY = draftY;
 				}
 
-				if (visible && !document.hidden && !reduceMotion.matches) {
+				if (visible && !document.hidden && !reduceMotion.matches && !routePaused) {
 					animationFrame = requestAnimationFrame(draw);
 				}
 			};
@@ -308,9 +323,9 @@
 				if (disposed) return;
 				cancelAnimationFrame(animationFrame);
 				// Canvas 与 SVG 必须共用可见性状态，否则离开首屏后液态层仍会独自推进。
-				if (reduceMotion.matches || !visible || document.hidden) draft?.pauseAnimations();
+				if (reduceMotion.matches || !visible || document.hidden || routePaused) draft?.pauseAnimations();
 				else draft?.unpauseAnimations();
-				if (reduceMotion.matches || !visible || document.hidden) {
+				if (reduceMotion.matches || !visible || document.hidden || routePaused) {
 					renderStaticFrame();
 					return;
 				}
@@ -328,6 +343,7 @@
 				cancelAnimationFrame(animationFrame);
 				resizeObserver?.disconnect();
 				visibilityObserver?.disconnect();
+				routeObserver?.disconnect();
 				draft?.pauseAnimations();
 				lifecycle.abort();
 			};
@@ -349,6 +365,23 @@
 				start();
 			}, { threshold: 0.05 });
 			visibilityObserver.observe(root);
+			/*
+			 * 首页→关于页会先升起曝光幕，430ms 后才真正调用 navigate。观察根节点
+			 * 的标题旅程/路由标记可以在幕布刚出现时就冻结 Canvas 与 SVG，而不是
+			 * 等 before-swap 才停止已经看不见的绘制。属性清除后 start 会自动续播。
+			 */
+			const syncRoutePause = () => {
+				routePaused = document.documentElement.hasAttribute('data-title-veil')
+					|| document.documentElement.hasAttribute('data-astro-transition');
+				start();
+			};
+			routeObserver = new MutationObserver(syncRoutePause);
+			routeObserver.observe(document.documentElement, {
+				attributes: true,
+				attributeFilter: ['data-title-veil', 'data-astro-transition'],
+			});
+			routePaused = document.documentElement.hasAttribute('data-title-veil')
+				|| document.documentElement.hasAttribute('data-astro-transition');
 
 			document.addEventListener('visibilitychange', start, { signal: lifecycle.signal });
 			document.addEventListener('weather-mode-change', () => {
@@ -681,7 +714,9 @@
 		background: var(--night-text);
 		box-shadow: 0 0 16px rgb(117 197 216 / 60%);
 		opacity: 0;
-		transition: top 2200ms linear, opacity 800ms var(--ease-rain);
+		transform: translate3d(0, var(--hero-scan-y, 0px), 0);
+		transition: transform 2200ms linear, opacity 800ms var(--ease-rain);
+		will-change: transform, opacity;
 	}
 
 	.hero-scene[data-beat='1'] .hero-scene__wet-glass--a { opacity: 0.48; transform: translate3d(2px, 4px, 0) rotate(9deg) scale(1); }
@@ -689,9 +724,9 @@
 	.hero-scene[data-beat='2'] .hero-scene__wet-glass--a { opacity: 0.62; transform: translate3d(7px, 10px, 0) rotate(9deg) scale(1.025); }
 	.hero-scene[data-beat='2'] .hero-scene__wet-glass--b { opacity: 0.5; transform: translate3d(-6px, 13px, 0) rotate(-6deg) scale(1.025); }
 	.hero-scene[data-beat='3'] .hero-scene__wet-glass { opacity: 0.08; }
-	.hero-scene[data-beat='1'] .hero-scene__scanline { top: 36%; opacity: 0.42; }
-	.hero-scene[data-beat='2'] .hero-scene__scanline { top: 72%; opacity: 0.32; }
-	.hero-scene[data-beat='3'] .hero-scene__scanline { top: 92%; opacity: 0; }
+	.hero-scene[data-beat='1'] .hero-scene__scanline { opacity: 0.42; }
+	.hero-scene[data-beat='2'] .hero-scene__scanline { opacity: 0.32; }
+	.hero-scene[data-beat='3'] .hero-scene__scanline { opacity: 0; }
 
 	.hero-scene__beat {
 		position: absolute;

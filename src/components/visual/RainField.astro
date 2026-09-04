@@ -28,7 +28,7 @@ const paperMarks = [
 
 ---
 
-<div class="rain-field" aria-hidden="true" data-rain-field>
+<div class="rain-field" aria-hidden="true" data-rain-field transition:persist="rain-field">
 	<!-- 着色器画布：接管大面积底材；前景雨丝保留在下方 z-index:5 的 DOM 层。 -->
 	<canvas class="rain-field__gl" data-rainfield-gl></canvas>
 
@@ -288,7 +288,7 @@ const paperMarks = [
 	 * 把夜间的存在感留给正文与局部的 HUD/粒子高光。
 	 */
 	:global(html[data-weather-mode='clear']) .rain-field__mural { background-image: url('/assets/patterns/atmosphere-clear.svg'); }
-	:global(html[data-weather-mode='night']) .rain-field__mural { background-image: url('/assets/patterns/atmosphere-night.svg'); opacity: 0.5; }
+	:global(html[data-weather-mode='night']) .rain-field__mural { background-image: url('/assets/patterns/atmosphere-night.svg'); }
 	:global(html[data-weather-mode='night']) .rain-field__atlas { mix-blend-mode: screen; opacity: 0.1; }
 	:global(html[data-weather-mode='night']) .rain-field__glass--a { backdrop-filter: blur(5px); }
 	:global(html[data-weather-mode='night']) .rain-field__glass { opacity: 0.18; }
@@ -345,6 +345,22 @@ const paperMarks = [
 		.rain-field__rain span,
 		.rain-field__papers span { animation: none; }
 		.rain-field__rain { opacity: calc(var(--weather-rain-opacity) * .36); }
+	}
+
+	/*
+	 * ClientRouter 正在采集和播放页面快照时，背景只需保持最后一帧。
+	 * 玻璃、雨线和纸片若继续运动，会与整页快照争抢光栅/合成预算；暂停后
+	 * 元素仍停在当前视觉位置，转场结束自动续播，不会产生归位跳变。
+	 */
+	:global(html[data-title-veil]) .rain-field__mural,
+	:global(html[data-title-veil]) .rain-field__glass,
+	:global(html[data-title-veil]) .rain-field__rain span,
+	:global(html[data-title-veil]) .rain-field__papers span,
+	:global(html[data-astro-transition]) .rain-field__mural,
+	:global(html[data-astro-transition]) .rain-field__glass,
+	:global(html[data-astro-transition]) .rain-field__rain span,
+	:global(html[data-astro-transition]) .rain-field__papers span {
+		animation-play-state: paused !important;
 	}
 </style>
 
@@ -473,23 +489,22 @@ const paperMarks = [
 		fiberBlend: number;
 	}
 
-	const readTokens = (root: HTMLElement): WeatherTokens => {
+	const readTokens = (): WeatherTokens => {
 		const styles = getComputedStyle(document.documentElement);
 		const read = (name: string) => styles.getPropertyValue(name).trim();
-		// 夜间壁画有更高 specificity 的 opacity 覆盖，不能只读变量；直接读取
-		// 实际元素的 computed style 才能同时覆盖夜间、FOCUS 与未来主题规则。
-		const muralStyles = getComputedStyle(root.querySelector<HTMLElement>('.rain-field__mural') ?? root);
-		const fiberStyles = getComputedStyle(root.querySelector<HTMLElement>('.rain-field__fiber') ?? root);
 		const opacity = (value: string) => Number.parseFloat(value) || 0;
 		return {
 			base: read('--weather-base') || '#ebedec',
 			surface: read('--weather-surface') || '#eef4f2',
 			glow: read('--weather-glow') || '#c9edf0',
 			haze: read('--weather-haze') || '#a8d9e2',
-			muralOpacity: opacity(muralStyles.opacity),
-			fiberOpacity: opacity(fiberStyles.opacity),
-			muralBlend: muralStyles.mixBlendMode === 'screen' ? 1 : 0,
-			fiberBlend: fiberStyles.mixBlendMode === 'screen' ? 1 : 0,
+			// 所有透明度都由根主题变量给出；夜间常态和 FOCUS 覆盖因此能同时驱动
+			// DOM 回退与 WebGL。这里只读取一份根 computed style，不再在 900ms
+			// 过渡期间逐帧查询实际元素，从根源上移除强制样式结算。
+			muralOpacity: opacity(read('--weather-mural-opacity')),
+			fiberOpacity: opacity(read('--weather-fiber-opacity')),
+			muralBlend: read('--weather-mural-blend') === 'screen' ? 1 : 0,
+			fiberBlend: read('--weather-fiber-blend') === 'screen' ? 1 : 0,
 		};
 	};
 
@@ -662,6 +677,7 @@ const paperMarks = [
 			const value = document.documentElement.dataset.weatherMode;
 			return value === 'clear' || value === 'night' ? value : 'rain';
 		};
+		let uploadedMode: WeatherMode | null = null;
 
 		const uploadRaster = (texture: WebGLTexture, raster: HTMLCanvasElement, unit: number) => {
 			gl.activeTexture(unit);
@@ -709,12 +725,13 @@ const paperMarks = [
 			const groundLongEdge = Math.max(1, Math.round(groundTextureLongEdge));
 			const ground = makeGroundTexture(
 				mode,
-				readTokens(root),
+				readTokens(),
 				groundAspect >= 1 ? groundLongEdge : Math.max(1, Math.round(groundLongEdge * groundAspect)),
 				groundAspect >= 1 ? Math.max(1, Math.round(groundLongEdge / groundAspect)) : groundLongEdge,
 			);
 			uploadRaster(groundTexture, ground, gl.TEXTURE0);
-		}
+			uploadedMode = mode;
+		};
 
 		let rebuildTimer = 0;
 
@@ -772,39 +789,49 @@ const paperMarks = [
 			gl.uniform2f(locations.muralDrift, -0.008 + 0.016 * progress, -0.005 + 0.012 * progress);
 		};
 
-		let uniformSyncUntil = 0;
 		const syncUniforms = () => {
-			const tokens = readTokens(root);
+			const tokens = readTokens();
 			gl.uniform1f(locations.muralBlend, tokens.muralBlend);
 			gl.uniform1f(locations.fiberBlend, tokens.fiberBlend);
 			gl.uniform1f(locations.muralOpacity, tokens.muralOpacity);
 			gl.uniform1f(locations.fiberOpacity, tokens.fiberOpacity);
 		};
 		const applyMode = (mode: WeatherMode, rebuildTextures = true) => {
+			/*
+			 * 天气提交发生在全屏遮罩完全覆盖的时刻，uniform 可以一次落到目标值。
+			 * 旧实现为了追随 CSS 过渡，在随后 960ms 的每个绘制帧读取三份
+			 * computed style；这会强制结算刚交换进来的整页样式，正好卡住入场动画。
+			 */
 			syncUniforms();
-			// CSS 的 opacity/background 过渡为 720~900ms；只在这段时间内
-			// 读取 computed style，平时帧循环不会触发布局或样式重算。
-			uniformSyncUntil = performance.now() + 960;
-			if (rebuildTextures) {
-				// 模式切换发生在转场幕布之后，直接重光栅化（一次 drawImage）。
+			if (rebuildTextures && uploadedMode !== mode) {
+				// 持久化画布会收到“目标文档恢复同一主题”的重复事件；纹理未变时
+				// 不再重新光栅化和上传全屏贴图。
 				scheduleTextureRebuild(mode, true);
 			}
 		};
 
 		const resize = () => {
-			const width = Math.max(1, Math.round(root.clientWidth * dpr()));
-			const height = Math.max(1, Math.round(root.clientHeight * dpr()));
-			if (canvas.width !== width || canvas.height !== height) {
+			// 布局尺寸先成对读取，再统一写入 canvas，避免同一函数内读写交错。
+			const cssWidth = root.clientWidth;
+			const cssHeight = root.clientHeight;
+			const pixelRatio = dpr();
+			const width = Math.max(1, Math.round(cssWidth * pixelRatio));
+			const height = Math.max(1, Math.round(cssHeight * pixelRatio));
+			const sizeChanged = canvas.width !== width || canvas.height !== height;
+			if (sizeChanged) {
 				canvas.width = width;
 				canvas.height = height;
 				gl.viewport(0, 0, width, height);
+				// ResizeObserver 在页面交换后可能仍回调一次；固定背景物理尺寸
+				// 没变时不应重建纹理，只有真正 resize 才进入防抖上传。
+				scheduleTextureRebuild(currentMode());
 			}
-			gl.uniform2f(locations.res, root.clientWidth, root.clientHeight);
-			gl.uniform1f(locations.dpr, dpr());
+			// uniform 必须每次初始化都写入；极小视口若恰好等于 canvas 默认的
+			// 300×150，物理尺寸虽然“未变化”，WebGL 默认 uniform 仍全部是 0。
+			gl.uniform2f(locations.res, cssWidth, cssHeight);
+			gl.uniform1f(locations.dpr, pixelRatio);
 			gl.uniform1f(locations.fiberTile, fiberTile());
 			gl.uniform1f(locations.muralAspect, MURAL_ASPECT);
-			// 分辨率变了，纹理跟着重光栅化；拖拽期间防抖。
-			scheduleTextureRebuild(currentMode());
 		};
 
 		const controller = new AbortController();
@@ -813,11 +840,13 @@ const paperMarks = [
 		let rafId = 0;
 		let ready = false;
 		let firstFrameDrawn = false;
+		let routePaused = false;
+		let swapPaused = false;
 		let resizeObserver: ResizeObserver | null = null;
 		let focusObserver: MutationObserver | null = null;
+		let routeObserver: MutationObserver | null = null;
 
 		const drawFrame = (now: number) => {
-			if (now < uniformSyncUntil) syncUniforms();
 			updateMuralTransform(now);
 			gl.drawArrays(gl.TRIANGLES, 0, 3);
 			// 首帧落盘标记：让外部可以区分「画了黑的」和「还没画过」。
@@ -828,29 +857,66 @@ const paperMarks = [
 		};
 		const frame = (now: number) => {
 			rafId = 0;
-			if (disposed || document.hidden || !ready) return;
+			if (disposed || document.hidden || !ready || routePaused) return;
 			drawFrame(now);
 			rafId = requestAnimationFrame(frame);
 		};
+		const stopLoop = () => {
+			if (rafId) cancelAnimationFrame(rafId);
+			rafId = 0;
+		};
 		const startLoop = () => {
-			if (!rafId && !disposed && ready && !document.hidden) rafId = requestAnimationFrame(frame);
+			if (!rafId && !disposed && ready && !document.hidden && !routePaused) {
+				rafId = requestAnimationFrame(frame);
+			}
+		};
+		const syncRoutePause = () => {
+			/*
+			 * 首页与关于页的标题旅程会先挂 data-title-veil，约 430ms 后才进入
+			 * before-swap。swapPaused 单独保留到 page-load，避免 Astro 用新文档
+			 * 根属性覆盖旧标记时提前恢复 WebGL，确保整个快照播放阶段都只复用
+			 * 最后一帧。若导航在交换前取消，曝光幕属性移除后则可立即续播。
+			 */
+			routePaused = swapPaused
+				|| document.documentElement.hasAttribute('data-title-veil')
+				|| document.documentElement.hasAttribute('data-astro-transition');
+			if (routePaused) stopLoop();
+			else startLoop();
 		};
 
 		const dispose = () => {
 			if (disposed) return;
 			disposed = true;
-			if (rafId) cancelAnimationFrame(rafId);
-			rafId = 0;
+			stopLoop();
 			window.clearTimeout(rebuildTimer);
 			resizeObserver?.disconnect();
 			focusObserver?.disconnect();
+			routeObserver?.disconnect();
 			controller.abort();
 			delete document.documentElement.dataset.rainfield;
 			// 主动弃用上下文，立即归还 GPU 资源（光栅纹理 + 命令缓冲）。
 			gl.getExtension('WEBGL_lose_context')?.loseContext();
 		};
 
-		document.addEventListener('astro:before-swap', dispose, { once: true, signal });
+		/*
+		 * RainField 位于所有 BaseLayout 页面中，根节点通过 transition:persist
+		 * 跨路由保留。交换期间只冻结 RAF，不再销毁着色器、纹理和 WebGL 上下文；
+		 * 新文档的 <html> 属性会覆盖运行标记，因此 after-swap 立即补回显示状态，
+		 * page-load（视图转场播放完毕）再恢复慢速壁画绘制。
+		 */
+		document.addEventListener('astro:before-swap', () => {
+			swapPaused = true;
+			syncRoutePause();
+		}, { signal });
+		document.addEventListener('astro:after-swap', () => {
+			if (disposed || !ready) return;
+			document.documentElement.dataset.rainfield = 'gl';
+			if (firstFrameDrawn) document.documentElement.dataset.rainfieldFrame = '1';
+		}, { signal });
+		document.addEventListener('astro:page-load', () => {
+			swapPaused = false;
+			syncRoutePause();
+		}, { signal });
 		document.addEventListener('visibilitychange', startLoop, { signal });
 		reduceMotion.addEventListener('change', dispose, { signal });
 		// 上下文丢失（驱动重置/省电策略等）：退回 DOM 层，页面不能黑着。
@@ -879,6 +945,13 @@ const paperMarks = [
 			}
 		});
 		focusObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-reading-focus'] });
+		// 曝光幕早于 Astro 路由事件出现；观察根属性即可在遮罩首帧同步冻结
+		// WebGL 与 DOM 背景，并在取消标题旅程时及时恢复。
+		routeObserver = new MutationObserver(syncRoutePause);
+		routeObserver.observe(document.documentElement, {
+			attributes: true,
+			attributeFilter: ['data-title-veil', 'data-astro-transition'],
+		});
 
 		const loadMural = async (mode: WeatherMode) => {
 			const cached = muralImages.get(mode);

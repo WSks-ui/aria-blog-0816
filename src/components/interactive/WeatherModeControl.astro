@@ -69,6 +69,16 @@ const {
     type WeatherMode,
   } from '@/lib/weather-mode';
 
+  type RouterSwapEvent = Event & { newDocument?: Document };
+
+  // 与 lib/weather-mode.ts 的地址栏色保持一致。这里写入的是尚未交换的
+  // newDocument，不能调用只操作当前 document 的 commitWeatherMode。
+  const THEME_COLORS: Record<WeatherMode, string> = {
+    clear: '#f6f7f3',
+    rain: '#ebedec',
+    night: '#0d1216',
+  };
+
   /*
    * 每个控件实例挂在 document/window 上的监听统一放进一个 AbortController：
    * 控件被 transition:persist 保留时，这些监听理应跨换页存活；一旦控件在
@@ -140,16 +150,36 @@ const {
 
       /*
        * 页头会在 ClientRouter 换页时持久化，但 Astro 仍会把目标文档的
-       * <html data-weather-mode="rain"> 属性写回当前根节点。控件本身不会
-       * 重新初始化，因此这里无动画地恢复此实例已应用的模式；存储不可用时
-       * root 的 activeMode 仍是可信来源。这样场景颜色、地址栏 theme-color、
-       * 单选状态和页面数据属性始终处于同一主题，不会在切换栏目后回落为 Rain。
+       * <html data-weather-mode="rain"> 属性写回当前根节点。若等 after-swap
+       * 再恢复，整棵页面会先按 Rain 结算一次样式、随后又按真实主题结算一次，
+       * 两轮失效都发生在转场关键帧内。交换前直接修正 newDocument，当前页只
+       * 接收最终主题；after-swap 仅保留异常路径兜底。
        */
-		const restoreModeAfterSwap = () => {
-			const activeMode = root.dataset.activeMode ?? null;
+      const carryModeIntoNewDocument = (event: RouterSwapEvent) => {
+        const activeMode = root.dataset.activeMode ?? null;
         const mode = isWeatherMode(activeMode) ? activeMode : readStoredWeatherMode(storageKey) ?? 'rain';
-        commitMode(mode, false);
+        const incoming = event.newDocument;
+        if (!incoming) return;
+
+        incoming.documentElement.dataset.weatherMode = mode;
+        incoming.documentElement.dataset.theme = mode === 'night' ? 'night' : 'light';
+        incoming.documentElement.style.colorScheme = mode === 'night' ? 'dark' : 'light';
+        const themeColor = incoming.querySelector<HTMLMetaElement>('meta[name="theme-color"]:not([media])');
+        if (themeColor) themeColor.content = THEME_COLORS[mode];
       };
+      const restoreModeAfterSwap = () => {
+        const activeMode = root.dataset.activeMode ?? null;
+        const mode = isWeatherMode(activeMode) ? activeMode : readStoredWeatherMode(storageKey) ?? 'rain';
+        if (document.documentElement.dataset.weatherMode !== mode) {
+          commitMode(mode, false);
+        } else {
+          // 正常路径已经在 newDocument 上完成提交；只维护控件私有状态，避免
+          // 重复广播 weather-mode-change 触发纹理重建和全局样式更新。
+          root.dataset.activeMode = mode;
+          delete root.dataset.pendingMode;
+        }
+      };
+      document.addEventListener('astro:before-swap', carryModeIntoNewDocument, { signal: controller.signal });
       document.addEventListener('astro:after-swap', restoreModeAfterSwap, { signal: controller.signal });
 
       buttons.forEach((button) => {

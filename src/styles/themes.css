@@ -126,7 +126,8 @@
   --weather-rain: #9ee7ef;
   --weather-paper: #eff8f3;
   --weather-glass-line: #9edfe8;
-  --weather-mural-opacity: 0.78;
+  /* 夜间最终可见度直接落在主题变量上，让 FOCUS 的 0.3 覆盖同时作用于 DOM 与 WebGL。 */
+  --weather-mural-opacity: 0.5;
 	--weather-fiber-opacity: 0.12;
   --weather-atlas-opacity: 0.24;
   --weather-glass-opacity: 0.26;

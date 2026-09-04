@@ -48,15 +48,23 @@ const kindCode = {
 				<feTurbulence type="fractalNoise" baseFrequency="0.72" numOctaves="2" seed="7" />
 				<feColorMatrix type="saturate" values="0" />
 			</filter>
-			<filter id={`${instanceId}-soft`} x="-24%" y="-24%" width="148%" height="148%">
-				<feGaussianBlur stdDeviation="9" />
-			</filter>
-			<filter id={`${instanceId}-liquid`} x="-20%" y="-35%" width="140%" height="170%">
-				<feTurbulence type="fractalNoise" baseFrequency="0.008 0.035" numOctaves="2" seed="11" result="noise" />
-				<feDisplacementMap in="SourceGraphic" in2="noise" scale="12" xChannelSelector="R" yChannelSelector="B" />
-			</filter>
-			<clipPath id={`${instanceId}-photo-a`}><rect x="348" y="76" width="286" height="324" /></clipPath>
-			<clipPath id={`${instanceId}-photo-b`}><rect x="176" y="218" width="230" height="214" /></clipPath>
+			{/* 高成本滤镜与裁切只输出给实际使用它们的场景，避免普通栏目封面也
+			    创建无用的 filter primitive，并在换页快照阶段参与样式与 SVG 失效。 */}
+			{kind === 'photo' && (
+				<>
+					<filter id={`${instanceId}-soft`} x="-24%" y="-24%" width="148%" height="148%">
+						<feGaussianBlur stdDeviation="9" />
+					</filter>
+					<clipPath id={`${instanceId}-photo-a`}><rect x="348" y="76" width="286" height="324" /></clipPath>
+					<clipPath id={`${instanceId}-photo-b`}><rect x="176" y="218" width="230" height="214" /></clipPath>
+				</>
+			)}
+			{kind === 'code' && (
+				<filter id={`${instanceId}-liquid`} x="-20%" y="-35%" width="140%" height="170%">
+					<feTurbulence type="fractalNoise" baseFrequency="0.008 0.035" numOctaves="2" seed="11" result="noise" />
+					<feDisplacementMap in="SourceGraphic" in2="noise" scale="12" xChannelSelector="R" yChannelSelector="B" />
+				</filter>
+			)}
 		</defs>
 
 		<rect class="content-cover__base" width="800" height="520" />
@@ -458,6 +466,23 @@ const kindCode = {
 	.content-cover[data-offscreen='true'] svg *,
 	.content-cover[data-offscreen='true']::before {
 		animation-play-state: paused !important;
+	}
+
+	/*
+	 * View Transition 已把画面冻结为快照，底下的实时 SVG 继续推进只会重复
+	 * 触发 SVG geometry/paint。转场期间暂停所有循环，并暂时省略仅 4.5% 透明度
+	 * 的 turbulence 颗粒；外层 archive-fiber 纸纹仍在，视觉不会出现空白底材。
+	 */
+	html[data-title-veil] .content-cover svg *,
+	html[data-title-veil] .content-cover::before,
+	html[data-astro-transition] .content-cover svg *,
+	html[data-astro-transition] .content-cover::before {
+		animation-play-state: paused !important;
+	}
+
+	html[data-title-veil] .content-cover__grain,
+	html[data-astro-transition] .content-cover__grain {
+		display: none;
 	}
 </style>
 
