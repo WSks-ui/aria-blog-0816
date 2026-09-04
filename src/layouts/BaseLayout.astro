@@ -192,12 +192,12 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 				animation-delay: 60ms;
 				animation-timing-function: var(--ease-rain, ease);
 			}
-			html[data-article-nav='active']::view-transition-old(aria7-page-main) {
+			html[data-article-nav='active']::view-transition-old(root) {
 				animation-name: aria7-article-soft-exit;
 				animation-duration: 220ms;
 				animation-delay: 0ms;
 			}
-			html[data-article-nav='active']::view-transition-new(aria7-page-main) {
+			html[data-article-nav='active']::view-transition-new(root) {
 				animation-name: aria7-article-soft-reveal;
 				animation-duration: 380ms;
 				animation-delay: 80ms;
@@ -248,6 +248,14 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 			html {
 				view-transition-name: none;
 			}
+			/*
+			 * 文章导航把软退软入交给 root：浏览器只采集视口大小的根快照，
+			 * 不再随一万像素以上的正文高度扩张。封面、标题和细线拥有独立命名，
+			 * 会从根快照中自动提升为自己的共享元素组并继续完成形变交接。
+			 */
+			html[data-article-nav] {
+				view-transition-name: root;
+			}
 
 			/*
 			 * 命名转场只为首页↔关于这对镜像旅程服务：其余导航不给标题命名，
@@ -260,6 +268,13 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 			html[data-title-flight='active'] [data-aria7-title-transition] { view-transition-name: aria7-title; }
 			html [data-page-main] { view-transition-name: aria7-page-main; }
 			html[data-title-flight='active'] [data-page-main] { view-transition-name: none; }
+			/*
+			 * 文章导航已有封面、标题与双细线承担空间连续性，不再把整篇正文加入
+			 * aria7-page-main。长文可超过一万像素；给整个 main 命名会迫使 Chromium
+			 * 在交换关键帧为离屏正文完成布局、栅格化和大纹理快照，即使最终动画
+			 * 只使用 transform/opacity 也无法省掉这笔前置成本。
+			 */
+			html[data-article-nav] [data-page-main] { view-transition-name: none; }
 
 			@media (prefers-reduced-motion: reduce) {
 				::view-transition-group(aria7-title) { animation-duration: 1ms; }
@@ -330,7 +345,7 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 			/*
 			 * 文章导航标注（状态机）：before-preparation 给当前文档挂
 			 * leaving（离场页细线保持原样随整页软退，视口守卫在此刻测量），
-			 * before-swap 给新文档挂 active（整页软入、细线先藏），抵达后
+			 * before-swap 给新文档挂 active，并在离线文档里筛选落点；抵达后
 			 * astro:page-load 切 settled（细线逐行起笔），画完释放。Astro 会
 			 * 以新文档的根属性覆盖当前根节点，因此两端标记都要显式维护。
 			 * head 内联样式里的换页规则只认 active——它们在交换后的文档上求值。
@@ -357,9 +372,10 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 			/*
 			 * 共享元素的视口守卫：命名元素只有在旧页快照与新页落点都真实可见
 			 * 时，「从哪儿来、到哪儿去」才成立。滚动后离屏的封面/标题一旦参与
-			 * 配对，就会从屏幕外一路飞进落点、返回时再飞出屏幕。因此离场前把
-			 * 出视口的命名元素临时摘名，落地后把折叠线以外的落点摘名——被摘名
-			 * 的一侧退回整页软退软入，不再单独飞行。
+			 * 配对，就会从屏幕外一路飞进落点、返回时再飞出屏幕。因此离场页按
+			 * 已完成布局的真实视口摘名；到达页则在 before-swap 的离线文档中按
+			 * 结构只保留文章 Hero 或返程目标行，避免 after-swap 首次读取 rect 时
+			 * 强制同步排完整篇长文。被摘名的一侧退回整页软退软入，不再单独飞行。
 			 */
 			const NAMED_ELEMENT_SELECTOR = '[data-astro-transition-scope]';
 			// 元素至少 1/4 露在视口带内才参与配对；贴边露一线的仍按离屏处理。
@@ -369,9 +385,8 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 				return visible / height >= 0.25;
 			};
 
-			// 新页尚未滚动，用文档坐标衡量落点是否在首屏内（文章链接总是落回顶部）。
-			// 摘名记录在案：转场结束后归还，之后用户滚到该元素再点走时守卫能
-			// 按当时的真实可见性重新判定，而不是被上一次的行内摘名锁死。
+			// 到达页摘名记录在案：转场结束后归还，之后用户滚到该元素再点走时
+			// 守卫能重新判定，而不是被上一次的行内摘名锁死。
 			let arrivalStripped: HTMLElement[] = [];
 
 			/*
@@ -405,20 +420,21 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 				delete element.dataset.ruleFlight;
 			};
 
-			const stripArrivalOffscreenNames = () => {
-				document.querySelectorAll<HTMLElement>(`${NAMED_ELEMENT_SELECTOR}, [data-rule-flight]`).forEach((element) => {
-					// main 自身是整页分组，摘名会破坏整页软退软入，永不参与守卫。
+			const prepareArrivalNames = (newDocument: Document, matchedRow: Element | null) => {
+				const elements = Array.from(
+					newDocument.querySelectorAll<HTMLElement>(`${NAMED_ELEMENT_SELECTOR}, [data-rule-flight]`),
+				);
+				/*
+				 * newDocument 尚未挂进当前渲染树，此处只能做结构判断和行内写入，绝不
+				 * 读取 rect/computed style。进入文章时只保留 Hero 的封面、标题与细线；
+				 * 返回列表时只保留匹配文章行及动态指派的航轨。其余同名标题先摘名，
+				 * 防止底部上一篇/下一篇或其它列表行从屏幕外参与共享元素配对。
+				 */
+				elements.forEach((element) => {
 					if (element.matches('[data-page-main]')) return;
-					const rect = element.getBoundingClientRect();
-					if (isMostlyInsideBand(rect.top + window.scrollY, rect.height, 0, window.innerHeight)) return;
-					const name = getComputedStyle(element).viewTransitionName;
-					if (!name || name === 'none') return;
-					if (element.dataset.ruleFlight === 'true') {
-						// 折叠线外的落点接不住航轨：彻底归还无名状态，让它回到逐行
-						// 起笔的队伍里，而不是滞留一份缩在原地不动的行内名字。
-						releaseRuleFlight(element);
-						return;
-					}
+					if (element.closest('.article-hero')) return;
+					if (element.dataset.ruleFlight === 'true') return;
+					if (matchedRow?.contains(element)) return;
 					element.style.viewTransitionName = 'none';
 					arrivalStripped.push(element);
 				});
@@ -448,11 +464,22 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 					return;
 				}
 				departedRestore = [];
-				document.querySelectorAll<HTMLElement>(NAMED_ELEMENT_SELECTOR).forEach((element) => {
-					if (element.matches('[data-page-main]')) return;
+				const elements = Array.from(
+					document.querySelectorAll<HTMLElement>(NAMED_ELEMENT_SELECTOR),
+				).filter((element) => !element.matches('[data-page-main]'));
+				// View Transition 启动前严格分成 read/write 两段；这里只读，不改 DOM。
+				const measured = elements.map((element) => {
 					const rect = element.getBoundingClientRect();
-					if (isMostlyInsideBand(rect.top, rect.height, 0, window.innerHeight)) return;
-					const name = getComputedStyle(element).viewTransitionName;
+					return {
+						element,
+						top: rect.top,
+						height: rect.height,
+						name: getComputedStyle(element).viewTransitionName,
+					};
+				});
+				// 统一写阶段：后续不再读取布局，因此摘除多个命名也只产生一次失效。
+				measured.forEach(({ element, top, height, name }) => {
+					if (isMostlyInsideBand(top, height, 0, window.innerHeight)) return;
 					if (!name || name === 'none') return;
 					element.style.viewTransitionName = 'none';
 					departedRestore.push(element);
@@ -489,15 +516,14 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 				// 没有这篇文章）就保持无名，航轨优雅退化为随整页淡入。
 				if (!newDocument) return;
 				const selector = `.article-row a[href="${window.location.pathname.replace(/["\\]/g, '\\$&')}"]`;
-				const matchedRow = newDocument.querySelector(selector)?.closest('.article-row');
-				if (!(matchedRow instanceof Element)) return;
-				const rules = rowFlightRules(matchedRow);
-				nameRuleFlight(rules.top, FLIGHT_TOP);
-				nameRuleFlight(rules.bottom, FLIGHT_BOTTOM);
-			});
-			document.addEventListener('astro:after-swap', () => {
-				if (document.documentElement.dataset.articleNav !== 'active') return;
-				stripArrivalOffscreenNames();
+				const candidateRow = newDocument.querySelector(selector)?.closest('.article-row');
+				const matchedRow = candidateRow instanceof Element ? candidateRow : null;
+				if (matchedRow) {
+					const rules = rowFlightRules(matchedRow);
+					nameRuleFlight(rules.top, FLIGHT_TOP);
+					nameRuleFlight(rules.bottom, FLIGHT_BOTTOM);
+				}
+				prepareArrivalNames(newDocument, matchedRow);
 			});
 		</script>
 		<script>

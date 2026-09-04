@@ -200,9 +200,8 @@ const factLines = factSegments.map((segments) => {
 	 */
 	.about-page .about-facts { animation: none; }
 	.about-page .about-facts .ch {
-		position: relative;
 		opacity: 0;
-		animation: about-char-land 240ms var(--ease-rain) both;
+		animation: about-type-in 1ms linear both;
 		animation-delay: calc(430ms + var(--reveal-order, 1) * 70ms + var(--char-i, 0) * 26ms);
 	}
 	.about-page .about-facts li::before {
@@ -212,14 +211,10 @@ const factLines = factSegments.map((segments) => {
 	}
 
 	/*
-	 * 逐字落版用相对定位的 left/top 而不是 transform：token 是行内盒子，
-	 * transform 对它不生效；换成 inline-block 又会塌掉空白 token、丢掉
-	 * 链接下划线，相对位移是唯一三方兼顾的落法。
+	 * token 继续保持原生 inline 排版，链接下划线和空白宽度都不改变；每个
+	 * 延迟点只做一次 opacity 翻转，保留逐字打出的节奏。旧版 240ms 的 left/top
+	 * 动画会让上百个字符在抵达阶段持续参与布局，现已从关键路径移除。
 	 */
-	@keyframes about-char-land {
-		from { opacity: 0; left: 8px; top: 6px; }
-		to { opacity: 1; left: 0; top: 0; }
-	}
 
 	/*
 	 * 离场呼吸：标记挂上后文案组按 fast 档字面错拍上浮退场，巨型标题微微

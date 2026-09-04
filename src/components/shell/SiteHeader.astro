@@ -83,12 +83,46 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 			nav.dataset.navigationReady = 'true';
 			const indicator = nav.querySelector<HTMLElement>('[data-site-nav-indicator]');
 			const links = [...nav.querySelectorAll<HTMLElement>('[data-site-nav-link]')];
+			type IndicatorGeometry = { x: number; width: number };
 			// 首页没有匹配的栏目路由时，以“随笔”作为视觉起点；进入具体栏目后仍优先使用真实当前项。
 			let activeLink: HTMLElement | null = nav.querySelector<HTMLElement>('[data-site-nav-link][aria-current="page"]')
 				?? links[0]
 				?? null;
 			let currentTarget: HTMLElement | null = activeLink;
+			const indicatorGeometry = new Map<HTMLElement, IndicatorGeometry>();
+			let measurementFrame = 0;
+			let placeAfterMeasurement = false;
 			if (!indicator) return;
+
+			const measureIndicatorTargets = () => {
+				/*
+				 * 页头由 transition:persist 保留，栏目链接在换页前后没有换节点或换
+				 * 几何。只在首帧、字体/视口确实改变 nav 尺寸时批量测量；after-swap
+				 * 直接使用缓存，避免 DOM 刚替换时 getBoundingClientRect 强制整页布局。
+				 */
+				const navBounds = nav.getBoundingClientRect();
+				const measured = links.map((link) => ({ link, bounds: link.getBoundingClientRect() }));
+				const horizontalInset = 12;
+				indicatorGeometry.clear();
+				measured.forEach(({ link, bounds }) => {
+					indicatorGeometry.set(link, {
+						x: bounds.left - navBounds.left - horizontalInset,
+						width: bounds.width + horizontalInset * 2,
+					});
+				});
+			};
+
+			const queueIndicatorMeasurement = (placeImmediately = true) => {
+				placeAfterMeasurement ||= placeImmediately;
+				if (measurementFrame) return;
+				measurementFrame = requestAnimationFrame(() => {
+					measurementFrame = 0;
+					measureIndicatorTargets();
+					const shouldPlaceImmediately = placeAfterMeasurement;
+					placeAfterMeasurement = false;
+					moveIndicator(currentTarget, shouldPlaceImmediately);
+				});
+			};
 
 			const moveIndicator = (link: HTMLElement | null, placeImmediately = false) => {
 				currentTarget = link;
@@ -96,11 +130,15 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 					nav.dataset.navCursorVisible = 'false';
 					return;
 				}
-				const navBounds = nav.getBoundingClientRect();
-				const linkBounds = link.getBoundingClientRect();
-				const horizontalInset = 12;
-				indicator.style.setProperty('--nav-indicator-x', `${linkBounds.left - navBounds.left - horizontalInset}px`);
-				indicator.style.setProperty('--nav-indicator-width', `${linkBounds.width + horizontalInset * 2}px`);
+				const geometry = indicatorGeometry.get(link);
+				if (!geometry) {
+					queueIndicatorMeasurement(placeImmediately);
+					return;
+				}
+				indicator.style.setProperty('--nav-indicator-x', `${geometry.x}px`);
+				// 指示线基础宽度固定为 1px，目标长度作为 scaleX 倍数；换页期间
+				// 只更新合成属性 transform，不再逐帧动画 width 触发布局。
+				indicator.style.setProperty('--nav-indicator-scale', String(geometry.width));
 				if (placeImmediately) indicator.classList.add('is-placing');
 				nav.dataset.navCursorVisible = 'true';
 				if (placeImmediately) requestAnimationFrame(() => indicator.classList.remove('is-placing'));
@@ -174,10 +212,16 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 			});
 
 			// 字体载入、窗口变化或工具区宽度改变后重新测量，避免指示器与文字错位。
-			const resizeObserver = new ResizeObserver(() => moveIndicator(currentTarget, true));
+			const resizeObserver = new ResizeObserver(() => queueIndicatorMeasurement(true));
 			resizeObserver.observe(nav);
-			// 首屏指示线直接定位；后续栏目切换则从旧项自然滑向新项。
-			requestAnimationFrame(() => syncRouteState(true));
+			// nav 在桌面端可能保持固定网格宽度；字体替换只改变单个链接宽度时，
+			// 观察父级未必回调，因此同一观察器也直接覆盖每个测量目标。
+			links.forEach((link) => resizeObserver.observe(link));
+			// 首屏先完成一轮批量读取，再写选中态和指示线；后续栏目切换完全命中缓存。
+			requestAnimationFrame(() => {
+				measureIndicatorTargets();
+				syncRouteState(true);
+			});
 			document.addEventListener('astro:after-swap', () => syncRouteState());
 		});
 	}
@@ -254,12 +298,13 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 		z-index: 0;
 		top: 6px;
 		left: 0;
-		width: var(--nav-indicator-width, 0px);
+		width: 1px;
 		height: 32px;
 		opacity: 0;
-		transform: translate3d(var(--nav-indicator-x, 0px), 0, 0);
-		transition: transform 520ms var(--ease-drift), width 420ms var(--ease-rain), opacity 220ms var(--ease-rain);
-		will-change: transform, width;
+		transform: translate3d(var(--nav-indicator-x, 0px), 0, 0) scaleX(var(--nav-indicator-scale, 1));
+		transform-origin: left bottom;
+		transition: transform 520ms var(--ease-drift), opacity 220ms var(--ease-rain);
+		will-change: transform;
 		pointer-events: none;
 	}
 
@@ -295,18 +340,13 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 		line-height: 1.2;
 		color: var(--ink-muted);
 		text-decoration: none;
-		transition: color var(--duration-fast) var(--ease-rain), font-weight var(--duration-fast) var(--ease-rain);
+		transition: color var(--duration-fast) var(--ease-rain);
 	}
 
 	.site-nav a:hover,
 	.site-nav a:focus-visible,
 	.site-nav a[aria-current='page'] {
 		color: var(--ink);
-	}
-
-	.site-nav a:hover,
-	.site-nav a:focus-visible {
-		font-weight: var(--font-ui-weight-hover);
 	}
 
 	.site-tools {
@@ -392,4 +432,15 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 			display: none;
 		}
 	}
+
+/*
+ * 320–360px 极窄视口：品牌 + 工具区 + 页边距的需求宽度仍超出视口约 15px，
+ * 溢出部分会被全局 overflow-x: clip 静默裁掉，天气控件右缘不可见。
+ * 雨声是工具区里优先级最低的开关，让位后工具区可完整放下。
+ */
+@media (max-width: 360px) {
+	.site-tools > :global([data-ambient-toggle]) {
+		display: none;
+	}
+}
 </style>

@@ -132,9 +132,11 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
       const chapters: SceneChapter[] = [];
       const headingToChapter = new Map<string, SceneChapter>();
       const links = new Map<string, HTMLAnchorElement>();
+      const listFragment = document.createDocumentFragment();
       let activeChapter: SceneChapter | null = null;
       let expandedAll = false;
       let ticking = false;
+      let userHasScrolled = false;
 
       const setSubsectionsFocusable = (chapter: SceneChapter, expanded: boolean) => {
         if (!chapter.sublist) return;
@@ -183,7 +185,9 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
 
         row.append(number, link);
         item.append(row);
-        list.append(item);
+        // 目录先在离线 Fragment 中完整组装，最后一次性挂载；避免每创建一章
+        // 就让活 DOM 的列表失效，随后首轮几何读取又被迫重复结算样式。
+        listFragment.append(item);
 
         const chapter: SceneChapter = { id, element: item, heading, link, children: [] };
         chapters.push(chapter);
@@ -246,6 +250,7 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
         headingToChapter.set(id, currentChapter);
         links.set(id, link);
       });
+      list.replaceChildren(listFragment);
 
       if (headings.length === 0) {
         root.dataset.empty = 'true';
@@ -253,7 +258,7 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
         expandButton.hidden = true;
       }
 
-      const setActiveHeading = (id: string) => {
+      const setActiveHeading = (id: string, ensureVisible = true) => {
         const nextChapter = headingToChapter.get(id);
         if (!nextChapter) return;
         activeChapter = nextChapter;
@@ -273,7 +278,7 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
 
         // 当前子标题如果被目录视窗裁掉，才进行就近滚动，避免目录随正文观察器频繁跳动。
         const activeLink = links.get(id);
-        if (activeLink) {
+        if (activeLink && ensureVisible) {
           const linkRect = activeLink.getBoundingClientRect();
           const tocRect = toc.getBoundingClientRect();
           if (linkRect.top < tocRect.top + 18 || linkRect.bottom > tocRect.bottom - 22) {
@@ -295,13 +300,15 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
             .filter((entry) => entry.isIntersecting)
             .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
           if (visibleHeading?.target instanceof HTMLElement) {
-            setActiveHeading(visibleHeading.target.id);
+            // 首次观察回调不读取目录 rect；只有用户实际滚动后，才需要保证
+            // 当前链接跟随进入目录视窗，避免到达页刚挂载就触发同步布局。
+            setActiveHeading(visibleHeading.target.id, userHasScrolled);
           }
         },
         { rootMargin: '-18% 0px -68% 0px', threshold: [0, 1] },
       );
       headings.forEach((heading) => observer.observe(heading));
-      if (headings[0]) setActiveHeading(headings[0].id);
+      if (headings[0]) setActiveHeading(headings[0].id, false);
 
       // 中文按单字、拉丁文本按词计数，避免直接用空格统计而严重低估中文阅读量。
       // 页面传入构建时算好的分钟数时优先使用，保证与列表页显示的时长一致。
@@ -319,6 +326,14 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
       }
       const controller = new AbortController();
       let resizeObserver: ResizeObserver | undefined;
+      type IdleWindow = Window & {
+        requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+        cancelIdleCallback?: (handle: number) => void;
+      };
+      const idleWindow = window as IdleWindow;
+      let progressIdle: number | undefined;
+      let progressFallbackTimer = 0;
+      let progressReady = false;
       // abort 只能移除 scroll/resize 监听，已经排队的帧仍可能在换页后执行并
       // 闭包引用旧正文；保存句柄后由 cleanup 显式取消，避免旧页面继续广播进度。
       let progressFrame: number | undefined;
@@ -346,6 +361,7 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
       };
 
       const requestProgressUpdate = () => {
+        if (!progressReady) return;
         if (ticking) return;
         ticking = true;
         progressFrame = window.requestAnimationFrame(() => {
@@ -354,13 +370,37 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
         });
       };
 
-      window.addEventListener('scroll', requestProgressUpdate, { passive: true, signal: controller.signal });
+      const activateProgress = () => {
+        if (progressReady) return;
+        progressReady = true;
+        if (progressIdle !== undefined) idleWindow.cancelIdleCallback?.(progressIdle);
+        progressIdle = undefined;
+        window.clearTimeout(progressFallbackTimer);
+        progressFallbackTimer = 0;
+        requestProgressUpdate();
+      };
+
+      window.addEventListener('scroll', () => {
+        userHasScrolled = true;
+        activateProgress();
+        requestProgressUpdate();
+      }, { passive: true, signal: controller.signal });
       window.addEventListener('resize', requestProgressUpdate, { signal: controller.signal });
       if ('ResizeObserver' in window) {
         resizeObserver = new ResizeObserver(requestProgressUpdate);
         resizeObserver.observe(content);
       }
-      updateProgress();
+      /*
+       * 页面交换后的首轮正文 rect/offsetHeight 会强制浏览器完成整篇长文布局。
+       * 目录初始值本来就是 0%，因此把这次测量放到空闲时段；若读者先滚动，
+       * scroll 监听会立即 activate，不会让阅读进度滞后。timeout 只作繁忙页面
+       * 的最终兜底，避免 requestIdleCallback 长时间得不到调度。
+       */
+      if (idleWindow.requestIdleCallback) {
+        progressIdle = idleWindow.requestIdleCallback(activateProgress, { timeout: 1000 });
+      } else {
+        progressFallbackTimer = window.setTimeout(activateProgress, 240);
+      }
 
       // Astro 的页面切换会替换正文节点；统一释放观察器和事件，避免旧文章继续驱动新页面目录。
       sceneGuideCleanups.set(root, () => {
@@ -370,6 +410,10 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
           progressFrame = undefined;
           ticking = false;
         }
+        if (progressIdle !== undefined) idleWindow.cancelIdleCallback?.(progressIdle);
+        progressIdle = undefined;
+        window.clearTimeout(progressFallbackTimer);
+        progressFallbackTimer = 0;
         resizeObserver?.disconnect();
         observer.disconnect();
         sceneGuideCleanups.delete(root);
