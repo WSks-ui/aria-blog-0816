@@ -1,0 +1,16 @@
+diff --git a/dist/shiki-engine-default.js b/dist/shiki-engine-default.js
+index 1c9f34d30a8da96965e597355ac474f23a2eae7a..801cec527fc60fc07af51304b2d982ee245b609a 100644
+--- a/dist/shiki-engine-default.js
++++ b/dist/shiki-engine-default.js
+@@ -1,6 +1,9 @@
+-import { createOnigurumaEngine } from "shiki/engine/oniguruma";
++import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
+ function loadShikiEngine() {
+-  return createOnigurumaEngine(import("shiki/wasm"));
++  // aria7-blog patch: 用 JS RegExp 引擎替换 Oniguruma WASM 引擎。
++  // WASM 引擎常驻 3 个 WebAssembly.Memory（实测约 100MB：69MB + 16MB + 16MB），
++  // JS 引擎无 WASM 线性内存，代价是极少数语法的边界高亮与 Oniguruma 略有差异。
++  return Promise.resolve(createJavaScriptRegexEngine());
+ }
+ export {
+   loadShikiEngine

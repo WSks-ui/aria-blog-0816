@@ -11,3 +11,6 @@ allowBuilds:
 # 允许其跳过发布年龄策略，使锁文件能立即采用经审计确认的补丁版本。
 minimumReleaseAgeExclude:
   - fast-uri@3.1.6
+
+patchedDependencies:
+  '@astrojs/internal-helpers': patches/@astrojs__internal-helpers.patch
