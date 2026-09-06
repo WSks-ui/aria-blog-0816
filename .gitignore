@@ -27,3 +27,7 @@ pnpm-debug.log*
 .pagefind/
 playwright-report/
 test-results/
+
+# 本地上传分片与临时文件，不属于项目源代码
+/.tmp.driveupload/
+/_tmp_*
