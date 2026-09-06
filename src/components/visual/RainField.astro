@@ -855,20 +855,50 @@ const paperMarks = [
 				document.documentElement.dataset.rainfieldFrame = '1';
 			}
 		};
-		const frame = (now: number) => {
+		/*
+		 * 壁画漂移一个往复周期 56s，低帧率不会改变时间线，只会减少全屏片元
+		 * pass 的次数。24fps 在流畅度与片元开销之间更适合这个背景；相较于原先每次 RAF
+		 * 都检查时间戳，定时器负责等待、RAF 只负责把真正的绘制对齐到下一次
+		 * 合成前，避免在 60Hz 屏幕上持续执行大量“本帧不绘制”的空回调。
+		 */
+		const DRAW_FPS = 24;
+		const DRAW_INTERVAL_MS = 1000 / DRAW_FPS;
+		let drawTimer = 0;
+		const scheduleFrame = (delayMs: number) => {
+			if (disposed || document.hidden || !ready || routePaused || rafId || drawTimer) return;
+			if (delayMs <= 0) {
+				rafId = requestAnimationFrame(frame);
+				return;
+			}
+			drawTimer = window.setTimeout(() => {
+				drawTimer = 0;
+				if (disposed || document.hidden || !ready || routePaused) return;
+				rafId = requestAnimationFrame(frame);
+			}, delayMs);
+		};
+		function frame(now: number) {
 			rafId = 0;
 			if (disposed || document.hidden || !ready || routePaused) return;
 			drawFrame(now);
-			rafId = requestAnimationFrame(frame);
-		};
+			scheduleFrame(DRAW_INTERVAL_MS);
+		}
 		const stopLoop = () => {
 			if (rafId) cancelAnimationFrame(rafId);
 			rafId = 0;
+			if (drawTimer) window.clearTimeout(drawTimer);
+			drawTimer = 0;
 		};
-		const startLoop = () => {
-			if (!rafId && !disposed && ready && !document.hidden && !routePaused) {
-				rafId = requestAnimationFrame(frame);
+		const startLoop = (immediate = false) => {
+			if (disposed || !ready || document.hidden || routePaused) return;
+			if (immediate && drawTimer) {
+				window.clearTimeout(drawTimer);
+				drawTimer = 0;
 			}
+			if (immediate) {
+				scheduleFrame(0);
+				return;
+			}
+			scheduleFrame(DRAW_INTERVAL_MS);
 		};
 		const syncRoutePause = () => {
 			/*
@@ -881,7 +911,7 @@ const paperMarks = [
 				|| document.documentElement.hasAttribute('data-title-veil')
 				|| document.documentElement.hasAttribute('data-astro-transition');
 			if (routePaused) stopLoop();
-			else startLoop();
+			else startLoop(true);
 		};
 
 		const dispose = () => {
@@ -917,7 +947,7 @@ const paperMarks = [
 			swapPaused = false;
 			syncRoutePause();
 		}, { signal });
-		document.addEventListener('visibilitychange', startLoop, { signal });
+		document.addEventListener('visibilitychange', () => startLoop(true), { signal });
 		reduceMotion.addEventListener('change', dispose, { signal });
 		// 上下文丢失（驱动重置/省电策略等）：退回 DOM 层，页面不能黑着。
 		canvas.addEventListener('webglcontextlost', (event) => {

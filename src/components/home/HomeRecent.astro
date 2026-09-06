@@ -116,12 +116,20 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 		let streamPosition = 0;
 		let previousFrameTime = 0;
 		let recentStreamFrame = 0;
+		let recentStreamTimer = 0;
 		let recentHighlightFrame = 0;
 		let focusOutFrame = 0;
 		let manualResumeTimer = 0;
 		let recentVisibilityFrame = 0;
 		let recentResizeObserver: ResizeObserver | undefined;
 		let recentVisibilityObserver: IntersectionObserver | undefined;
+		/*
+		 * 预览流每秒只移动约 26px，24fps 时每次推进约 1px，足以保持连贯的慢速阅读
+		 * 节奏。原先每个显示刷新周期都会写入 scrollTop；改为定时器等待、RAF 对齐
+		 * 写入，可避免 120Hz/144Hz 屏幕把同一段低速滚动无意义地重复执行两到三倍。
+		 */
+		const STREAM_FPS = 24;
+		const STREAM_INTERVAL_MS = 1000 / STREAM_FPS;
 
 		const setActiveRecent = (index: number) => {
 			if (index === activeRecentIndex || index < 0) return;
@@ -173,6 +181,8 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 		const stopRecentStream = () => {
 			if (recentStreamFrame) cancelAnimationFrame(recentStreamFrame);
 			recentStreamFrame = 0;
+			if (recentStreamTimer) window.clearTimeout(recentStreamTimer);
+			recentStreamTimer = 0;
 			previousFrameTime = 0;
 		};
 
@@ -186,9 +196,22 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 			&& loopDistance > 0
 		);
 
-		const advanceRecentStream = (frameTime: number) => {
+		const scheduleRecentStream = (delayMs: number) => {
+			if (recentStreamFrame || recentStreamTimer || !canAdvanceRecentStream()) return;
+			if (delayMs <= 0) {
+				recentStreamFrame = requestAnimationFrame(advanceRecentStream);
+				return;
+			}
+			recentStreamTimer = window.setTimeout(() => {
+				recentStreamTimer = 0;
+				if (!canAdvanceRecentStream()) return;
+				recentStreamFrame = requestAnimationFrame(advanceRecentStream);
+			}, delayMs);
+		};
+
+		function advanceRecentStream(frameTime: number) {
 			recentStreamFrame = 0;
-			if (!section.isConnected || !canAdvanceRecentStream()) return;
+			if (!section?.isConnected || !canAdvanceRecentStream()) return;
 
 			const elapsed = previousFrameTime === 0 ? 0 : Math.min(frameTime - previousFrameTime, 48);
 			previousFrameTime = frameTime;
@@ -196,13 +219,13 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 			if (loopDistance > 0) streamPosition %= loopDistance;
 			if (recentViewport) recentViewport.scrollTop = streamPosition;
 			// scroll 事件会在下一帧合并高亮；此循环只负责推进 scrollTop，不再读取布局。
-			recentStreamFrame = requestAnimationFrame(advanceRecentStream);
-		};
+			scheduleRecentStream(STREAM_INTERVAL_MS);
+		}
 
 		const startRecentStream = () => {
-			if (recentStreamFrame || !canAdvanceRecentStream()) return;
+			if (recentStreamFrame || recentStreamTimer || !canAdvanceRecentStream()) return;
 			previousFrameTime = 0;
-			recentStreamFrame = requestAnimationFrame(advanceRecentStream);
+			scheduleRecentStream(0);
 		};
 
 		const refreshRecentStreamVisibility = () => {

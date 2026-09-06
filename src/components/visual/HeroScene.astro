@@ -140,6 +140,7 @@
 			let sceneDocumentTop = 0;
 			let pixelRatio = 1;
 			let animationFrame = 0;
+			let animationTimer = 0;
 			let visible = true;
 			let routePaused = false;
 			let lastTime = performance.now();
@@ -159,6 +160,14 @@
 			let rainColor = '#1887aa';
 			let drops: RainDrop[] = [];
 			let randomSeed = 0x7a11ce;
+			/*
+			 * 首页雨幕的视觉变化主要由 15.8s 的分幕和缓慢的指针收敛组成，60fps 下相邻帧
+			 * 的差异非常小，却仍要清空整张 Canvas 并重新绘制全部雨线。固定在 30fps 可保持
+			 * 雨线连续感，同时将此处的 Canvas 栅格化与绘制次数减半。等待阶段交给定时器，
+			 * 真正绘制仍通过 RAF 对齐浏览器下一次合成，避免在高刷新率屏幕上运行空 RAF 回调。
+			 */
+			const DRAW_FPS = 30;
+			const DRAW_INTERVAL_MS = 1000 / DRAW_FPS;
 
 			/*
 			 * 四拍不只调节密度，而是“换景”：定位幕近乎无雨、消失点标记登台；
@@ -308,29 +317,60 @@
 					lastDraftY = draftY;
 				}
 
-				if (visible && !document.hidden && !reduceMotion.matches && !routePaused) {
-					animationFrame = requestAnimationFrame(draw);
-				}
 			};
+
+			const canAnimate = () => (
+				!disposed
+				&& visible
+				&& !document.hidden
+				&& !reduceMotion.matches
+				&& !routePaused
+			);
+
+			const stopAnimation = () => {
+				if (animationFrame) cancelAnimationFrame(animationFrame);
+				animationFrame = 0;
+				if (animationTimer) window.clearTimeout(animationTimer);
+				animationTimer = 0;
+			};
+
+			const scheduleDraw = (delayMs: number) => {
+				if (!canAnimate() || animationFrame || animationTimer) return;
+				if (delayMs <= 0) {
+					animationFrame = requestAnimationFrame(frame);
+					return;
+				}
+				animationTimer = window.setTimeout(() => {
+					animationTimer = 0;
+					if (!canAnimate()) return;
+					animationFrame = requestAnimationFrame(frame);
+				}, delayMs);
+			};
+
+			function frame(now: number) {
+				animationFrame = 0;
+				if (!canAnimate()) return;
+				draw(now);
+				scheduleDraw(DRAW_INTERVAL_MS);
+			}
 
 			const renderStaticFrame = () => {
 				lastTime = performance.now();
 				draw(lastTime);
-				cancelAnimationFrame(animationFrame);
 			};
 
 			const start = () => {
 				if (disposed) return;
-				cancelAnimationFrame(animationFrame);
+				stopAnimation();
 				// Canvas 与 SVG 必须共用可见性状态，否则离开首屏后液态层仍会独自推进。
-				if (reduceMotion.matches || !visible || document.hidden || routePaused) draft?.pauseAnimations();
-				else draft?.unpauseAnimations();
-				if (reduceMotion.matches || !visible || document.hidden || routePaused) {
+				if (!canAnimate()) {
+					draft?.pauseAnimations();
 					renderStaticFrame();
 					return;
 				}
+				draft?.unpauseAnimations();
 				lastTime = performance.now();
-				animationFrame = requestAnimationFrame(draw);
+				scheduleDraw(0);
 			};
 
 			const syncMotionPreference = () => {
@@ -340,7 +380,7 @@
 			const dispose = () => {
 				if (disposed) return;
 				disposed = true;
-				cancelAnimationFrame(animationFrame);
+				stopAnimation();
 				resizeObserver?.disconnect();
 				visibilityObserver?.disconnect();
 				routeObserver?.disconnect();
