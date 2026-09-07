@@ -17,7 +17,11 @@ const galleryId = `gallery-${Math.random().toString(36).slice(2, 10)}`;
 const fullImageWidths = (item: ImageCollectionItem) => {
 	const widths = [640, 960, 1280];
 	if (item.width >= 1920) widths.push(1920);
-	if (!widths.includes(item.width)) widths.push(item.width);
+	// 原图宽度档封顶 1920w：浏览器在 3x DPR 下会沿 srcset 选择最大档，放行
+	// 3200w 原始档会让移动端单图拉取 2MB+。下载原图走 originalSrc，不受影响；
+	// 不足 640w 的小图经此也能保留自身一档，widths 不会为空。
+	const cappedWidth = Math.min(item.width, 1920);
+	if (!widths.includes(cappedWidth)) widths.push(cappedWidth);
 	return [...new Set(widths)].filter((width) => width <= item.width).sort((a, b) => a - b);
 };
 

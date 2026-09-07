@@ -550,7 +550,7 @@ html[data-weather-mode='night'] .reading-prose :where(:not(pre) > code) {
   line-height: var(--leading-ui);
 }
 
-@media (max-width: 48rem) {
+@media (max-width: 47.5rem) {
   .reading-prose {
     font-size: var(--text-base);
   }

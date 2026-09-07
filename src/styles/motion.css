@@ -84,7 +84,7 @@
   }
 }
 
-@media (max-width: 48rem) {
+@media (max-width: 47.5rem) {
   .motion-rain-drift {
     animation: none;
   }

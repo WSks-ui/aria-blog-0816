@@ -92,6 +92,7 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 			const indicatorGeometry = new Map<HTMLElement, IndicatorGeometry>();
 			let measurementFrame = 0;
 			let placeAfterMeasurement = false;
+			let hasEntered = false;
 			if (!indicator) return;
 
 			const measureIndicatorTargets = () => {
@@ -106,8 +107,9 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 				indicatorGeometry.clear();
 				measured.forEach(({ link, bounds }) => {
 					indicatorGeometry.set(link, {
-						x: bounds.left - navBounds.left - horizontalInset,
-						width: bounds.width + horizontalInset * 2,
+						// 坐标取整，让静止的指示线落在整数像素上，1x 屏不因小数坐标发虚。
+						x: Math.round(bounds.left - navBounds.left - horizontalInset),
+						width: Math.round(bounds.width + horizontalInset * 2),
 					});
 				});
 			};
@@ -124,7 +126,7 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 				});
 			};
 
-			const moveIndicator = (link: HTMLElement | null, placeImmediately = false) => {
+			const moveIndicator = (link: HTMLElement | null, placeImmediately = false, mode: 'pointer' | 'route' = 'pointer') => {
 				currentTarget = link;
 				if (!link) {
 					nav.dataset.navCursorVisible = 'false';
@@ -135,13 +137,30 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 					queueIndicatorMeasurement(placeImmediately);
 					return;
 				}
+				// 指针交互要果断（快启动 ease-out），换页落位保留整站 drift 节奏；
+				// transition 取样式变更后的计算值，所以在写入坐标前先切换模式标记。
+				if (mode === 'route') nav.dataset.navMove = 'route';
+				else delete nav.dataset.navMove;
 				indicator.style.setProperty('--nav-indicator-x', `${geometry.x}px`);
-				// 指示线基础宽度固定为 1px，目标长度作为 scaleX 倍数；换页期间
-				// 只更新合成属性 transform，不再逐帧动画 width 触发布局。
-				indicator.style.setProperty('--nav-indicator-scale', String(geometry.width));
-				if (placeImmediately) indicator.classList.add('is-placing');
+				indicator.style.setProperty('--nav-indicator-w', `${geometry.width}px`);
 				nav.dataset.navCursorVisible = 'true';
-				if (placeImmediately) requestAnimationFrame(() => indicator.classList.remove('is-placing'));
+				if (placeImmediately) {
+					if (hasEntered) {
+						// 重排重测等后续立即落位保持无过渡快照，线不重画。
+						indicator.classList.add('is-placing');
+						requestAnimationFrame(() => indicator.classList.remove('is-placing'));
+					} else {
+						// 首次落位让线「自己写出来」：x 即时就位、宽度从 0 描到目标。
+						// 入场不是换页滑动，撤掉 route 标记避免 520ms 规则抢走时长。
+						delete nav.dataset.navMove;
+						indicator.classList.add('is-entering');
+						window.setTimeout(() => indicator.classList.remove('is-entering'), 1200);
+					}
+					hasEntered = true;
+				} else {
+					// 任何动画换位都终止入场：宽度中途改用常规过渡平滑续接。
+					indicator.classList.remove('is-entering');
+				}
 			};
 
 			/*
@@ -172,7 +191,7 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 					else brand.removeAttribute('data-aria7-title-transition-link');
 				}
 
-				moveIndicator(activeLink ?? links[0] ?? null, placeImmediately);
+				moveIndicator(activeLink ?? links[0] ?? null, placeImmediately, 'route');
 			};
 
 			/*
@@ -298,13 +317,22 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 		z-index: 0;
 		top: 6px;
 		left: 0;
-		width: 1px;
+		width: var(--nav-indicator-w, 0px);
 		height: 32px;
 		opacity: 0;
-		transform: translate3d(var(--nav-indicator-x, 0px), 0, 0) scaleX(var(--nav-indicator-scale, 1));
-		transform-origin: left bottom;
-		transition: transform 520ms var(--ease-drift), opacity 220ms var(--ease-rain);
-		will-change: transform;
+		transform: translate3d(var(--nav-indicator-x, 0px), 0, 0);
+		/*
+		 * 悬停跟随必须果断：520ms 慢启动的 drift 会让线在光标扫过栏目时
+		 * 永远落后 100px 以上，读起来像故障；这里用快启动强减速的 ease-out，
+		 * 光标停下后约 100ms 内落位。文字 140ms 变色 → 线 280ms 收拢，
+		 * 反馈层级是「先认出、再落定」。
+		 *
+		 * 宽度必须走布局属性，不能用「1px 基线 × scaleX(54)」：合成器会把
+		 * 放大 50 余倍的 1px 纹理重采样，在 1.25/1.5 这类非整数缩放屏上
+		 * 右端被拉长 3–5px 且边缘发虚，整条线看起来不居中。指示线是
+		 * 脱流绝对定位元素，逐帧 width 重排只涉及它自己，开销可忽略。
+		 */
+		transition: transform 280ms var(--ease-rain), width 280ms var(--ease-rain), opacity 220ms var(--ease-rain);
 		pointer-events: none;
 	}
 
@@ -326,8 +354,28 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 		opacity: 1;
 	}
 
+	/*
+	 * 换页落位是单次编排动作，且被整页视图转场遮住，保留较长的 drift；
+	 * 只在 after-swap 时由脚本临时标记，下一次指针交互会自行清除。
+	 */
+	.site-nav[data-nav-move='route'] .site-nav__indicator {
+		transition-duration: 520ms, 520ms, 220ms;
+	}
+
 	.site-nav__indicator.is-placing {
 		transition: none;
+	}
+
+	/*
+	 * 首次载入：指示线像落笔一样在当前栏目下描出来。x 用 0ms 即时就位，
+	 * 宽度延迟 300ms（等标签先落纸）再从 0 描到目标。整条声明覆盖
+	 * transition 简写并提到 route 规则之后，入场不会被 520ms drift 抢走。
+	 */
+	.site-nav .site-nav__indicator.is-entering {
+		transition:
+			transform 0ms,
+			width 620ms var(--ease-rain) 300ms,
+			opacity 300ms var(--ease-rain) 300ms;
 	}
 
 	.site-nav a {
@@ -399,7 +447,8 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.site-nav__indicator {
+		.site-nav__indicator,
+		.site-nav .site-nav__indicator.is-entering {
 			transition: none;
 		}
 	}

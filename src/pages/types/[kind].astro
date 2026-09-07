@@ -76,7 +76,7 @@ const pageCount = isPhoto ? posts.length + IMAGE_COLLECTION.length : isTutorial 
 					<section class="page-list" aria-label={`${POST_KIND_LABELS[kind]}列表`}>
 						{posts.map((post, index) => <ArticleRow post={post} index={index + 1} />)}
 					</section>
-				) : kind !== 'essay' ? <p class="empty">这个分类还没有正式发布的内容。</p> : null}
+				) : <p class="empty">这个分类还没有正式发布的内容。</p>}
 			</>
 		)}
 	</div>

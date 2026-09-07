@@ -174,7 +174,7 @@ body {
   }
 }
 
-@media (max-width: 48rem) {
+@media (max-width: 47.5rem) {
   .site-shell {
     padding-inline: var(--page-gutter);
   }

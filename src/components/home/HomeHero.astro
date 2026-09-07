@@ -145,4 +145,13 @@ const { recordsCount, lastUpdateText } = Astro.props;
 		.home-hero__enter { margin-top: 22px; animation-delay: 220ms; animation-duration: 340ms; }
 		.home-hero__status { left: 24px; right: auto; flex-wrap: wrap; }
 	}
+
+	@media (max-height: 27.5rem) {
+		/*
+		 * 当可用高度低于正文与顶部状态的安全间距时，优先保留标题、说明和 CTA。
+		 * 状态栏只是首页的补充信息，隐藏后不会影响主题切换或页面导航；这样也能避免
+		 * 窄窗口中换行后的状态文字压到首行引导文案上。
+		 */
+		.home-hero__status { display: none; }
+	}
 </style>

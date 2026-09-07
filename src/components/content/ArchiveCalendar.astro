@@ -213,7 +213,7 @@ const listDateFormatter = (date: Date) => {
 
 	<!--
 		时间线：与日历同源的按月分组列表，桌面端铺满日历以下的空白半场，
-		移动端（≤48rem）日历退场后它就是唯一视图。整行都是链接，命中区域
+		移动端（≤47.5rem）日历退场后它就是唯一视图。整行都是链接，命中区域
 		不再只有标题那几个字。
 	-->
 	<section class="archive-timeline" aria-label="全部文章时间线">
@@ -328,8 +328,10 @@ const listDateFormatter = (date: Date) => {
 			});
 
 			// 今日刻度：构建产物是静态的，当天标记只能交给运行时补。
+			// 日历格按 UTC 生成（见 toDateParts），“今天”也必须取 UTC 日期——
+			// 用本地时区的话，UTC+8 在早 8 点前会把标记落到前一格。
 			const now = new Date();
-			const todayKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+			const todayKey = `${now.getUTCFullYear()}-${pad(now.getUTCMonth() + 1)}-${pad(now.getUTCDate())}`;
 			root.querySelector(`td time[datetime="${todayKey}"]`)?.closest('td')?.classList.add('is-today');
 
 			showMonth(activeIndex);
@@ -688,7 +690,7 @@ const listDateFormatter = (date: Date) => {
 		color: var(--ink-muted);
 	}
 
-	@media (max-width: 48rem) {
+	@media (max-width: 47.5rem) {
 		/* 移动端只剩时间线视图：日历的标题与翻页整体退场，避免出现
 		   “按月份浏览”却没有月份可看的悬空标题。 */
 		.archive-calendar__header {

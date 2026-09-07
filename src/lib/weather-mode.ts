@@ -30,6 +30,28 @@ export interface CommitWeatherModeOptions {
 }
 
 /**
+ * 同步当前文档内依赖天气模式的静态 UI。ClientRouter 会保留页头、替换正文；
+ * 因此新页面中的主题文案（例如首页 THEME / ...）并没有经历上一次提交事件，
+ * 不能只依赖 commitWeatherMode 当时扫描到的旧 DOM。该函数刻意不写根属性、
+ * 存储或派发事件，供路由交换后的“只补新节点显示”路径使用。
+ */
+export function syncWeatherModeUi(mode: WeatherMode) {
+	// 页头单选组是另一组件的 DOM：跨组件同步它的选中态，避免两处显示分叉。
+	// 单选组使用漫游 tabindex：只有选中项保留在 Tab 序，其余靠方向键到达。
+	document.querySelectorAll<HTMLElement>('[data-weather-mode-value]').forEach((control) => {
+		const selected = control.dataset.weatherModeValue === mode;
+		control.setAttribute('aria-checked', String(selected));
+		control.tabIndex = selected ? 0 : -1;
+		control.dataset.active = String(selected);
+	});
+
+	document.querySelectorAll<HTMLElement>('[data-weather-theme-label]').forEach((label) => {
+		label.textContent = `THEME / ${mode.toUpperCase()}`;
+		label.dataset.weatherMode = mode;
+	});
+}
+
+/**
  * 提交一档天气：根属性、地址栏 theme-color、页头单选组同步、可选落盘、
  * 广播 weather-mode-change。previousMode 在写入前读取。
  */
@@ -45,19 +67,7 @@ export function commitWeatherMode(mode: WeatherMode, options: CommitWeatherModeO
 		themeColor.content = THEME_COLORS[mode];
 	}
 
-	// 页头单选组是另一组件的 DOM：跨组件同步它的选中态，避免两处显示分叉。
-	// 单选组使用漫游 tabindex：只有选中项保留在 Tab 序，其余靠方向键到达。
-	document.querySelectorAll<HTMLElement>('[data-weather-mode-value]').forEach((control) => {
-		const selected = control.dataset.weatherModeValue === mode;
-		control.setAttribute('aria-checked', String(selected));
-		control.tabIndex = selected ? 0 : -1;
-		control.dataset.active = String(selected);
-	});
-
-	document.querySelectorAll<HTMLElement>('[data-weather-theme-label]').forEach((label) => {
-		label.textContent = `THEME / ${mode.toUpperCase()}`;
-		label.dataset.weatherMode = mode;
-	});
+	syncWeatherModeUi(mode);
 
 	if (options.storageKey) {
 		try {

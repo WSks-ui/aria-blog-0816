@@ -19,6 +19,9 @@
 	let bubble: HTMLSpanElement | null = null;
 	let anchor: HTMLElement | null = null;
 	let revealFrame = 0;
+	// 最近一次指针交互的类型：触屏点按后紧接着的 focusin 不应触发提示。
+	// 键盘操作会复位该标记，保证 Tab 导航的提示不受影响。
+	let lastPointerWasTouch = false;
 
 	const hide = () => {
 		window.cancelAnimationFrame(revealFrame);
@@ -69,6 +72,9 @@
 	};
 
 	const handleFocusIn = (event: FocusEvent) => {
+		// 触屏点按聚焦同样交给 aria-label，与 pointerover 的触屏过滤保持一致——
+		// 否则 Android Chrome 点按控件后提示弹出，且没有 pointerleave 可消除它。
+		if (lastPointerWasTouch) return;
 		const next = anchorFrom(event.target);
 		if (next) show(next);
 	};
@@ -102,6 +108,12 @@
 		document.addEventListener('pointerover', handlePointerOver);
 		document.addEventListener('focusin', handleFocusIn);
 		document.addEventListener('focusout', handleFocusOut);
+		document.addEventListener('pointerdown', (event) => {
+			lastPointerWasTouch = event.pointerType === 'touch';
+		}, { passive: true, capture: true });
+		document.addEventListener('keydown', () => {
+			lastPointerWasTouch = false;
+		}, { capture: true });
 		window.addEventListener('scroll', hide, { passive: true, capture: true });
 		window.addEventListener('resize', hide);
 		document.documentElement.addEventListener('mouseleave', hide);

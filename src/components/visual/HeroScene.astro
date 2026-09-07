@@ -882,6 +882,16 @@
 		.hero-scene__telemetry, .hero-scene__beat { display: none; }
 	}
 
+	@media (max-height: 35rem) {
+		/*
+		 * 短视口里 Hero 正文会继续保持完整的标题、说明和 CTA；底部遥测并非操作所需，
+		 * 顶部信号也会随着正文垂直居中而压到首行导语上。整个 HUD 都不承载交互功能，
+		 * 因此在此断点统一收起，让横向充裕但纵向不足的窗口也遵循同一套可读性边界。
+		 */
+		.hero-scene__telemetry,
+		.hero-scene__beat { display: none; }
+	}
+
 	@media (prefers-reduced-motion: reduce) {
 		.hero-scene__material { animation: none; }
 		.hero-scene__night-word { animation: none; }

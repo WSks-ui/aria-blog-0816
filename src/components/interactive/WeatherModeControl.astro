@@ -65,6 +65,7 @@ const {
     commitWeatherMode,
     isWeatherMode,
     readStoredWeatherMode,
+    syncWeatherModeUi,
     WEATHER_MODE_STORAGE_KEY,
     type WeatherMode,
   } from '@/lib/weather-mode';
@@ -144,6 +145,24 @@ const {
         if (document.dispatchEvent(request)) commit();
       };
 
+      /*
+       * 页头本身通过 transition:persist 跨路由保留，activeMode 是它在
+       * astro:before-swap 时写入目标文档的唯一可信状态。文章右侧天气窗会
+       * 直接调用共享的 commitWeatherMode，而不会经过本组件的 commitMode；
+       * 若这里不同步，页头仍会带着旧模式（通常是初始 rain）覆盖首页根节点，
+       * 但持久化的 RainField 已经收到新事件并保留新纹理，最终造成 CSS 页面
+       * 与 WebGL 背景颜色分裂。所有入口均会广播 weather-mode-change，因此
+       * 监听这个提交完成事件即可把跨路由状态收束回单一事实来源。
+      */
+      const syncActiveModeFromGlobalCommit = (event: Event) => {
+        const detail = (event as CustomEvent).detail as { mode?: string } | null;
+        const mode = detail?.mode;
+        if (!isWeatherMode(mode)) return;
+        root.dataset.activeMode = mode;
+        delete root.dataset.pendingMode;
+      };
+      document.addEventListener('weather-mode-change', syncActiveModeFromGlobalCommit, { signal: controller.signal });
+
       const storedMode = readStoredWeatherMode(storageKey);
       // 首访默认固定为 Rain，不再跟随系统深浅色偏好；读者手动切换后才记住选择。
       requestMode(storedMode ?? 'rain', false, true);
@@ -173,10 +192,12 @@ const {
         if (document.documentElement.dataset.weatherMode !== mode) {
           commitMode(mode, false);
         } else {
-          // 正常路径已经在 newDocument 上完成提交；只维护控件私有状态，避免
-          // 重复广播 weather-mode-change 触发纹理重建和全局样式更新。
+          // 正常路径已经在 newDocument 上写入最终根属性，不能再次广播
+          // weather-mode-change，否则持久化 RainField 会重复上传同一套纹理。
+          // 但目标页刚创建的 THEME 文案尚未经历上一次提交，必须补同步一次。
           root.dataset.activeMode = mode;
           delete root.dataset.pendingMode;
+          syncWeatherModeUi(mode);
         }
       };
       document.addEventListener('astro:before-swap', carryModeIntoNewDocument, { signal: controller.signal });

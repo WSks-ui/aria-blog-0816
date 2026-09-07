@@ -1,9 +1,10 @@
 ---
 import { ArrowRight, Focus, GitBranch, MoveLeft, BookmarkCheck, ListTree } from '@lucide/astro';
 import type { MarkdownHeading } from 'astro';
+import { getCollection } from 'astro:content';
 import type { PostEntry } from '@/lib/content';
-import { getPostPath, getPostTransitionName } from '@/lib/content';
-import { SECTION_NAV_ITEMS } from '@/data/site';
+import { createTagHrefResolver, getPostPath, getPostTransitionName } from '@/lib/content';
+import { POST_KIND_LABELS, SECTION_NAV_ITEMS } from '@/data/site';
 import BaseLayout from './BaseLayout.astro';
 import KindLabel from '@/components/content/KindLabel.astro';
 import NightEcho from '@/components/content/NightEcho.astro';
@@ -45,6 +46,8 @@ const relatedLinks = related.map((entry) => ({
  * 段落首行缩进，进度只保留顶部细线（脚本里由兜底广播驱动）。
  */
 const isEssay = post.data.kind === 'essay';
+// 标签链接必须经归一映射解析：聚合页只按首见 label 生成，原始写法直接拼路径会 404。
+const resolveTagHref = createTagHrefResolver(await getCollection('posts'));
 ---
 
 <BaseLayout title={post.data.title} description={post.data.summary} image={cover} preloadImage={post.data.cover ?? undefined} type="article" className="article-page">
@@ -77,16 +80,16 @@ const isEssay = post.data.kind === 'essay';
 				-->
 				<span class="article-hero__rule article-hero__rule--top" aria-hidden="true" transition:name="aria7-rule-top"></span>
 				<span class="article-hero__rule article-hero__rule--bottom" aria-hidden="true" transition:name="aria7-rule-bottom"></span>
-				<a class="article-hero__back" href="/posts/" data-article-transition-link>
+				<a class="article-hero__back" href={`/types/${post.data.kind}/`} data-article-transition-link>
 					<MoveLeft size={17} stroke-width={1.5} aria-hidden="true" />
-					全部文章
+					返回{POST_KIND_LABELS[post.data.kind]}
 				</a>
 				<KindLabel kind={post.data.kind} />
 				<!-- 与列表行标题共享同名转场：换页时浏览器对两页快照插值，标题从原行位置飞入。 -->
 				<h1 transition:name={getPostTransitionName(post)}>{post.data.title}</h1>
 				<p>{post.data.summary}</p>
 				<div class="article-hero__tags">
-					{post.data.tags.map((tag) => <a href={`/tags/${encodeURIComponent(tag)}/`}>#{tag}</a>)}
+					{post.data.tags.map((tag) => <a href={resolveTagHref(tag)}>#{tag}</a>)}
 				</div>
 				{post.data.github && (
 					<a class="article-hero__github" href={post.data.github} rel="noreferrer">
@@ -914,6 +917,8 @@ const isEssay = post.data.kind === 'essay';
 		display: flex;
 		width: 100%;
 		min-height: 42px;
+		/* 高度不足时压缩条目会把竖排名再次挤成两列（读反），宁可将栏溢出。 */
+		flex-shrink: 0;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
@@ -996,6 +1001,10 @@ const isEssay = post.data.kind === 'essay';
 		line-height: 1;
 		writing-mode: vertical-rl;
 		letter-spacing: 0.2em;
+		/* 竖排名绝不能折列：vertical-rl 的列从右往左排，两字栏目一旦
+		   折成两列就会横读成「笔随」。字距使两字约需 31px 高，小于此
+		   高度时靠 nowrap 保持单列、由条目自身的 min-height 撑住。 */
+		white-space: nowrap;
 	}
 
 	.article-tabs__item.is-current {

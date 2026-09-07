@@ -1,7 +1,8 @@
 ---
 import { ArrowUpRight } from '@lucide/astro';
+import { getCollection } from 'astro:content';
 import type { PostEntry } from '@/lib/content';
-import { getPostPath, getPostTransitionName } from '@/lib/content';
+import { createTagHrefResolver, getPostPath, getPostTransitionName } from '@/lib/content';
 import { POST_KIND_LABELS } from '@/data/site';
 import KindLabel from './KindLabel.astro';
 
@@ -15,6 +16,9 @@ interface Props {
 
 const { post, index, showSummary = true, headingLevel = 'h2' } = Astro.props;
 const HeadingTag = headingLevel;
+// 标签链接必须经归一映射解析：聚合页只按首见 label 生成，原始写法直接拼路径会 404。
+// getCollection 在构建期有缓存，逐行调用不会重复读盘。
+const resolveTagHref = createTagHrefResolver(await getCollection('posts'));
 // Frontmatter 日期为纯日期字符串（UTC 午夜）。格式化固定 UTC，
 // 构建结果才不依赖构建机器的时区。
 const dateText = new Intl.DateTimeFormat('zh-CN', {
@@ -38,7 +42,7 @@ const dateText = new Intl.DateTimeFormat('zh-CN', {
 	<div class="article-row__meta">
 		<time datetime={post.data.publishedAt.toISOString()}>{dateText}</time>
 		<div class="article-row__tags">
-			{post.data.tags.slice(0, 2).map((tag) => <a href={`/tags/${encodeURIComponent(tag)}/`}>#{tag}</a>)}
+			{post.data.tags.slice(0, 2).map((tag) => <a href={resolveTagHref(tag)}>#{tag}</a>)}
 		</div>
 		<span>{POST_KIND_LABELS[post.data.kind]}</span>
 	</div>

@@ -102,12 +102,22 @@
 		};
 
 		// 换页抵达后等纸面落定（软入 380ms）再落雨点。
+		// persist 链断裂后旧元素已被 ClientRouter 移除，其闭包自此静默，
+		// 不再为脱离文档的旧容器生成粒子。
 		document.addEventListener('astro:page-load', () => {
+			if (!root.isConnected) return;
 			window.setTimeout(spawn, 300);
 		});
 		// 直接访问的首屏也落一次，雨不挑客从哪扇门进来。
 		window.setTimeout(spawn, 1000);
 	}
 
+	/*
+	 * 组件依赖 transition:persist 存活，但持久化不是契约：若某次导航的目标页
+	 * 未渲染本组件，persist 元素会被移除，之后回到含组件的页面时会得到一个
+	 * 从未初始化的新元素。因此每次 page-load 都重扫一次，靠 ripplesReady
+	 * 守卫保证同一元素只初始化一次。
+	 */
 	initArrivalRipples();
+	document.addEventListener('astro:page-load', initArrivalRipples);
 </script>

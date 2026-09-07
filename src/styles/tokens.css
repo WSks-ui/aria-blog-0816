@@ -140,7 +140,9 @@
   --weather-fiber-blend: multiply;
 }
 
-@media (max-width: 48rem) {
+/* 全站断点统一为 760px（47.5rem）：与各组件的 760px 规则及 RainField 的
+ * matchMedia 判定对齐，避免 760–768px 之间出现字号与布局不同步的分裂区。 */
+@media (max-width: 47.5rem) {
   :root {
     --text-lg: 1.25rem;
     --text-xl: 1.5rem;

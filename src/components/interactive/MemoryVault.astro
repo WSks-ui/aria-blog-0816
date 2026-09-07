@@ -243,8 +243,14 @@ const variantClass = `memory-vault--${variant}`;
 
       const syncCountDisplays = () => {
         const value = String(records.length);
-        // 文章收尾、浮动工具栏等位置可共用同一标记展示本地纸片数量。
+        // 计数节点可能在组件之外（如 NightEcho 的“本地纸片”统计），因此保留
+        // 全文档查询；但多实例并存时只更新与本实例 storageKey 匹配的节点：
+        // 组件内的计数跟随所属根节点的 key，独立计数节点可通过
+        // data-memory-count-key 显式声明，缺省跟随默认 key。
         document.querySelectorAll<HTMLElement>('[data-memory-count]').forEach((target) => {
+          const owner = target.closest<HTMLElement>('[data-memory-vault]');
+          const targetKey = owner?.dataset.storageKey ?? target.dataset.memoryCountKey ?? 'aria7-memory-vault';
+          if (targetKey !== storageKey) return;
           target.textContent = value;
           if (target instanceof HTMLOutputElement) target.value = value;
         });

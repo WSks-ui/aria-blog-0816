@@ -193,3 +193,20 @@ export function collectTagCounts(posts: readonly PostEntry[]) {
 		(left, right) => right.count - left.count || left.label.localeCompare(right.label, 'zh-CN'),
 	);
 }
+
+/**
+ * 标签链接统一走归一映射：标签按小写归一合并后，聚合页只按首见 label 生成
+ * 一个路径（collectTagCounts → tags/[tag] 的 getStaticPaths）。如果直接用
+ * 文章里的原始写法拼链接，大小写或空白不同的变体（如 "Astro" 与 "ASTRO"）
+ * 会指向未生成的页面而 404。链接生成处一律经此解析为首见 label 的路径。
+ */
+export function createTagHrefResolver(posts: readonly PostEntry[]) {
+	const canonicalLabels = new Map<string, string>();
+	for (const { label } of collectTagCounts(posts)) {
+		canonicalLabels.set(normalizeTag(label), label);
+	}
+	return (tag: string) => {
+		const canonical = canonicalLabels.get(normalizeTag(tag)) ?? tag.trim();
+		return `/tags/${encodeURIComponent(canonical)}/`;
+	};
+}
