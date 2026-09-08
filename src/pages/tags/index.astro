@@ -7,9 +7,9 @@ const posts = await getPosts();
 const tags = collectTagCounts(posts);
 ---
 
-<BaseLayout title="标签" description="按主题线索交叉浏览 Aria-7 的写作档案。">
+<BaseLayout title="标签" description="Aria-7 的文章标签。">
 	<div class="page-shell">
-		<PageHeader eyebrow="INDEX / TAGS" title="标签索引" description="一个标签是一条横向线索；它可以穿过不同类型和时间的记录。" count={tags.length} />
+		<PageHeader eyebrow="INDEX / TAGS" title="标签索引" count={tags.length} />
 		{tags.length > 0 ? (
 			<div class="tag-cloud">
 				{tags.map((tag, index) => (
@@ -31,7 +31,7 @@ const tags = collectTagCounts(posts);
 	.tag-cloud { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 64px; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
 	.tag-cloud a { display: grid; min-height: 150px; align-content: space-between; padding: 20px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--ink); text-decoration: none; }
 	.tag-cloud a:hover { background: var(--accent-soft); }
-	.tag-cloud span, .tag-cloud small { font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
+	.tag-cloud span, .tag-cloud small { font-family: var(--font-ui); font-size: 12px; color: var(--ink-muted); }
 	.tag-cloud strong { font-family: var(--font-display); font-size: 20px; font-weight: 500; }
 	/* 与 types/[kind] 的 .empty 同款空状态，避免无标签时只剩一个空网格框线。 */
 	.tag-cloud-empty { margin-top: 64px; padding-block: 72px; border-block: 1px solid var(--line); color: var(--ink-muted); }

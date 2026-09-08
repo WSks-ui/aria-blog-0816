@@ -15,15 +15,15 @@ const { recordsCount, lastUpdateText } = Astro.props;
 		<div class="home-hero">
 			<HeroScene />
 			<div class="home-hero__status">
-				<span>RECORDS / {String(recordsCount).padStart(2, '0')}</span>
+				<span>{recordsCount} 篇文章</span>
 				<span data-weather-theme-label>THEME / RAIN</span>
-				<span>LAST / {lastUpdateText}</span>
+				<span>更新于 {lastUpdateText}</span>
 			</div>
 			<div class="home-hero__copy">
 				<p>PERSONAL ARCHIVE / 2026</p>
 				<h1 id="home-title"><span class="home-hero__shared-title" data-aria7-title-transition transition:name="aria7-title">Aria-7</span></h1>
 				<strong>欢迎来到我的个人博客，随便看看</strong>
-				<span>随笔、学习笔记、项目、底片、代码与指南。</span>
+				<span>这里放着我的学习笔记、做过的项目和日常记录。</span>
 				<a class="home-hero__enter" href="/about/" data-aria7-title-transition-link>
 					<span>关于我</span>
 					<ArrowRight size={20} stroke-width={1.5} aria-hidden="true" />
@@ -52,16 +52,16 @@ const { recordsCount, lastUpdateText } = Astro.props;
 	}
 	/* 入场序列回归动效规范（内容显现 360–480ms）：级联总长压到 ~0.8s，
 	   气势交给 HeroScene 的四拍循环，而不是靠入场拖长。 */
-	.home-hero__status { position: absolute; top: 22px; right: 24px; z-index: 6; display: flex; gap: 20px; font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); opacity: 0; animation: home-meta-enter 380ms var(--ease-rain) 80ms forwards; }
+	.home-hero__status { position: absolute; top: 22px; right: 24px; z-index: 6; display: flex; flex-wrap: wrap; gap: 8px 16px; max-width: calc(100% - 48px); font-family: var(--font-ui); font-size: 12px; color: var(--ink-muted); opacity: 0; animation: home-meta-enter 380ms var(--ease-rain) 80ms forwards; }
 	.home-hero__copy { grid-column: 1 / 7; grid-row: 1; z-index: 6; max-width: 610px; padding-inline: clamp(34px, 7vw, 112px) 24px; }
 	.home-hero__copy > p,
 	.home-hero__copy > span { font-family: var(--font-ui); font-size: 11px; color: var(--ink-muted); opacity: 0; animation: home-copy-enter 420ms var(--ease-rain) 120ms forwards; }
 	.home-hero h1 { margin: 18px 0 6px; font-family: var(--font-display); font-size: 132px; font-weight: 500; line-height: 0.96; overflow-wrap: anywhere; opacity: 0; animation: home-title-enter 480ms var(--ease-rain) 160ms forwards; }
 	.home-hero__shared-title { display: inline-block; white-space: nowrap; }
-	/* 字号三级跳：巨型标题下直接接常规文案，再落到微型元数据，断层即层级。 */
+	/* 站名保留展示字号，介绍和入口按正文阅读尺寸处理；不再用微型字承载主要信息。 */
 	.home-hero__copy > strong { display: block; max-width: 580px; margin-bottom: 20px; font-family: var(--font-display); font-size: 15px; font-weight: 400; line-height: 1.7; overflow-wrap: anywhere; opacity: 0; animation: home-copy-enter 420ms var(--ease-rain) 260ms forwards; }
-	.home-hero__copy > span { display: block; animation-delay: 340ms; }
-	.home-hero__enter { display: inline-flex; min-height: 44px; align-items: center; gap: 18px; margin-top: 30px; padding: 0 14px 0 18px; border: 1px solid var(--ink); background: color-mix(in srgb, var(--paper-0) 86%, transparent); font-family: var(--font-ui); font-size: 11px; color: var(--ink); text-decoration: none; backdrop-filter: blur(10px); opacity: 0; animation: home-action-enter 380ms var(--ease-rain) 420ms forwards; }
+	.home-hero__copy > span { display: block; max-width: 28em; font-size: 14px; line-height: 1.8; animation-delay: 340ms; }
+	.home-hero__enter { display: inline-flex; min-height: 44px; align-items: center; gap: 18px; margin-top: 30px; padding: 0 14px 0 18px; border: 1px solid var(--ink); background: color-mix(in srgb, var(--paper-0) 86%, transparent); font-family: var(--font-ui); font-size: 13px; color: var(--ink); text-decoration: none; backdrop-filter: blur(10px); opacity: 0; animation: home-action-enter 380ms var(--ease-rain) 420ms forwards; }
 	.home-hero__enter:hover svg { transform: translateX(4px); }
 	.home-hero__enter svg { transition: transform var(--duration-base) var(--ease-rain); }
 

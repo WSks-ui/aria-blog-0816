@@ -84,10 +84,6 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
       const expandButton = root.querySelector<HTMLButtonElement>('[data-scene-expand]');
       if (!list || !toc || !progress || !remaining || !expandButton) return;
 
-      // 显式 behavior:'smooth' 不受 CSS 的 scroll-behavior 兜底约束，
-      // reduced-motion 用户改为瞬时定位。
-      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-
       let content: HTMLElement | null = null;
       try {
         content = document.querySelector<HTMLElement>(root.dataset.contentSelector || 'article');
@@ -258,9 +254,13 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
         expandButton.hidden = true;
       }
 
+      let activeHeadingId = '';
+      let tocFollowFrame = 0;
       const setActiveHeading = (id: string, ensureVisible = true) => {
+        if (id === activeHeadingId) return;
         const nextChapter = headingToChapter.get(id);
         if (!nextChapter) return;
+        activeHeadingId = id;
         activeChapter = nextChapter;
 
         links.forEach((link, linkId) => {
@@ -276,14 +276,22 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
           setChapterExpanded(chapter, expandedAll || containsActiveHeading);
         });
 
-        // 当前子标题如果被目录视窗裁掉，才进行就近滚动，避免目录随正文观察器频繁跳动。
+        // 目录跟随只能滚动 toc 自身。scrollIntoView 默认会滚动所有祖先，
+        // 包括页面视口，在手动阅读时可能打断正文滚动；同时把几何读取移到
+        // 下一帧，避免紧接着上面的章节展开写入触发同步布局。
         const activeLink = links.get(id);
+        if (tocFollowFrame) cancelAnimationFrame(tocFollowFrame);
         if (activeLink && ensureVisible) {
-          const linkRect = activeLink.getBoundingClientRect();
-          const tocRect = toc.getBoundingClientRect();
-          if (linkRect.top < tocRect.top + 18 || linkRect.bottom > tocRect.bottom - 22) {
-            activeLink.scrollIntoView({ block: 'nearest', behavior: reduceMotion.matches ? 'auto' : 'smooth' });
-          }
+          tocFollowFrame = requestAnimationFrame(() => {
+            tocFollowFrame = 0;
+            if (!toc.isConnected || toc.clientHeight === 0) return;
+            const linkRect = activeLink.getBoundingClientRect();
+            const tocRect = toc.getBoundingClientRect();
+            const delta = linkRect.top < tocRect.top + 18
+              ? linkRect.top - tocRect.top - 18
+              : Math.max(0, linkRect.bottom - tocRect.bottom + 22);
+            if (delta !== 0) toc.scrollBy({ top: delta, behavior: 'instant' });
+          });
         }
       };
 
@@ -337,6 +345,9 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
       // abort 只能移除 scroll/resize 监听，已经排队的帧仍可能在换页后执行并
       // 闭包引用旧正文；保存句柄后由 cleanup 显式取消，避免旧页面继续广播进度。
       let progressFrame: number | undefined;
+      let lastPercent = -1;
+      let lastMinutesLeft = -1;
+      let lastRatio = -1;
 
       const updateProgress = () => {
         const rect = content.getBoundingClientRect();
@@ -346,17 +357,28 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
         const percent = Math.round(ratio * 100);
         const minutesLeft = Math.max(0, Math.ceil(totalMinutes * (1 - ratio)));
 
-        progress.value = ratio;
-        progress.textContent = `${percent}%`;
-        progress.setAttribute('aria-valuetext', `${percent}%`);
-        remaining.textContent = minutesLeft > 0 ? `约剩 ${minutesLeft} 分钟` : '已读完';
-        root.style.setProperty('--scene-reading-progress', String(ratio));
+        // 数字只在显示值变化时写入。高刷滚动下，同一个百分比可能持续数十帧，
+        // 重复替换文本会让目录子树不断失效；连续进度仍按 RAF 原速广播。
+        if (percent !== lastPercent) {
+          progress.value = percent / 100;
+          progress.textContent = `${percent}%`;
+          progress.setAttribute('aria-valuetext', `${percent}%`);
+          root.style.setProperty('--scene-reading-progress', String(percent / 100));
+          lastPercent = percent;
+        }
+        if (minutesLeft !== lastMinutesLeft) {
+          remaining.textContent = minutesLeft > 0 ? `约剩 ${minutesLeft} 分钟` : '已读完';
+          lastMinutesLeft = minutesLeft;
+        }
 
         // 目录已经完成正文几何计算，阅读记录直接复用结果，避免同一篇文章上
         // 再启动一套 scroll + requestAnimationFrame + getBoundingClientRect 链路。
-        document.dispatchEvent(new CustomEvent('aria7-reading-progress', {
-          detail: { content, ratio },
-        }));
+        if (ratio !== lastRatio) {
+          document.dispatchEvent(new CustomEvent('aria7-reading-progress', {
+            detail: { content, ratio },
+          }));
+          lastRatio = ratio;
+        }
         ticking = false;
       };
 
@@ -405,6 +427,7 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
       // Astro 的页面切换会替换正文节点；统一释放观察器和事件，避免旧文章继续驱动新页面目录。
       sceneGuideCleanups.set(root, () => {
         controller.abort();
+        if (tocFollowFrame) cancelAnimationFrame(tocFollowFrame);
         if (progressFrame !== undefined) {
           window.cancelAnimationFrame(progressFrame);
           progressFrame = undefined;

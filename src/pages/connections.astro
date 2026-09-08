@@ -9,7 +9,7 @@ const posts = await getPosts();
 
 <BaseLayout title="伞骨关系图" description="通过共享标签查看文章之间的关系。">
 	<div class="page-shell">
-		<PageHeader eyebrow="MAP / CONNECTIONS" title="伞骨关系图" description="文章按内容类型分列，共享标签形成连接线。它不是推荐算法，只呈现已经写下的关系。" count={posts.length} />
+		<PageHeader eyebrow="MAP / CONNECTIONS" title="伞骨关系图" count={posts.length} />
 		<div class="graph-mount">
 			<ArticleGraph posts={posts} heading="共享标签形成的联系" />
 		</div>

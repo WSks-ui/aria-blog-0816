@@ -18,8 +18,8 @@ const { minutes, scenes, related = [] } = Astro.props;
 
 <footer class="night-echo" data-night-echo>
 	<div class="night-echo__status">
-		<p data-hud-type>THEME / NIGHT ECHO</p>
-		<strong>阅读在这里收束，线索仍向外延伸。</strong>
+		<p data-hud-type>END / RECORD</p>
+		<strong>这篇就写到这里。</strong>
 	</div>
 	<!--
 		读毕归档章：读到收束（进度 ≥95% 或整段正文已收进视口）时落章。
@@ -43,13 +43,13 @@ const { minutes, scenes, related = [] } = Astro.props;
 		</div>
 		<div>
 			<Bookmark size={18} stroke-width={1.5} aria-hidden="true" />
-			<dt>本地纸片</dt>
+			<dt>本地摘录</dt>
 			<dd data-memory-count>0</dd>
 		</div>
 	</dl>
 	{related.length > 0 && (
 		<div class="night-echo__related">
-			<p>EXTENDED READING</p>
+			<p>相关文章</p>
 			{related.slice(0, 3).map((post) => (
 				<a href={post.href} data-article-transition-link>
 					<span>{post.kind}</span>
@@ -332,18 +332,19 @@ const { minutes, scenes, related = [] } = Astro.props;
 			if (ratio >= 0.95) stamp();
 		}, { signal });
 
-		window.addEventListener(
-			'scroll',
-			() => {
-				if (stamped) return;
-				const prose = document.querySelector<HTMLElement>('.reading-prose');
-				if (prose && prose.getBoundingClientRect().bottom < window.innerHeight + 60) stamp();
-			},
-			{ passive: true, signal },
-		);
+		// 长文复用已有阅读进度；短文以页尾进入视口为兜底，不再在每个 scroll
+		// 事件中查询正文并读取布局。落章后停止观察，换页时一并回收。
+		const endObserver = new IntersectionObserver((entries) => {
+			if (entries.some((entry) => entry.isIntersecting)) {
+				stamp();
+				endObserver.disconnect();
+			}
+		}, { rootMargin: '0px 0px 60px 0px' });
+		endObserver.observe(footer);
 
 		disposeArchiveStamp = () => {
 			controller.abort();
+			endObserver.disconnect();
 			// 允许同一节点在导航被保留后重新初始化，避免 ready 标记阻断新一轮监听绑定。
 			if (footer.isConnected) delete footer.dataset.stampReady;
 		};

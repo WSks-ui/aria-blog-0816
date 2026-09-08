@@ -23,7 +23,7 @@ const kindCounts = POST_KINDS.map((kind) => ({
 			<div>
 				<p>03 / INDEX SYSTEM</p>
 			</div>
-			<span>{String(posts.length).padStart(2, '0')} RECORDS / {String(tagCounts.length).padStart(2, '0')} SIGNALS</span>
+			<span>{posts.length} 篇文章 / {tagCounts.length} 个标签</span>
 		</header>
 		<div class="kind-index" data-index-field>
 			{kindCounts.map(({ kind, count }, index) => {
@@ -150,7 +150,7 @@ const kindCounts = POST_KINDS.map((kind) => ({
 	.index-heading { margin-bottom: 28px; }
 	.index-heading > div { display: grid; gap: 0; }
 	.index-heading > div p { margin: 0; }
-	.index-heading > span { font-family: var(--font-ui); font-size: 9px; color: var(--ink-muted); }
+	.index-heading > span { font-family: var(--font-ui); font-size: 12px; color: var(--ink-muted); }
 	/* 格宽形变是本区的招牌交互，保留；但并发成本削减：字号改瞬时切换、
 	   非活动轨只降透明度不再位移——每帧重排工作量约减半。 */
 	.kind-index { --index-pointer-x: 50%; --index-pointer-y: 50%; position: relative; isolation: isolate; display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr; align-items: end; height: 410px; border-bottom: 1px solid var(--line-strong); transition: grid-template-columns var(--duration-scene) var(--ease-drift); }

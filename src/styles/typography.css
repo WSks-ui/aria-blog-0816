@@ -106,7 +106,12 @@ small,
 }
 
 .reading-prose :where(h2, h3, h4) {
-  margin-block: var(--space-8) var(--space-4);
+  margin-block: var(--space-7) var(--space-4);
+}
+
+/* 二级标题划分章节，三级及以下标题只划分操作步骤，避免短段落被相同的大留白切散。 */
+.reading-prose :where(h3, h4) {
+  margin-block-start: var(--space-6);
 }
 
 .reading-prose :where(a) {
@@ -513,8 +518,8 @@ html[data-weather-mode='night'] .reading-prose :where(:not(pre) > code) {
 
 .reading-prose :where(hr) {
   position: relative;
-  width: 100%;
-  margin-block: var(--space-8);
+  width: min(100%, 18rem);
+  margin-block: var(--space-7);
   margin-inline: 0;
   overflow: visible;
   border: 0;
@@ -534,14 +539,6 @@ html[data-weather-mode='night'] .reading-prose :where(:not(pre) > code) {
   transform: translateX(-50%);
 }
 
-.reading-prose :where(hr) {
-  width: min(100%, 18rem);
-  margin-block: var(--space-8);
-  margin-inline: 0;
-  border: 0;
-  border-block-start: var(--border-hairline);
-}
-
 .reading-prose :where(figcaption) {
   margin-block-start: var(--space-2);
   color: var(--color-ink-muted);
@@ -555,7 +552,7 @@ html[data-weather-mode='night'] .reading-prose :where(:not(pre) > code) {
     font-size: var(--text-base);
   }
 
-  .reading-prose :where(h2, h3, h4) {
-    margin-block-start: var(--space-7);
+  .reading-prose :where(h2) {
+    margin-block-start: var(--space-6);
   }
 }
