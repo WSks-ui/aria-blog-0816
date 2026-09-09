@@ -1,6 +1,6 @@
 ---
-import { Image, getImage } from 'astro:assets';
-import { ChevronLeft, ChevronRight, Download, Maximize2, Plus } from '@lucide/astro';
+import { getImage } from 'astro:assets';
+import { ChevronLeft, ChevronRight, Download, Maximize2, Plus, X } from '@lucide/astro';
 import type { ImageCollectionItem } from '@/data/image-collection';
 import '@/styles/interactive.css';
 
@@ -14,58 +14,64 @@ const firstItem = items[0];
 const CONTACT_SHEET_BATCH_SIZE = 10;
 const galleryId = `gallery-${Math.random().toString(36).slice(2, 10)}`;
 
-const fullImageWidths = (item: ImageCollectionItem) => {
-	const widths = [640, 960, 1280];
-	if (item.width >= 1920) widths.push(1920);
-	// 原图宽度档封顶 1920w：浏览器在 3x DPR 下会沿 srcset 选择最大档，放行
-	// 3200w 原始档会让移动端单图拉取 2MB+。下载原图走 originalSrc，不受影响；
-	// 不足 640w 的小图经此也能保留自身一档，widths 不会为空。
-	const cappedWidth = Math.min(item.width, 1920);
-	if (!widths.includes(cappedWidth)) widths.push(cappedWidth);
-	return [...new Set(widths)].filter((width) => width <= item.width).sort((a, b) => a - b);
-};
-
-const thumbnailWidths = (item: ImageCollectionItem) => {
-	const widths = [160, 320, 640];
-	if (!widths.includes(item.thumbnail.width)) widths.push(item.thumbnail.width);
-	return [...new Set(widths)].filter((width) => width <= item.thumbnail.width).sort((a, b) => a - b);
-};
-
-const stageSizes = '(min-width: 1000px) 820px, 92vw';
-const thumbnailSizes = '(min-width: 1000px) 96px, (min-width: 760px) 72px, 64px';
-const contactSizes = '(min-width: 1000px) 400px, 90vw';
+/**
+ * 底片页只生成两档预览资源，并且按“高度”定义 720p / 360p：竖图与横图都能
+ * 保持一致的清晰度上限。720p 用于主画幅，360p 用于窄屏主画幅、缩略条和底片墙；
+ * 原图 URL 只在打开原图查看器或主动下载时使用，避免普通浏览提前产生大图流量。
+ * 窄屏断点同时写入组件根节点，由客户端读取，防止后续调整时服务端与脚本漂移。
+ */
+const PREVIEW_HEIGHT = 720;
+const SMALL_PREVIEW_HEIGHT = 360;
+const SMALL_VIEWPORT_QUERY = '(max-width: 760px)';
+const PREVIEW_QUALITY = 90;
+const SMALL_PREVIEW_QUALITY = 86;
 
 // JSON 进入内联 script 前先转义小于号，避免标题或说明里的 `</script>` 提前截断脚本节点。
-const serializableItems = await Promise.all(items.map(async (item) => {
-	const full = await getImage({
+const renderedItems = await Promise.all(items.map(async (item) => {
+	const preview = await getImage({
 		src: item.src,
-		widths: fullImageWidths(item),
-		sizes: stageSizes,
+		height: Math.min(PREVIEW_HEIGHT, item.height),
 		format: 'webp',
+		quality: PREVIEW_QUALITY,
 	});
-	const thumb = await getImage({
-		src: item.thumbnail,
-		widths: thumbnailWidths(item),
-		sizes: thumbnailSizes,
+	const smallPreview = await getImage({
+		src: item.src,
+		height: Math.min(SMALL_PREVIEW_HEIGHT, item.height),
 		format: 'webp',
+		quality: SMALL_PREVIEW_QUALITY,
 	});
 	return {
-		...item,
+		item,
+		previewSrc: preview.src,
+		smallPreviewSrc: smallPreview.src,
 		originalSrc: item.src.src,
-		src: full.src,
-		srcSet: full.srcSet.attribute,
-		thumbnail: thumb.src,
-		thumbnailSrcSet: thumb.srcSet.attribute,
+		downloadName: `aria7-${item.id}.${item.src.format}`,
 	};
+}));
+const firstRenderedItem = renderedItems[0];
+const serializableItems = renderedItems.map(({ item, previewSrc, smallPreviewSrc, originalSrc, downloadName }) => ({
+	id: item.id,
+	title: item.title,
+	previewSrc,
+	smallPreviewSrc,
+	originalSrc,
+	downloadName,
+	alt: item.alt,
+	description: item.description,
+	credit: item.credit,
+	width: item.width,
+	height: item.height,
+	accent: item.accent,
 }));
 const serializedItems = JSON.stringify(serializableItems).replace(/</g, '\\u003c');
 ---
 
-{firstItem && (
+{firstItem && firstRenderedItem && (
 	<section
 		class="image-collection"
 		data-image-collection
 		data-contact-batch-size={CONTACT_SHEET_BATCH_SIZE}
+		data-small-viewport-query={SMALL_VIEWPORT_QUERY}
 		style={`--gallery-accent: ${firstItem.accent};`}
 		aria-label="图片收藏"
 	>
@@ -86,19 +92,24 @@ const serializedItems = JSON.stringify(serializableItems).replace(/</g, '\\u003c
 			aria-labelledby={`${galleryId}-tab-0`}
 		>
 			<div class="gallery-stage__image-wrap">
-				<Image
-					data-gallery-image
-					src={firstItem.src}
-					alt={firstItem.alt}
-					width={firstItem.width}
-					height={firstItem.height}
-					widths={fullImageWidths(firstItem)}
-					sizes={stageSizes}
-					format="webp"
-					fetchpriority="high"
-					loading="eager"
-					decoding="async"
-				/>
+				<picture class="gallery-stage__picture">
+					<source
+						data-gallery-small-source
+						media={SMALL_VIEWPORT_QUERY}
+						srcset={firstRenderedItem.smallPreviewSrc}
+						type="image/webp"
+					/>
+					<img
+						data-gallery-image
+						src={firstRenderedItem.previewSrc}
+						alt={firstItem.alt}
+						width={firstItem.width}
+						height={firstItem.height}
+						fetchpriority="high"
+						loading="eager"
+						decoding="async"
+					/>
+				</picture>
 				<div class="gallery-stage__crosshair" aria-hidden="true"></div>
 				<span class="gallery-stage__grain" aria-hidden="true"></span>
 			</div>
@@ -122,7 +133,7 @@ const serializedItems = JSON.stringify(serializableItems).replace(/</g, '\\u003c
 					<button type="button" aria-label="下一张" data-tooltip="下一张" data-gallery-next>
 						<ChevronRight size={19} stroke-width={1.5} aria-hidden="true" />
 					</button>
-					<button type="button" aria-label="全屏查看" data-tooltip="全屏查看" data-gallery-fullscreen>
+					<button type="button" aria-label="查看原图" data-tooltip="查看原图" data-gallery-viewer-open>
 						<Maximize2 size={18} stroke-width={1.5} aria-hidden="true" />
 					</button>
 					<button type="button" aria-label="下载图片" data-tooltip="下载图片" data-gallery-download>
@@ -133,7 +144,7 @@ const serializedItems = JSON.stringify(serializableItems).replace(/</g, '\\u003c
 		</div>
 
 		<div class="gallery-strip" role="tablist" aria-label="选择图片">
-			{items.map((item, index) => (
+			{renderedItems.map(({ item, smallPreviewSrc }, index) => (
 				<button
 					type="button"
 					role="tab"
@@ -146,7 +157,7 @@ const serializedItems = JSON.stringify(serializableItems).replace(/</g, '\\u003c
 					style={`--item-accent: ${item.accent};`}
 				>
 					<span>{String(index + 1).padStart(2, '0')}</span>
-					<Image src={item.thumbnail} alt="" width={item.thumbnail.width} height={item.thumbnail.height} widths={thumbnailWidths(item)} sizes={thumbnailSizes} loading="lazy" decoding="async" />
+					<img src={smallPreviewSrc} alt="" width={item.width} height={item.height} loading="lazy" decoding="async" />
 				</button>
 			))}
 		</div>
@@ -160,7 +171,7 @@ const serializedItems = JSON.stringify(serializableItems).replace(/</g, '\\u003c
 				<span>ONLINE SOURCES / CONTACT FOR REMOVAL</span>
 			</header>
 			<div class="contact-sheet__grid">
-				{items.map((item, index) => (
+				{renderedItems.map(({ item, smallPreviewSrc }, index) => (
 					<button
 						type="button"
 						class:list={['contact-frame', `contact-frame--${item.size}`]}
@@ -170,7 +181,7 @@ const serializedItems = JSON.stringify(serializableItems).replace(/</g, '\\u003c
 						data-contact-frame
 						style={`--item-accent: ${item.accent};`}
 					>
-						<Image src={item.thumbnail} alt="" width={item.thumbnail.width} height={item.thumbnail.height} widths={thumbnailWidths(item)} sizes={contactSizes} loading="lazy" decoding="async" />
+						<img src={smallPreviewSrc} alt="" width={item.width} height={item.height} loading="lazy" decoding="async" />
 						<span class="contact-frame__scrim" aria-hidden="true"></span>
 						<span class="contact-frame__caption">
 							<small>{String(index + 1).padStart(2, '0')} / FRAME</small>
@@ -189,6 +200,27 @@ const serializedItems = JSON.stringify(serializableItems).replace(/</g, '\\u003c
 				</div>
 			)}
 		</section>
+
+		<dialog class="gallery-viewer" data-gallery-viewer aria-label="原图查看">
+			<figure class="gallery-viewer__figure">
+				<div class="gallery-viewer__media">
+					<img data-gallery-viewer-image alt="" decoding="async" />
+				</div>
+				<figcaption class="gallery-viewer__caption">
+					<strong data-gallery-viewer-title>{firstItem.title}</strong>
+					<span data-gallery-viewer-dimensions>{firstItem.width} × {firstItem.height}</span>
+				</figcaption>
+			</figure>
+			<button class="gallery-viewer__previous" type="button" aria-label="上一张原图" data-gallery-viewer-previous>
+				<ChevronLeft size={24} stroke-width={1.4} aria-hidden="true" />
+			</button>
+			<button class="gallery-viewer__next" type="button" aria-label="下一张原图" data-gallery-viewer-next>
+				<ChevronRight size={24} stroke-width={1.4} aria-hidden="true" />
+			</button>
+			<button class="gallery-viewer__close" type="button" aria-label="关闭原图查看" data-gallery-viewer-close autofocus>
+				<X size={22} stroke-width={1.5} aria-hidden="true" />
+			</button>
+		</dialog>
 	</section>
 )}
 
@@ -196,9 +228,10 @@ const serializedItems = JSON.stringify(serializableItems).replace(/</g, '\\u003c
 	interface GalleryItem {
 		id: string;
 		title: string;
-		src: string;
-		srcSet?: string;
-		originalSrc?: string;
+		previewSrc: string;
+		smallPreviewSrc: string;
+		originalSrc: string;
+		downloadName: string;
 		alt: string;
 		description: string;
 		credit: string;
@@ -214,6 +247,11 @@ const serializedItems = JSON.stringify(serializableItems).replace(/</g, '\\u003c
 			const dataNode = root.querySelector<HTMLScriptElement>('[data-image-collection-data]');
 			const stage = root.querySelector<HTMLElement>('[data-gallery-stage]');
 			const stageImage = root.querySelector<HTMLImageElement>('[data-gallery-image]');
+			const stageSmallSource = root.querySelector<HTMLSourceElement>('[data-gallery-small-source]');
+			const viewer = root.querySelector<HTMLDialogElement>('[data-gallery-viewer]');
+			const viewerImage = root.querySelector<HTMLImageElement>('[data-gallery-viewer-image]');
+			const viewerTitle = root.querySelector<HTMLElement>('[data-gallery-viewer-title]');
+			const viewerDimensions = root.querySelector<HTMLElement>('[data-gallery-viewer-dimensions]');
 			const indexNode = root.querySelector<HTMLElement>('[data-gallery-index]');
 			const titleNode = root.querySelector<HTMLElement>('[data-gallery-title]');
 			const dimensionsNode = root.querySelector<HTMLElement>('[data-gallery-dimensions]');
@@ -225,7 +263,7 @@ const serializedItems = JSON.stringify(serializableItems).replace(/</g, '\\u003c
 			const loadMoreButton = root.querySelector<HTMLButtonElement>('[data-contact-load-more]');
 			const loadRow = root.querySelector<HTMLElement>('[data-contact-load-row]');
 			const remainingNode = root.querySelector<HTMLElement>('[data-contact-remaining]');
-			if (!dataNode?.textContent || !stage || !stageImage) return;
+			if (!dataNode?.textContent || !stage || !stageImage || !stageSmallSource || !viewer || !viewerImage) return;
 
 			let items: GalleryItem[] = [];
 			try {
@@ -235,13 +273,29 @@ const serializedItems = JSON.stringify(serializableItems).replace(/</g, '\\u003c
 			}
 			if (items.length === 0) return;
 			const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+			const smallViewport = window.matchMedia(root.dataset.smallViewportQuery ?? '(max-width: 760px)');
 			const contactBatchSize = Number(root.dataset.contactBatchSize ?? 10);
 			let activeIndex = 0;
 			let selectionToken = 0;
 
+			// picture 的 source 负责窄屏选图；切换内容时同时更新 source 和 fallback img，
+			// 浏览器才能在不请求原图的前提下稳定选择 360p 或 720p。
+			const applyStageSource = (item: GalleryItem) => {
+				stageSmallSource.srcset = item.smallPreviewSrc;
+				stageImage.src = item.previewSrc;
+			};
+
+			const applyViewerSource = (item: GalleryItem) => {
+				viewer.dataset.loading = 'true';
+				viewerImage.src = item.originalSrc;
+				viewerImage.alt = item.alt;
+				if (viewerTitle) viewerTitle.textContent = item.title;
+				if (viewerDimensions) viewerDimensions.textContent = `${item.width} × ${item.height}`;
+			};
+
 			const commitItem = (item: GalleryItem, index: number) => {
-				stageImage.src = item.src;
-				stageImage.srcset = item.srcSet ?? '';
+				applyStageSource(item);
+				if (viewer.open) applyViewerSource(item);
 				stageImage.alt = item.alt;
 				stageImage.width = item.width;
 				stageImage.height = item.height;
@@ -270,14 +324,16 @@ const serializedItems = JSON.stringify(serializableItems).replace(/</g, '\\u003c
 
 				// 先在内存中解码下一张，确认可显示后才让当前画面退场，避免加载期间暴露空白画布。
 				const preload = new Image();
-				preload.src = item.src;
+				preload.src = viewer.open
+					? item.originalSrc
+					: smallViewport.matches ? item.smallPreviewSrc : item.previewSrc;
 				try {
 					await preload.decode();
 				} catch {
 					// decode 在部分浏览器会因缓存策略拒绝，但完成 load 后图片仍可正常交给主画幅。
 				}
 				if (token !== selectionToken) return;
-				if (reduceMotion) {
+				if (reduceMotion || viewer.open) {
 					commitItem(item, index);
 					return;
 				}
@@ -309,20 +365,46 @@ const serializedItems = JSON.stringify(serializableItems).replace(/</g, '\\u003c
 			});
 			root.querySelector('[data-gallery-previous]')?.addEventListener('click', () => selectItem(activeIndex - 1));
 			root.querySelector('[data-gallery-next]')?.addEventListener('click', () => selectItem(activeIndex + 1));
-			root.querySelector('[data-gallery-fullscreen]')?.addEventListener('click', async () => {
-				try {
-					if (document.fullscreenElement) await document.exitFullscreen();
-					else await stage.requestFullscreen();
-				} catch {
-					// 浏览器策略可能禁止非直接手势触发的全屏，失败时保留当前画幅即可。
+			root.querySelector('[data-gallery-viewer-open]')?.addEventListener('click', () => {
+				const item = items[activeIndex];
+				if (!item) return;
+				applyViewerSource(item);
+				if (typeof viewer.showModal === 'function') viewer.showModal();
+				else viewer.setAttribute('open', '');
+			});
+			root.querySelector('[data-gallery-viewer-previous]')?.addEventListener('click', () => selectItem(activeIndex - 1));
+			root.querySelector('[data-gallery-viewer-next]')?.addEventListener('click', () => selectItem(activeIndex + 1));
+
+			const clearViewerSource = () => {
+				viewerImage.removeAttribute('src');
+				viewerImage.alt = '';
+				delete viewer.dataset.loading;
+			};
+			const closeViewer = () => {
+				if (typeof viewer.close === 'function') viewer.close();
+				else {
+					viewer.removeAttribute('open');
+					clearViewerSource();
+				}
+			};
+			root.querySelector('[data-gallery-viewer-close]')?.addEventListener('click', closeViewer);
+			viewer.addEventListener('click', (event) => {
+				if (
+					event.target === viewer
+					|| (event.target instanceof HTMLElement && event.target.matches('.gallery-viewer__figure, .gallery-viewer__media'))
+				) {
+					closeViewer();
 				}
 			});
+			viewer.addEventListener('close', clearViewerSource);
+			viewerImage.addEventListener('load', () => delete viewer.dataset.loading);
+			viewerImage.addEventListener('error', () => delete viewer.dataset.loading);
 			downloadButton?.addEventListener("click", () => {
 				const item = items[activeIndex];
 				if (!item) return;
 				const link = document.createElement("a");
-				link.href = item.originalSrc ?? item.src;
-				link.download = `aria7-${item.id}.webp`;
+				link.href = item.originalSrc;
+				link.download = item.downloadName;
 				document.body.append(link);
 				link.click();
 				link.remove();
@@ -365,13 +447,13 @@ const serializedItems = JSON.stringify(serializableItems).replace(/</g, '\\u003c
 	.gallery-stage::after { right: 18px; bottom: 106px; border-right: 1px solid; border-bottom: 1px solid; }
 	.gallery-stage__image-wrap { position: relative; display: grid; min-height: 0; place-items: center; overflow: hidden; background: #071014; }
 	/*
-	 * 主画幅使用 srcset 后，浏览器可能选中较小分辨率图片；如果仍用 width/height: auto，
-	 * 图片会按所选资源的固有尺寸显示，在容器里变成“小图 + 黑边”。
-	 * 这里让 <img> 元素始终填满整个舞台，再交给 object-fit: contain 按比例缩放，
-	 * 这样无论浏览器选中 640w 还是 1920w，图片都能自适应容器。
+	 * picture 必须占满稳定舞台，img 再通过 contain 完整展示。资源本身虽然只有
+	 * 720p / 360p 两档，但元素尺寸不能跟随资源固有像素变化，否则切换横竖图时
+	 * 会出现画面缩成一小块或布局跳动。
 	 */
-	.gallery-stage__image-wrap > img { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: contain; opacity: 1; transform: scale(1); transition: opacity 380ms var(--ease-rain), transform 760ms var(--ease-drift); }
-	.gallery-stage.is-switching .gallery-stage__image-wrap > img { opacity: 0; transform: scale(0.992); }
+	.gallery-stage__picture { display: grid; width: 100%; height: 100%; min-width: 0; min-height: 0; place-items: center; }
+	.gallery-stage__picture > img { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: contain; opacity: 1; transform: scale(1); transition: opacity 380ms var(--ease-rain), transform 760ms var(--ease-drift); }
+	.gallery-stage.is-switching .gallery-stage__picture > img { opacity: 0; transform: scale(0.992); }
 	.gallery-stage__grain { position: absolute; inset: 0; background-image: url('/assets/patterns/paper-drift.svg'); background-size: 720px auto; mix-blend-mode: screen; opacity: 0.055; pointer-events: none; }
 	.gallery-stage__crosshair { position: absolute; z-index: 3; top: var(--gallery-pointer-y); left: var(--gallery-pointer-x); width: 1px; height: 1px; opacity: 0; transition: opacity 240ms var(--ease-rain); pointer-events: none; }
 	.gallery-stage__crosshair::before,
@@ -390,8 +472,26 @@ const serializedItems = JSON.stringify(serializableItems).replace(/</g, '\\u003c
 	.gallery-stage__controls button { display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid #39545c; background: transparent; color: #a8b8bb; cursor: pointer; }
 	.gallery-stage__controls button:hover,
 	.gallery-stage__controls button:focus-visible { border-color: var(--gallery-accent); color: var(--gallery-accent); }
-	.gallery-stage:fullscreen { width: 100vw; height: 100vh; }
-	.gallery-stage:fullscreen::after { bottom: 106px; }
+	.gallery-viewer { width: 100vw; max-width: none; height: 100dvh; max-height: none; margin: 0; padding: 0; overflow: hidden; border: 0; background: #050b0d; color: #edf1ef; }
+	.gallery-viewer::backdrop { background: rgb(2 7 9 / 96%); }
+	.gallery-viewer__figure { position: relative; width: 100%; height: 100%; margin: 0; }
+	/*
+	 * 全局 reset 会把 img 的 height 设为 auto，因此不能让竖图依赖 height: 100% 来
+	 * 形成 contain 画布。媒体盒通过四边 inset 得到确定的可用宽高，图片只使用
+	 * max-width / max-height 在盒内等比收缩，超长竖图与超宽横图都不会越界裁切。
+	 */
+	.gallery-viewer__media { position: absolute; inset: 64px 76px 82px; display: grid; min-width: 0; min-height: 0; place-items: center; }
+	.gallery-viewer__media > img { display: block; width: auto; height: auto; min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; object-fit: contain; opacity: 1; transition: opacity 220ms var(--ease-rain); }
+	.gallery-viewer[data-loading='true'] .gallery-viewer__media > img { opacity: 0.24; }
+	.gallery-viewer__caption { position: absolute; right: 76px; bottom: 24px; left: 76px; display: flex; gap: 24px; align-items: baseline; justify-content: space-between; font-family: var(--font-ui); text-shadow: 0 1px 8px rgb(0 0 0 / 84%); }
+	.gallery-viewer__caption strong { min-width: 0; overflow-wrap: anywhere; font-family: var(--font-display); font-size: 18px; font-weight: 500; }
+	.gallery-viewer__caption span { flex: none; font-size: 9px; color: #8ea2a8; }
+	.gallery-viewer > button { position: absolute; z-index: 2; display: grid; width: 46px; height: 46px; padding: 0; place-items: center; border: 1px solid #39545c; background: rgb(5 11 13 / 76%); color: #a8b8bb; cursor: pointer; }
+	.gallery-viewer > button:hover,
+	.gallery-viewer > button:focus-visible { border-color: var(--gallery-accent); color: var(--gallery-accent); }
+	.gallery-viewer__previous { top: 50%; left: 18px; transform: translateY(-50%); }
+	.gallery-viewer__next { top: 50%; right: 18px; transform: translateY(-50%); }
+	.gallery-viewer__close { top: 18px; right: 18px; }
 	.gallery-strip { display: grid; grid-template-columns: repeat(11, minmax(0, 1fr)); gap: 1px; margin-top: 1px; background: var(--line); border-bottom: 1px solid var(--line); }
 	.gallery-strip button { position: relative; aspect-ratio: 1; padding: 0; overflow: hidden; border: 0; background: var(--paper-0); cursor: pointer; }
 	.gallery-strip img { width: 100%; height: 100%; object-fit: cover; opacity: 0.62; filter: saturate(0.68); transition: opacity 420ms var(--ease-rain), filter 420ms var(--ease-rain), transform 680ms var(--ease-drift); }
@@ -434,7 +534,8 @@ const serializedItems = JSON.stringify(serializableItems).replace(/</g, '\\u003c
 	.contact-sheet__load-row small { font-family: var(--font-ui); font-size: 8px; color: var(--ink-muted); }
 	.contact-sheet__load-row b { font-weight: 400; color: var(--gallery-accent); }
 	@media (prefers-reduced-motion: reduce) {
-		.gallery-stage__image-wrap > img,
+		.gallery-stage__picture > img,
+		.gallery-viewer__media > img,
 		.gallery-strip img,
 		.contact-frame img,
 		.contact-frame::after,
@@ -452,6 +553,12 @@ const serializedItems = JSON.stringify(serializableItems).replace(/</g, '\\u003c
 		.gallery-stage { height: 620px; grid-template-rows: minmax(0, 1fr) 150px; }
 		.gallery-stage__caption { grid-template-columns: 54px minmax(0, 1fr); gap: 12px; }
 		.gallery-stage__controls { grid-column: 1 / -1; }
+		.gallery-viewer__media { inset: 58px 12px 88px; }
+		.gallery-viewer__caption { right: 14px; bottom: 20px; left: 14px; gap: 12px; }
+		.gallery-viewer__caption strong { font-size: 15px; }
+		.gallery-viewer__previous { left: 10px; }
+		.gallery-viewer__next { right: 10px; }
+		.gallery-viewer__close { top: 10px; right: 10px; }
 		.gallery-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 		.contact-sheet__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 150px; }
 		.contact-frame--feature,
