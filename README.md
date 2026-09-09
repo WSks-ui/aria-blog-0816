@@ -44,16 +44,36 @@ Aria-7 使用 Astro Content Collections 管理 Markdown / MDX 内容，以 TypeS
 git clone https://github.com/WSks-ui/aria-blog-0816.git aria7-blog
 cd aria7-blog
 pnpm install
-pnpm dev
+pnpm dev -- --background
 ```
 
-开发服务器默认运行在 `http://localhost:4321`。
+开发服务器默认运行在 `http://localhost:4321`。项目使用 Astro 后台模式启动，命令执行后会立即返回，服务器会继续运行。
+
+`pnpm dev` 对应 `package.json` 中的 `astro dev` 脚本；命令中的第二个 `--` 用于把后续参数传递给 Astro CLI。
+
+查看、跟踪日志或停止后台服务器：
+
+```powershell
+pnpm astro dev status
+pnpm astro dev logs --follow
+pnpm astro dev stop
+```
+
+需要指定端口或监听地址时，将参数传递给 `astro dev`：
+
+```powershell
+pnpm dev -- --background --port 4322
+pnpm dev -- --background --host 127.0.0.1
+```
 
 ### 常用命令
 
 | 命令 | 用途 |
 | --- | --- |
-| `pnpm dev` | 启动本地开发服务器 |
+| `pnpm dev -- --background` | 在后台启动本地开发服务器 |
+| `pnpm astro dev status` | 查看后台开发服务器状态 |
+| `pnpm astro dev logs --follow` | 持续查看后台开发服务器日志 |
+| `pnpm astro dev stop` | 停止后台开发服务器 |
 | `pnpm check` | 检查 Astro、TypeScript 与内容类型 |
 | `pnpm build` | 生成生产构建到 `dist/` |
 | `pnpm preview` | 本地预览生产构建 |
