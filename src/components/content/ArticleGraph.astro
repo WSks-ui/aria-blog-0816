@@ -1,4 +1,5 @@
 ---
+import { ArrowUpRight, ListTree, Network } from '@lucide/astro';
 import { POST_KINDS, POST_KIND_LABELS, type PostKind } from '../../data/site';
 import { getPostPath, sortPosts, type PostEntry } from '../../lib/content';
 
@@ -14,6 +15,7 @@ interface GraphNode {
 	y: number;
 	centerX: number;
 	centerY: number;
+	sequence: number;
 	labelLines: string[];
 }
 
@@ -28,12 +30,12 @@ const { posts, heading = '文章关系图' } = Astro.props;
 const visiblePosts = sortPosts(posts.filter((post) => !post.data.draft));
 const graphPosts = [...visiblePosts].sort((left, right) => left.id.localeCompare(right.id));
 
-const width = 1160;
+const width = 1080;
 const columnWidth = width / POST_KINDS.length;
-const nodeWidth = 150;
-const nodeHeight = 58;
-const rowHeight = 92;
-const headerHeight = 88;
+const nodeWidth = 152;
+const nodeHeight = 64;
+const rowHeight = 96;
+const headerHeight = 86;
 
 const groupedPosts = POST_KINDS.map((kind) => ({
 	kind,
@@ -61,6 +63,7 @@ const nodes: GraphNode[] = groupedPosts.flatMap((group, columnIndex) =>
 			y,
 			centerX: x + nodeWidth / 2,
 			centerY: y + nodeHeight / 2,
+			sequence: rowIndex + 1,
 			labelLines: splitLabel(post.data.title),
 		};
 	}),
@@ -124,6 +127,20 @@ const edges: GraphEdge[] = [...indexedEdges.values()].map(({ sourceIndex, target
 	};
 });
 
+const connectionCounts = new Map<string, number>();
+for (const edge of edges) {
+	connectionCounts.set(edge.sourceId, (connectionCounts.get(edge.sourceId) ?? 0) + 1);
+	connectionCounts.set(edge.targetId, (connectionCounts.get(edge.targetId) ?? 0) + 1);
+}
+
+const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
+	year: 'numeric',
+	month: '2-digit',
+	day: '2-digit',
+	timeZone: 'UTC',
+});
+const formatDate = (date: Date) => dateFormatter.format(date).replaceAll('/', '.');
+
 /* 超过这个规模时全图通常已经难以直接阅读，桌面首屏改用列表，但不移除图谱入口。 */
 const defaultDesktopView = nodes.length > 50 || edges.length > 800 ? 'list' : 'graph';
 
@@ -137,14 +154,29 @@ const kindColors = {
 } as const satisfies Record<PostKind, string>;
 ---
 
-<section class="article-graph" data-article-graph data-graph-view={defaultDesktopView} data-graph-default-view={defaultDesktopView}>
+<section
+	class="article-graph"
+	data-article-graph
+	data-graph-view={defaultDesktopView}
+	data-graph-default-view={defaultDesktopView}
+	aria-labelledby="article-graph-title"
+>
 	<header class="article-graph__header">
-		<div>
-			<p>CONNECTIONS / SHARED TAGS</p>
-			<h2>{heading}</h2>
+		<div class="article-graph__intro">
+			<p><span aria-hidden="true"></span> CONNECTIONS / SHARED TAGS</p>
+			<h2 id="article-graph-title">{heading}</h2>
 		</div>
 		<div class="article-graph__meta">
-			<p class="article-graph__hint">{visiblePosts.length} 篇文章 / {edges.length} 条联系 · 悬停或聚焦节点可高亮关联</p>
+			<dl class="article-graph__stats" aria-label="关系图统计">
+				<div>
+					<dt>ARTICLES</dt>
+					<dd>{String(visiblePosts.length).padStart(2, '0')}</dd>
+				</div>
+				<div>
+					<dt>LINKS</dt>
+					<dd>{String(edges.length).padStart(2, '0')}</dd>
+				</div>
+			</dl>
 			{visiblePosts.length > 0 && <div class="article-graph__views" role="tablist" aria-label="关系图视图">
 				<button
 					id="article-graph-tab-graph"
@@ -155,7 +187,8 @@ const kindColors = {
 					tabindex={defaultDesktopView === 'graph' ? '0' : '-1'}
 					data-graph-view-button="graph"
 				>
-					图谱
+					<Network size={15} stroke-width={1.6} aria-hidden="true" />
+					<span>图谱</span>
 				</button>
 				<button
 					id="article-graph-tab-list"
@@ -166,11 +199,15 @@ const kindColors = {
 					tabindex={defaultDesktopView === 'list' ? '0' : '-1'}
 					data-graph-view-button="list"
 				>
-					列表
+					<ListTree size={15} stroke-width={1.6} aria-hidden="true" />
+					<span>列表</span>
 				</button>
 			</div>}
 		</div>
 	</header>
+	<p id="article-graph-navigation-hint" class="sr-only">
+		图谱可以横向和纵向滚动；聚焦文章节点时会突出显示共享标签关系。
+	</p>
 
 	{visiblePosts.length > 0 ? (
 		<>
@@ -181,79 +218,107 @@ const kindColors = {
 				tabindex="0"
 				role="tabpanel"
 				aria-labelledby="article-graph-tab-graph"
+				aria-describedby="article-graph-navigation-hint"
 			>
-				<div class="article-graph__column-headings" aria-hidden="true">
-					{POST_KINDS.map((kind) => <span>{POST_KIND_LABELS[kind]}</span>)}
+				<div class="article-graph__stage">
+					<div class="article-graph__column-headings" aria-hidden="true">
+						{groupedPosts.map((group) => (
+							<span style={`--kind-color: ${kindColors[group.kind]}`}>
+								<i></i>
+								<b>{POST_KIND_LABELS[group.kind]}</b>
+								<small>{String(group.posts.length).padStart(2, '0')}</small>
+							</span>
+						))}
+					</div>
+					<svg
+						viewBox={`0 0 ${width} ${height}`}
+						data-graph-svg
+						role="group"
+						aria-label="文章关系图，连线表示两篇文章拥有相同标签"
+					>
+						<g class="article-graph__bands" aria-hidden="true">
+							{POST_KINDS.map((_, index) => (
+								<rect
+									class:list={[index % 2 === 1 && 'is-tinted']}
+									x={index * columnWidth}
+									y="52"
+									width={columnWidth}
+									height={height - 52}
+								/>
+							))}
+						</g>
+						<g class="article-graph__guides" aria-hidden="true">
+							{POST_KINDS.map((_, index) => {
+								const centerX = index * columnWidth + columnWidth / 2;
+								return <line x1={centerX} y1="58" x2={centerX} y2={height - 18} />;
+							})}
+						</g>
+
+						<g class="article-graph__edges" aria-hidden="true">
+							{edges.map((edge) => (
+								<path
+									data-edge-source={edge.sourceId}
+									data-edge-target={edge.targetId}
+									d={edge.path}
+									stroke-width={0.7 + Math.min(3, edge.sharedTags.length) * 0.45}
+								/>
+							))}
+						</g>
+
+						<g class="article-graph__nodes">
+							{nodes.map((node) => (
+								<a
+									class="article-graph__node"
+									href={getPostPath(node.post)}
+									data-article-transition-link
+									data-node-key={node.post.id}
+									tabindex="0"
+									aria-label={`${node.post.data.title}，${POST_KIND_LABELS[node.kind]}`}
+								>
+									<title>{node.post.data.title}；标签：{node.post.data.tags.join('、')}</title>
+									<rect
+										class="article-graph__focus-ring"
+										x={node.x - 4}
+										y={node.y - 4}
+										width={nodeWidth + 8}
+										height={nodeHeight + 8}
+										rx="6"
+									/>
+									<rect
+										class="article-graph__node-surface"
+										x={node.x}
+										y={node.y}
+										width={nodeWidth}
+										height={nodeHeight}
+										rx="4"
+									/>
+									<rect
+										class="article-graph__node-accent"
+										x={node.x}
+										y={node.y}
+										width="4"
+										height={nodeHeight}
+										fill={kindColors[node.kind]}
+									/>
+									<text class="article-graph__node-label" x={node.x + 16} y={node.y + 22}>
+										{node.labelLines.map((line, lineIndex) => (
+											<tspan x={node.x + 16} dy={lineIndex === 0 ? 0 : 16}>{line}</tspan>
+										))}
+									</text>
+									<text
+										class="article-graph__node-meta"
+										x={node.x + nodeWidth - 11}
+										y={node.y + nodeHeight - 9}
+										text-anchor="end"
+										aria-hidden="true"
+									>
+										N{String(node.sequence).padStart(2, '0')} · L{String(connectionCounts.get(node.post.id) ?? 0).padStart(2, '0')}
+									</text>
+								</a>
+							))}
+						</g>
+					</svg>
 				</div>
-				<svg
-					viewBox={`0 0 ${width} ${height}`}
-					data-graph-svg
-					role="img"
-					aria-label="文章关系图，连线表示两篇文章拥有相同标签"
-				>
-					<g class="article-graph__guides" aria-hidden="true">
-						{POST_KINDS.map((_, index) => {
-							const centerX = index * columnWidth + columnWidth / 2;
-							return (
-								<line x1={centerX} y1="54" x2={centerX} y2={height - 18} />
-							);
-						})}
-					</g>
-
-					<g class="article-graph__edges" aria-hidden="true">
-						{edges.map((edge) => (
-							<path
-								data-edge-source={edge.sourceId}
-								data-edge-target={edge.targetId}
-								d={edge.path}
-								stroke-width={0.7 + Math.min(3, edge.sharedTags.length) * 0.45}
-							/>
-						))}
-					</g>
-
-					<g class="article-graph__nodes">
-						{nodes.map((node) => (
-							<a
-								class="article-graph__node"
-								href={getPostPath(node.post)}
-								data-article-transition-link
-								data-node-key={node.post.id}
-								tabindex="0"
-								aria-label={`${node.post.data.title}，${POST_KIND_LABELS[node.kind]}`}
-							>
-								<title>{node.post.data.title}；标签：{node.post.data.tags.join('、')}</title>
-								<rect
-									class="article-graph__focus-ring"
-									x={node.x - 4}
-									y={node.y - 4}
-									width={nodeWidth + 8}
-									height={nodeHeight + 8}
-									rx="6"
-								/>
-								<rect
-									class="article-graph__node-surface"
-									x={node.x}
-									y={node.y}
-									width={nodeWidth}
-									height={nodeHeight}
-									rx="4"
-								/>
-								<rect
-									x={node.x + 12}
-									y={node.y + 14}
-									width="7"
-									height="7"
-									fill={kindColors[node.kind]}
-								/>
-								<text class="article-graph__node-label" x={node.x + 28} y={node.y + 23}>
-									{node.labelLines.map((line, lineIndex) => (
-										<tspan x={node.x + 28} dy={lineIndex === 0 ? 0 : 17}>{line}</tspan>
-									))}
-								</text>
-							</a>
-						))}
-					</g>
-				</svg>
 			</div>
 
 			<section
@@ -264,13 +329,19 @@ const kindColors = {
 				aria-labelledby="article-graph-tab-list"
 				tabindex="0"
 			>
-				<ul>
-					{visiblePosts.map((post) => (
-						<li>
-							<span style={`--kind-color: ${kindColors[post.data.kind]}`} aria-hidden="true"></span>
-							<div>
-								<small>{POST_KIND_LABELS[post.data.kind]}</small>
-								<a href={getPostPath(post)} data-article-transition-link>{post.data.title}</a>
+				<ul class="article-graph__list">
+					{visiblePosts.map((post, index) => (
+						<li style={`--kind-color: ${kindColors[post.data.kind]}`}>
+							<span class="article-graph__list-index" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+							<div class="article-graph__list-body">
+								<div class="article-graph__list-meta">
+									<small><i aria-hidden="true"></i>{POST_KIND_LABELS[post.data.kind]}</small>
+									<time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>
+								</div>
+								<a class="article-graph__list-title" href={getPostPath(post)} data-article-transition-link>
+									<span>{post.data.title}</span>
+									<ArrowUpRight size={16} stroke-width={1.5} aria-hidden="true" />
+								</a>
 								<p>{post.data.tags.map((tag) => `#${tag}`).join(' ')}</p>
 							</div>
 						</li>
@@ -328,12 +399,15 @@ const kindColors = {
         let activeKey: string | null = null;
         let activeEdges: SVGPathElement[] = [];
         let relatedNodes: SVGAElement[] = [];
+        let activeNode: SVGAElement | null = null;
         const highlight = (key: string | null) => {
           if (key === activeKey) return;
           activeEdges.forEach((edge) => delete edge.dataset.active);
           relatedNodes.forEach((node) => delete node.dataset.related);
+          if (activeNode) delete activeNode.dataset.active;
           activeEdges = [];
           relatedNodes = [];
+          activeNode = null;
           activeKey = key;
 
           if (key === null) {
@@ -353,6 +427,8 @@ const kindColors = {
             .map((relatedKey) => nodeByKey.get(relatedKey))
             .filter((node): node is SVGAElement => Boolean(node));
           relatedNodes.forEach((node) => { node.dataset.related = 'true'; });
+          activeNode = nodeByKey.get(key) ?? null;
+          if (activeNode) activeNode.dataset.active = 'true';
         };
 
         svg.addEventListener('pointerover', (event) => {
@@ -435,49 +511,140 @@ const kindColors = {
 
 <style>
 	.article-graph {
+		position: relative;
+		isolation: isolate;
+		width: 100%;
+		min-width: 0;
+		max-width: 100%;
 		color: var(--ink);
+		border: 1px solid var(--line);
+		background: color-mix(in srgb, var(--paper-0) 94%, transparent);
+		box-shadow: var(--shadow-paper);
+	}
+
+	.article-graph::before,
+	.article-graph::after {
+		position: absolute;
+		z-index: 4;
+		width: 2rem;
+		height: 2rem;
+		content: '';
+		pointer-events: none;
+	}
+
+	.article-graph::before {
+		top: -1px;
+		left: -1px;
+		border-top: 2px solid var(--accent-strong);
+		border-left: 2px solid var(--accent-strong);
+	}
+
+	.article-graph::after {
+		right: -1px;
+		bottom: -1px;
+		border-right: 2px solid var(--accent-strong);
+		border-bottom: 2px solid var(--accent-strong);
 	}
 
 	.article-graph__header {
 		display: flex;
-		align-items: end;
+		min-height: 7.5rem;
+		align-items: center;
 		justify-content: space-between;
 		gap: 2rem;
-		padding: 1.5rem 0;
-		border-block: 1px solid var(--line);
+		padding: 1.35rem 1.6rem;
+		border-bottom: 1px solid var(--line);
+		background: color-mix(in srgb, var(--paper-0) 82%, transparent);
 	}
 
-	.article-graph__header p {
+	.article-graph__intro {
+		min-width: 0;
+	}
+
+	.article-graph__intro p {
+		display: flex;
+		align-items: center;
+		gap: 0.55rem;
 		margin: 0;
 		color: var(--ink-muted);
-		font-family: var(--font-ui);
-		font-size: 0.625rem;
+		font-family: var(--font-mono);
+		font-size: 0.5625rem;
 		font-weight: 500;
 		line-height: 1.5;
 	}
 
+	.article-graph__intro p span {
+		width: 0.4rem;
+		height: 0.4rem;
+		flex: 0 0 auto;
+		background: var(--accent-strong);
+		box-shadow: 0 0 0 0.22rem color-mix(in srgb, var(--accent-soft) 58%, transparent);
+	}
+
 	.article-graph__header h2 {
-		margin: 0.35rem 0 0;
+		margin: 0.45rem 0 0;
 		font-family: var(--font-display);
 		font-size: var(--text-xl);
 		font-weight: 500;
 		line-height: var(--leading-title);
+		overflow-wrap: anywhere;
 	}
 
 	.article-graph__meta {
+		display: flex;
+		flex: 0 0 auto;
+		align-items: end;
+		gap: 1.25rem;
+	}
+
+	.article-graph__stats {
 		display: grid;
-		justify-items: end;
-		gap: 0.75rem;
+		grid-template-columns: repeat(2, 4.6rem);
+		margin: 0;
+	}
+
+	.article-graph__stats > div {
+		display: grid;
+		gap: 0.15rem;
+		padding-inline: 1rem;
+		border-left: 1px solid var(--line);
+	}
+
+	.article-graph__stats dt {
+		color: var(--ink-muted);
+		font-family: var(--font-mono);
+		font-size: 0.5rem;
+		font-weight: 400;
+		line-height: 1.35;
+	}
+
+	.article-graph__stats dd {
+		margin: 0;
+		color: var(--accent-strong);
+		font-family: var(--font-mono);
+		font-size: 1.25rem;
+		font-weight: 400;
+		line-height: 1.1;
 	}
 
 	.article-graph__views {
+		display: none;
+		grid-template-columns: repeat(2, 5rem);
+		border: 1px solid var(--line-strong);
+		background: var(--paper-0);
+	}
+
+	/* 脚本完成面板状态同步前不暴露死控件；内联脚本会在首帧前写入该标记。 */
+	.article-graph[data-interactive-ready='true'] .article-graph__views {
 		display: grid;
-		grid-template-columns: repeat(2, 4.5rem);
-		border: 1px solid var(--line);
 	}
 
 	.article-graph__views button {
-		min-height: 2.25rem;
+		display: inline-flex;
+		min-height: 2.75rem;
+		align-items: center;
+		justify-content: center;
+		gap: 0.45rem;
 		padding: 0 0.75rem;
 		border: 0;
 		background: transparent;
@@ -485,6 +652,9 @@ const kindColors = {
 		font-family: var(--font-ui);
 		font-size: 0.6875rem;
 		cursor: pointer;
+		transition:
+			background-color var(--duration-fast) var(--ease-rain),
+			color var(--duration-fast) var(--ease-rain);
 	}
 
 	.article-graph__views button + button {
@@ -493,6 +663,7 @@ const kindColors = {
 
 	.article-graph__views button:hover,
 	.article-graph__views button:focus-visible {
+		background: color-mix(in srgb, var(--accent-soft) 30%, transparent);
 		color: var(--accent-strong);
 	}
 
@@ -502,8 +673,12 @@ const kindColors = {
 	}
 
 	.article-graph__views button[aria-selected='true'] {
-		background: var(--accent-soft);
-		color: var(--accent-strong);
+		background: var(--ink);
+		color: var(--paper-0);
+	}
+
+	.article-graph__views button :global(svg) {
+		flex: 0 0 auto;
 	}
 
 	.article-graph__canvas {
@@ -511,65 +686,132 @@ const kindColors = {
 		max-height: min(68dvh, 44rem);
 		overflow: auto;
 		overscroll-behavior: contain;
-		scroll-padding-top: 3rem;
-		scrollbar-color: color-mix(in srgb, var(--accent-strong) 52%, transparent) transparent;
+		scroll-padding-top: 3.75rem;
+		scrollbar-color: color-mix(in srgb, var(--accent-strong) 38%, transparent) transparent;
 		scrollbar-gutter: stable;
 		scrollbar-width: thin;
-		border-bottom: 1px solid var(--line);
-		background: color-mix(in srgb, var(--paper-0) 82%, transparent);
+		background: color-mix(in srgb, var(--paper-0) 74%, transparent);
 		outline: none;
 	}
 
 	.article-graph__canvas:focus-visible,
 	.article-graph__fallback:focus-visible {
-		outline: 1px solid var(--color-focus);
-		outline-offset: 3px;
+		outline: 2px solid var(--color-focus);
+		outline-offset: -3px;
+	}
+
+	.article-graph__canvas::-webkit-scrollbar,
+	.article-graph__fallback::-webkit-scrollbar {
+		width: 0.5rem;
+		height: 0.5rem;
+	}
+
+	.article-graph__canvas::-webkit-scrollbar-track,
+	.article-graph__fallback::-webkit-scrollbar-track {
+		background: transparent;
+	}
+
+	.article-graph__canvas::-webkit-scrollbar-thumb,
+	.article-graph__fallback::-webkit-scrollbar-thumb {
+		border: 2px solid transparent;
+		background: color-mix(in srgb, var(--accent-strong) 38%, transparent);
+		background-clip: padding-box;
+	}
+
+	.article-graph__stage {
+		width: max(100%, 59rem);
+		min-height: 20rem;
+		background:
+			repeating-linear-gradient(
+				to bottom,
+				transparent 0,
+				transparent calc(3rem - 1px),
+				color-mix(in srgb, var(--line) 18%, transparent) calc(3rem - 1px),
+				color-mix(in srgb, var(--line) 18%, transparent) 3rem
+			),
+			color-mix(in srgb, var(--paper-0) 88%, transparent);
 	}
 
 	/*
-	 * 栏目名覆盖在 SVG 顶部并粘住滚动容器；负下边距抵消它的流内高度，
-	 * 因而不会把节点整体再向下推一行。横向滚动时它仍与六条栏目轴同步。
+	 * 分类轨与 SVG 共用 1080px 内部舞台，横向滚动时始终对齐六列；轨道本身
+	 * 只在纵向粘住顶部，避免长图下滚后失去类别参照。
 	 */
 	.article-graph__column-headings {
 		position: sticky;
 		top: 0;
-		z-index: 2;
+		z-index: 3;
 		display: grid;
 		grid-template-columns: repeat(6, minmax(0, 1fr));
 		width: 100%;
-		min-width: 58rem;
-		height: 2.75rem;
-		margin-bottom: -2.75rem;
+		height: 3.25rem;
+		margin-bottom: -3.25rem;
 		align-items: center;
-		border-bottom: 1px solid color-mix(in srgb, var(--line) 62%, transparent);
+		border-bottom: 1px solid var(--line);
 		background: color-mix(in srgb, var(--paper-0) 94%, transparent);
+		box-shadow: 0 0.45rem 1.2rem rgb(31 71 81 / 5%);
 		color: var(--ink-muted);
 		font-family: var(--font-ui);
 		font-size: 0.625rem;
 		pointer-events: none;
+		backdrop-filter: blur(12px);
 	}
 
 	.article-graph__column-headings span {
-		text-align: center;
+		display: grid;
+		grid-template-columns: 0.45rem minmax(0, 1fr) auto;
+		gap: 0.55rem;
+		align-items: center;
+		height: 100%;
+		padding-inline: 0.85rem;
 	}
 
-	.article-graph svg {
+	.article-graph__column-headings span + span {
+		border-left: 1px solid color-mix(in srgb, var(--line) 62%, transparent);
+	}
+
+	.article-graph__column-headings i {
+		width: 0.4rem;
+		height: 0.4rem;
+		background: var(--kind-color);
+	}
+
+	.article-graph__column-headings b {
+		font-weight: 500;
+	}
+
+	.article-graph__column-headings small {
+		color: var(--ink-muted);
+		font-family: var(--font-mono);
+		font-size: 0.5rem;
+	}
+
+	.article-graph [data-graph-svg] {
 		display: block;
 		width: 100%;
-		min-width: 58rem;
 		height: auto;
 	}
 
+	.article-graph__bands rect {
+		fill: transparent;
+	}
+
+	.article-graph__bands rect.is-tinted {
+		fill: color-mix(in srgb, var(--accent-soft) 10%, transparent);
+	}
+
 	.article-graph__guides line {
-		stroke: var(--line);
-		stroke-dasharray: 2 7;
-		stroke-width: 1;
+		stroke: color-mix(in srgb, var(--line) 72%, transparent);
+		stroke-dasharray: 2 8;
+		stroke-width: 0.8;
+		vector-effect: non-scaling-stroke;
 	}
 
 	.article-graph__edges path {
 		fill: none;
 		stroke: var(--accent-strong);
-		stroke-opacity: 0.34;
+		stroke-linecap: round;
+		stroke-opacity: 0.2;
+		vector-effect: non-scaling-stroke;
 		transition: stroke-opacity var(--duration-fast) ease, stroke-width var(--duration-fast) ease;
 	}
 
@@ -578,12 +820,12 @@ const kindColors = {
 	 * 之下。全部状态由脚本写 data 属性，这里只做呈现，不承担命中判定。
 	 */
 	.article-graph [data-graph-svg][data-focus-key]:not([data-focus-key='']) .article-graph__edges path {
-		stroke-opacity: 0.08;
+		stroke-opacity: 0.035;
 	}
 
 	.article-graph__edges path[data-active='true'] {
-		stroke-opacity: 0.92;
-		stroke-width: 1.7;
+		stroke-opacity: 0.9;
+		stroke-width: 1.5;
 	}
 
 	.article-graph__node {
@@ -605,19 +847,38 @@ const kindColors = {
 	}
 
 	.article-graph__node-surface {
-		fill: var(--paper-0);
+		fill: color-mix(in srgb, var(--paper-0) 94%, transparent);
 		stroke: var(--line-strong);
 		stroke-width: 1;
+		vector-effect: non-scaling-stroke;
+		transition: fill var(--duration-fast) ease, stroke var(--duration-fast) ease;
 	}
 
 	.article-graph__focus-ring {
 		fill: none;
 		stroke: transparent;
 		stroke-width: 2;
+		vector-effect: non-scaling-stroke;
 	}
 
-	.article-graph__node:hover .article-graph__node-surface {
+	.article-graph__node:hover .article-graph__node-surface,
+	.article-graph__node[data-active='true'] .article-graph__node-surface {
+		fill: color-mix(in srgb, var(--accent-soft) 42%, var(--paper-0));
 		stroke: var(--accent-strong);
+	}
+
+	.article-graph__node[data-active='true'] .article-graph__node-surface {
+		stroke-width: 1.5;
+	}
+
+	.article-graph__node-accent {
+		opacity: 0.82;
+		transition: opacity var(--duration-fast) ease;
+	}
+
+	.article-graph__node:hover .article-graph__node-accent,
+	.article-graph__node[data-related='true'] .article-graph__node-accent {
+		opacity: 1;
 	}
 
 	.article-graph__node:focus-visible .article-graph__focus-ring {
@@ -631,99 +892,226 @@ const kindColors = {
 		pointer-events: none;
 	}
 
+	.article-graph__node-meta {
+		fill: var(--ink-muted);
+		font-family: var(--font-mono);
+		font-size: 7px;
+		pointer-events: none;
+	}
+
+	.article-graph__node[data-active='true'] .article-graph__node-label {
+		fill: var(--accent-strong);
+	}
+
 	.article-graph__fallback {
 		display: none;
 		max-height: min(68dvh, 44rem);
-		padding: 0 0 1rem;
+		overflow-x: hidden;
 		overflow-y: auto;
 		overscroll-behavior: contain;
-		scrollbar-color: color-mix(in srgb, var(--accent-strong) 52%, transparent) transparent;
+		scrollbar-color: color-mix(in srgb, var(--accent-strong) 38%, transparent) transparent;
 		scrollbar-gutter: stable;
 		scrollbar-width: thin;
-		border-bottom: 1px solid var(--line);
+		background: var(--line);
 		outline: none;
 	}
 
 	.article-graph[data-graph-view='list'] .article-graph__canvas { display: none; }
 	.article-graph[data-graph-view='list'] .article-graph__fallback { display: block; }
+	.article-graph [data-graph-panel]:not([hidden]) { animation: article-graph-panel-in var(--duration-base) var(--ease-rain) both; }
 
-	.article-graph__fallback ul {
+	.article-graph__list {
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 0 2rem;
+		gap: 1px;
 		margin: 0;
 		padding: 0;
+		background: var(--line);
 		list-style: none;
 	}
 
-	.article-graph__fallback li {
+	.article-graph__list li {
+		position: relative;
 		display: grid;
-		grid-template-columns: 0.5rem minmax(0, 1fr);
+		grid-template-columns: 3.2rem minmax(0, 1fr);
+		min-height: 7.75rem;
+		background: color-mix(in srgb, var(--paper-0) 96%, transparent);
+		transition: background-color var(--duration-fast) var(--ease-rain);
+	}
+
+	.article-graph__list li:hover,
+	.article-graph__list li:has(.article-graph__list-title:focus-visible) {
+		background: color-mix(in srgb, var(--accent-soft) 24%, var(--paper-0));
+	}
+
+	.article-graph__list-index {
+		display: grid;
+		place-items: start center;
+		padding-top: 1.2rem;
+		border-right: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+		color: var(--ink-muted);
+		font-family: var(--font-mono);
+		font-size: 0.5625rem;
+		transition: color var(--duration-fast) var(--ease-rain);
+	}
+
+	.article-graph__list li:hover .article-graph__list-index,
+	.article-graph__list li:has(.article-graph__list-title:focus-visible) .article-graph__list-index {
+		color: var(--accent-strong);
+	}
+
+	.article-graph__list-body {
+		min-width: 0;
+		padding: 1rem 1.15rem 1.1rem;
+	}
+
+	.article-graph__list-meta {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		color: var(--ink-muted);
+		font-family: var(--font-mono);
+		font-size: 0.5rem;
+	}
+
+	.article-graph__list-meta small {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		font: inherit;
+	}
+
+	.article-graph__list-meta i {
+		width: 0.4rem;
+		height: 0.4rem;
+		border: 1px solid var(--kind-color);
+		background: color-mix(in srgb, var(--kind-color) 22%, transparent);
+	}
+
+	.article-graph__list-meta time {
+		white-space: nowrap;
+	}
+
+	.article-graph__list-title {
+		position: relative;
+		z-index: 1;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
 		gap: 0.75rem;
-		padding: 0.85rem 0;
-		border-top: 1px solid var(--line);
+		align-items: start;
+		margin-top: 0.55rem;
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: 1rem;
+		font-weight: 500;
+		line-height: 1.4;
+		text-decoration: none;
+		transition: color var(--duration-fast) var(--ease-rain);
 	}
 
-	.article-graph__fallback li > span {
-		width: 0.45rem;
-		height: 0.45rem;
-		margin-top: 0.45rem;
-		background: var(--kind-color);
+	.article-graph__list-title::after {
+		position: absolute;
+		inset: -2.1rem -1.15rem -2.7rem;
+		content: '';
 	}
 
-	.article-graph__fallback small {
-		display: block;
-		margin-bottom: 0.2rem;
+	.article-graph__list-title span {
+		overflow-wrap: anywhere;
+		word-break: break-word;
+	}
+
+	.article-graph__list-title :global(svg) {
+		margin-top: 0.15rem;
+		color: var(--ink-muted);
+		transition: color var(--duration-fast) var(--ease-rain), transform var(--duration-base) var(--ease-rain);
+	}
+
+	.article-graph__list li:hover .article-graph__list-title,
+	.article-graph__list-title:focus-visible {
+		color: var(--accent-strong);
+	}
+
+	.article-graph__list li:hover .article-graph__list-title :global(svg),
+	.article-graph__list-title:focus-visible :global(svg) {
+		color: var(--accent-strong);
+		transform: translate(2px, -2px);
+	}
+
+	.article-graph__list p {
+		margin: 0.5rem 0 0;
 		color: var(--ink-muted);
 		font-family: var(--font-ui);
 		font-size: 0.625rem;
-	}
-
-	.article-graph__fallback a {
-		color: var(--ink);
-		font-family: var(--font-display);
-		font-size: var(--text-base);
-		line-height: 1.45;
-		text-underline-offset: 0.2em;
-	}
-
-	.article-graph__fallback p {
-		margin: 0.25rem 0 0;
-		color: var(--ink-muted);
-		font-family: var(--font-ui);
-		font-size: 0.6875rem;
 		line-height: 1.5;
+		overflow-wrap: anywhere;
 	}
 
 	.article-graph__empty {
 		margin: 0;
-		padding: 3rem 0;
+		padding: 4rem 1.6rem;
 		color: var(--ink-muted);
 	}
 
+	@keyframes article-graph-panel-in {
+		from { opacity: 0; }
+		to { opacity: 1; }
+	}
+
 	@media (max-width: 47.5rem) {
+		.article-graph {
+			box-shadow: none;
+		}
+
 		.article-graph__header {
 			align-items: start;
 			flex-direction: column;
-			gap: 0.5rem;
+			gap: 1.25rem;
+			padding: 1.25rem;
 		}
 
 		.article-graph__meta {
+			display: grid;
+			grid-template-columns: 1fr;
 			width: 100%;
-			justify-items: stretch;
+			gap: 1rem;
 		}
 
-		/* 手机由脚本初始选中列表，之后仍可用上方标签切回完整图谱。 */
-		.article-graph__hint {
-			display: none;
+		.article-graph__stats {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			border-block: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+		}
+
+		.article-graph__stats > div {
+			padding: 0.7rem 0.85rem;
+			border-left: 0;
+		}
+
+		.article-graph__stats > div + div {
+			border-left: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
 		}
 
 		.article-graph__views {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
 		}
 
-		.article-graph__fallback ul {
+		/* 无脚本时也让窄屏优先得到可读列表；脚本就绪后仍可切回完整图谱。 */
+		.article-graph:not([data-interactive-ready='true']) .article-graph__canvas {
+			display: none;
+		}
+
+		.article-graph:not([data-interactive-ready='true']) .article-graph__fallback {
+			display: block;
+		}
+
+		.article-graph__list {
 			grid-template-columns: 1fr;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.article-graph [data-graph-panel]:not([hidden]) {
+			animation: none;
 		}
 	}
 </style>
