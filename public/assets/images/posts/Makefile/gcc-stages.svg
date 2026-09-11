@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="330" viewBox="0 0 1400 330" role="img" aria-labelledby="title desc">
+  <title id="title">gcc从hello.c到hello的四步</title>
+  <desc id="desc">hello.c依次变成hello.i、hello.s、hello.o、hello，每步对应一条gcc命令，make从右往左找缺失的文件</desc>
+  <defs>
+    <marker id="arrowGray" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0L12 6L0 12Z" fill="#596675"/>
+    </marker>
+    <marker id="arrowPink" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0L12 6L0 12Z" fill="#d63c6e"/>
+    </marker>
+  </defs>
+  <rect width="1400" height="330" fill="#f5f7f8"/>
+
+  <text x="300" y="118" text-anchor="middle" fill="#596675" font-family="Consolas, monospace" font-size="18">gcc -E</text>
+  <text x="570" y="118" text-anchor="middle" fill="#596675" font-family="Consolas, monospace" font-size="18">gcc -S</text>
+  <text x="840" y="118" text-anchor="middle" fill="#596675" font-family="Consolas, monospace" font-size="18">gcc -c</text>
+  <text x="1110" y="118" text-anchor="middle" fill="#596675" font-family="Consolas, monospace" font-size="18">gcc</text>
+
+  <rect x="100" y="130" width="130" height="58" rx="8" fill="#ffffff" stroke="#ced5dc" stroke-width="2"/>
+  <text x="165" y="168" text-anchor="middle" fill="#171a1f" font-family="Consolas, monospace" font-size="22">hello.c</text>
+  <rect x="370" y="130" width="130" height="58" rx="8" fill="#ffffff" stroke="#ced5dc" stroke-width="2"/>
+  <text x="435" y="168" text-anchor="middle" fill="#171a1f" font-family="Consolas, monospace" font-size="22">hello.i</text>
+  <rect x="640" y="130" width="130" height="58" rx="8" fill="#ffffff" stroke="#ced5dc" stroke-width="2"/>
+  <text x="705" y="168" text-anchor="middle" fill="#171a1f" font-family="Consolas, monospace" font-size="22">hello.s</text>
+  <rect x="910" y="130" width="130" height="58" rx="8" fill="#ffffff" stroke="#ced5dc" stroke-width="2"/>
+  <text x="975" y="168" text-anchor="middle" fill="#171a1f" font-family="Consolas, monospace" font-size="22">hello.o</text>
+  <rect x="1180" y="130" width="120" height="58" rx="8" fill="#e4f6ec" stroke="#44b678" stroke-width="2"/>
+  <text x="1240" y="168" text-anchor="middle" fill="#2f8f5b" font-family="Consolas, monospace" font-size="22">hello</text>
+
+  <path d="M238 159H362" fill="none" stroke="#596675" stroke-width="3" marker-end="url(#arrowGray)"/>
+  <path d="M508 159H632" fill="none" stroke="#596675" stroke-width="3" marker-end="url(#arrowGray)"/>
+  <path d="M778 159H902" fill="none" stroke="#596675" stroke-width="3" marker-end="url(#arrowGray)"/>
+  <path d="M1048 159H1172" fill="none" stroke="#596675" stroke-width="3" marker-end="url(#arrowGray)"/>
+
+  <path d="M1250 214C980 288 460 288 185 220" fill="none" stroke="#d63c6e" stroke-width="3" marker-end="url(#arrowPink)"/>
+  <text x="710" y="306" text-anchor="middle" fill="#d63c6e" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="20">make 从右往左找</text>
+</svg>

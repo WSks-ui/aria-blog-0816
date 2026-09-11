@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="480" viewBox="0 0 1400 480" role="img" aria-labelledby="title desc">
+  <title id="title">make把变量展开后执行的命令</title>
+  <desc id="desc">左边vim里是带变量的Makefile，右边终端里是make实际执行的展开后的命令</desc>
+  <defs>
+    <marker id="arrowPink" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0L12 6L0 12Z" fill="#d63c6e"/>
+    </marker>
+  </defs>
+  <rect width="1400" height="480" fill="#f5f7f8"/>
+
+  <text x="80" y="92" fill="#596675" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="20">Makefile</text>
+  <text x="800" y="92" fill="#596675" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="20">make 实际执行的命令</text>
+
+  <rect x="80" y="118" width="660" height="300" rx="8" fill="#1b1f24"/>
+  <rect x="80" y="378" width="660" height="40" fill="#323a45"/>
+  <text x="104" y="404" fill="#9aa5b1" font-family="Consolas, monospace" font-size="17">"makefile" 6L, 94C</text>
+
+  <text x="142" y="166" text-anchor="end" fill="#4b5563" font-family="Consolas, monospace" font-size="20">1</text>
+  <text x="142" y="204" text-anchor="end" fill="#4b5563" font-family="Consolas, monospace" font-size="20">2</text>
+  <text x="142" y="242" text-anchor="end" fill="#4b5563" font-family="Consolas, monospace" font-size="20">3</text>
+  <text x="142" y="280" text-anchor="end" fill="#4b5563" font-family="Consolas, monospace" font-size="20">4</text>
+  <text x="142" y="318" text-anchor="end" fill="#4b5563" font-family="Consolas, monospace" font-size="20">5</text>
+  <text x="142" y="356" text-anchor="end" fill="#4b5563" font-family="Consolas, monospace" font-size="20">6</text>
+
+  <text x="170" y="166" fill="#e8edf2" font-family="Consolas, monospace" font-size="20">CC = gcc</text>
+  <text x="170" y="204" fill="#e8edf2" font-family="Consolas, monospace" font-size="20">CFLAGS = -Wall -O2</text>
+  <text x="170" y="242" fill="#e8edf2" font-family="Consolas, monospace" font-size="20">TARGET = mycode</text>
+  <text x="170" y="318" fill="#e8edf2" font-family="Consolas, monospace" font-size="20">$(TARGET): $(TARGET).c</text>
+  <text x="194" y="356" fill="#e8edf2" font-family="Consolas, monospace" font-size="20">$(CC) $(CFLAGS) -o $@ $&lt;</text>
+
+  <ellipse cx="427" cy="346" rx="44" ry="24" transform="rotate(-3 427 346)" fill="none" stroke="#ff7ba0" stroke-width="3"/>
+
+  <rect x="800" y="118" width="520" height="150" rx="8" fill="#171a1f"/>
+  <text x="832" y="168" fill="#44b678" font-family="Consolas, monospace" font-size="19">user@linux:~$</text>
+  <text x="992" y="168" fill="#e7ecf1" font-family="Consolas, monospace" font-size="19">make</text>
+  <text x="832" y="206" fill="#6fd3a4" font-family="Consolas, monospace" font-size="19">gcc -Wall -O2 -o mycode mycode.c</text>
+
+  <path d="M744 262C770 252 774 214 796 200" fill="none" stroke="#d63c6e" stroke-width="3" marker-end="url(#arrowPink)"/>
+  <text x="800" y="300" fill="#d63c6e" font-family="Consolas, monospace" font-size="18">$@ = mycode   $&lt; = mycode.c</text>
+</svg>

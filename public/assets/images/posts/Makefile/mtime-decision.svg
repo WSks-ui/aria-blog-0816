@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="470" viewBox="0 0 1400 470" role="img" aria-labelledby="title desc">
+  <title id="title">make按修改时间决定编译还是跳过</title>
+  <desc id="desc">两段终端记录：mycode.c的时间比mycode新时make重新编译，反过来则提示up to date</desc>
+  <rect width="1400" height="470" fill="#f5f7f8"/>
+
+  <text x="80" y="92" fill="#596675" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="20">改过 mycode.c 之后</text>
+  <text x="740" y="92" fill="#596675" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="20">什么都没改</text>
+
+  <rect x="80" y="118" width="620" height="290" rx="8" fill="#171a1f"/>
+  <text x="112" y="166" fill="#44b678" font-family="Consolas, monospace" font-size="19">user@linux:~$</text>
+  <text x="272" y="166" fill="#e7ecf1" font-family="Consolas, monospace" font-size="19">ls -l mycode mycode.c</text>
+  <text x="112" y="204" fill="#b7c0ca" font-family="Consolas, monospace" font-size="19">-rwxr-xr-x 1 user user 8360 15:30 mycode</text>
+  <text x="112" y="242" fill="#b7c0ca" font-family="Consolas, monospace" font-size="19">-rw-r--r-- 1 user user   66 15:42 mycode.c</text>
+  <path d="M431 250H488" stroke="#ff7ba0" stroke-width="3"/>
+  <text x="112" y="280" fill="#44b678" font-family="Consolas, monospace" font-size="19">user@linux:~$</text>
+  <text x="272" y="280" fill="#e7ecf1" font-family="Consolas, monospace" font-size="19">make</text>
+  <text x="112" y="318" fill="#6fd3a4" font-family="Consolas, monospace" font-size="19">gcc -o mycode mycode.c</text>
+
+  <rect x="740" y="118" width="620" height="290" rx="8" fill="#171a1f"/>
+  <text x="772" y="166" fill="#44b678" font-family="Consolas, monospace" font-size="19">user@linux:~$</text>
+  <text x="932" y="166" fill="#e7ecf1" font-family="Consolas, monospace" font-size="19">ls -l mycode mycode.c</text>
+  <text x="772" y="204" fill="#b7c0ca" font-family="Consolas, monospace" font-size="19">-rwxr-xr-x 1 user user 8360 15:42 mycode</text>
+  <path d="M1091 212H1148" stroke="#ff7ba0" stroke-width="3"/>
+  <text x="772" y="242" fill="#b7c0ca" font-family="Consolas, monospace" font-size="19">-rw-r--r-- 1 user user   66 15:30 mycode.c</text>
+  <text x="772" y="280" fill="#44b678" font-family="Consolas, monospace" font-size="19">user@linux:~$</text>
+  <text x="932" y="280" fill="#e7ecf1" font-family="Consolas, monospace" font-size="19">make</text>
+  <text x="772" y="318" fill="#e7ecf1" font-family="Consolas, monospace" font-size="19">make: 'mycode' is up to date.</text>
+</svg>

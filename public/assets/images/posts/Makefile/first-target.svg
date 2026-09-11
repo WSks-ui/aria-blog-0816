@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="520" viewBox="0 0 1400 520" role="img" aria-labelledby="title desc">
+  <title id="title">clean写在前面时，make执行的是删除</title>
+  <desc id="desc">两段终端记录：mycode写在前面时make执行编译，clean写在前面时make执行删除</desc>
+  <rect width="1400" height="520" fill="#f5f7f8"/>
+
+  <text x="80" y="92" fill="#596675" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="20">mycode 写在前面</text>
+  <text x="740" y="92" fill="#596675" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="20">clean 写在前面</text>
+
+  <rect x="80" y="118" width="620" height="360" rx="8" fill="#171a1f"/>
+  <text x="112" y="162" fill="#44b678" font-family="Consolas, monospace" font-size="20">user@linux:~$</text>
+  <text x="280" y="162" fill="#e7ecf1" font-family="Consolas, monospace" font-size="20">cat makefile</text>
+  <text x="112" y="198" fill="#b7c0ca" font-family="Consolas, monospace" font-size="20">mycode: mycode.c</text>
+  <path d="M112 206H304" stroke="#ff7ba0" stroke-width="3"/>
+  <text x="136" y="234" fill="#b7c0ca" font-family="Consolas, monospace" font-size="20">gcc -o mycode mycode.c</text>
+  <text x="112" y="270" fill="#b7c0ca" font-family="Consolas, monospace" font-size="20">clean:</text>
+  <text x="136" y="306" fill="#b7c0ca" font-family="Consolas, monospace" font-size="20">rm -f mycode</text>
+  <text x="112" y="378" fill="#44b678" font-family="Consolas, monospace" font-size="20">user@linux:~$</text>
+  <text x="280" y="378" fill="#e7ecf1" font-family="Consolas, monospace" font-size="20">make</text>
+  <text x="112" y="414" fill="#6fd3a4" font-family="Consolas, monospace" font-size="20">gcc -o mycode mycode.c</text>
+
+  <rect x="740" y="118" width="620" height="360" rx="8" fill="#171a1f"/>
+  <text x="772" y="162" fill="#44b678" font-family="Consolas, monospace" font-size="20">user@linux:~$</text>
+  <text x="940" y="162" fill="#e7ecf1" font-family="Consolas, monospace" font-size="20">cat makefile</text>
+  <text x="772" y="198" fill="#b7c0ca" font-family="Consolas, monospace" font-size="20">clean:</text>
+  <path d="M772 206H844" stroke="#ff7ba0" stroke-width="3"/>
+  <text x="796" y="234" fill="#b7c0ca" font-family="Consolas, monospace" font-size="20">rm -f mycode</text>
+  <text x="772" y="270" fill="#b7c0ca" font-family="Consolas, monospace" font-size="20">mycode: mycode.c</text>
+  <text x="796" y="306" fill="#b7c0ca" font-family="Consolas, monospace" font-size="20">gcc -o mycode mycode.c</text>
+  <text x="772" y="378" fill="#44b678" font-family="Consolas, monospace" font-size="20">user@linux:~$</text>
+  <text x="940" y="378" fill="#e7ecf1" font-family="Consolas, monospace" font-size="20">make</text>
+  <text x="772" y="414" fill="#ff8b7a" font-family="Consolas, monospace" font-size="20">rm -f mycode</text>
+</svg>
