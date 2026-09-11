@@ -67,33 +67,65 @@ const nodes: GraphNode[] = groupedPosts.flatMap((group, columnIndex) =>
 );
 
 const normalizeTag = (tag: string) => tag.trim().toLocaleLowerCase();
-const edges: GraphEdge[] = [];
 
-for (let sourceIndex = 0; sourceIndex < nodes.length; sourceIndex += 1) {
-	for (let targetIndex = sourceIndex + 1; targetIndex < nodes.length; targetIndex += 1) {
-		const source = nodes[sourceIndex];
-		const target = nodes[targetIndex];
-		const targetTags = new Set(target.post.data.tags.map(normalizeTag));
-		const sharedTags = source.post.data.tags.filter((tag) => targetTags.has(normalizeTag(tag)));
-		if (sharedTags.length === 0) continue;
+/*
+ * 先按标签建立倒排索引，再只组合确实共享标签的文章。文章持续增加时，这能避开
+ * “每两篇文章都重建一次标签 Set”的全量比较。倒排阶段可对单篇文章的同义标签
+ * 去重；边真正生成时仍按原算法从 source 文章取标签，保留其大小写、次序与重复项。
+ */
+const tagIndex = new Map<string, number[]>();
+nodes.forEach((node, nodeIndex) => {
+	const seenTags = new Set<string>();
+	for (const label of node.post.data.tags) {
+		const key = normalizeTag(label);
+		if (!key || seenTags.has(key)) continue;
+		seenTags.add(key);
+		const indexedNodes = tagIndex.get(key);
+		if (indexedNodes) indexedNodes.push(nodeIndex);
+		else tagIndex.set(key, [nodeIndex]);
+	}
+});
 
-		const controlX = source.centerX === target.centerX
-			? source.centerX + columnWidth * 0.3
-			: (source.centerX + target.centerX) / 2;
-		edges.push({
-			// 两个 id 分存两个属性，不靠分隔符拼串：id 本身含任何字符都不会解析错位。
-			sourceId: source.post.id,
-			targetId: target.post.id,
-			path: [
-				`M ${source.centerX.toFixed(2)} ${source.centerY.toFixed(2)}`,
-				`C ${controlX.toFixed(2)} ${source.centerY.toFixed(2)},`,
-				`${controlX.toFixed(2)} ${target.centerY.toFixed(2)},`,
-				`${target.centerX.toFixed(2)} ${target.centerY.toFixed(2)}`,
-			].join(' '),
-			sharedTags,
-		});
+const indexedEdges = new Map<string, {
+	sourceIndex: number;
+	targetIndex: number;
+}>();
+
+for (const nodeIndexes of tagIndex.values()) {
+	for (let sourceOffset = 0; sourceOffset < nodeIndexes.length; sourceOffset += 1) {
+		for (let targetOffset = sourceOffset + 1; targetOffset < nodeIndexes.length; targetOffset += 1) {
+			const sourceIndex = nodeIndexes[sourceOffset];
+			const targetIndex = nodeIndexes[targetOffset];
+			const pairKey = `${sourceIndex}:${targetIndex}`;
+			if (!indexedEdges.has(pairKey)) indexedEdges.set(pairKey, { sourceIndex, targetIndex });
+		}
 	}
 }
+
+const edges: GraphEdge[] = [...indexedEdges.values()].map(({ sourceIndex, targetIndex }) => {
+	const source = nodes[sourceIndex];
+	const target = nodes[targetIndex];
+	const targetTags = new Set(target.post.data.tags.map(normalizeTag));
+	const sharedTags = source.post.data.tags.filter((tag) => targetTags.has(normalizeTag(tag)));
+	const controlX = source.centerX === target.centerX
+		? source.centerX + columnWidth * 0.3
+		: (source.centerX + target.centerX) / 2;
+	return {
+		// 两个 id 分存两个属性，不靠分隔符拼串：id 本身含任何字符都不会解析错位。
+		sourceId: source.post.id,
+		targetId: target.post.id,
+		path: [
+			`M ${source.centerX.toFixed(2)} ${source.centerY.toFixed(2)}`,
+			`C ${controlX.toFixed(2)} ${source.centerY.toFixed(2)},`,
+			`${controlX.toFixed(2)} ${target.centerY.toFixed(2)},`,
+			`${target.centerX.toFixed(2)} ${target.centerY.toFixed(2)}`,
+		].join(' '),
+		sharedTags,
+	};
+});
+
+/* 超过这个规模时全图通常已经难以直接阅读，桌面首屏改用列表，但不移除图谱入口。 */
+const defaultDesktopView = nodes.length > 50 || edges.length > 800 ? 'list' : 'graph';
 
 const kindColors = {
 	essay: '#1887aa',
@@ -105,18 +137,54 @@ const kindColors = {
 } as const satisfies Record<PostKind, string>;
 ---
 
-<section class="article-graph" data-article-graph>
+<section class="article-graph" data-article-graph data-graph-view={defaultDesktopView} data-graph-default-view={defaultDesktopView}>
 	<header class="article-graph__header">
 		<div>
 			<p>CONNECTIONS / SHARED TAGS</p>
 			<h2>{heading}</h2>
 		</div>
-		<p class="article-graph__hint">{visiblePosts.length} 篇文章 / {edges.length} 条联系 · 悬停或聚焦节点可高亮关联</p>
+		<div class="article-graph__meta">
+			<p class="article-graph__hint">{visiblePosts.length} 篇文章 / {edges.length} 条联系 · 悬停或聚焦节点可高亮关联</p>
+			{visiblePosts.length > 0 && <div class="article-graph__views" role="tablist" aria-label="关系图视图">
+				<button
+					id="article-graph-tab-graph"
+					type="button"
+					role="tab"
+					aria-selected={defaultDesktopView === 'graph' ? 'true' : 'false'}
+					aria-controls="article-graph-panel-graph"
+					tabindex={defaultDesktopView === 'graph' ? '0' : '-1'}
+					data-graph-view-button="graph"
+				>
+					图谱
+				</button>
+				<button
+					id="article-graph-tab-list"
+					type="button"
+					role="tab"
+					aria-selected={defaultDesktopView === 'list' ? 'true' : 'false'}
+					aria-controls="article-graph-panel-list"
+					tabindex={defaultDesktopView === 'list' ? '0' : '-1'}
+					data-graph-view-button="list"
+				>
+					列表
+				</button>
+			</div>}
+		</div>
 	</header>
 
 	{visiblePosts.length > 0 ? (
 		<>
-			<div class="article-graph__canvas">
+			<div
+				id="article-graph-panel-graph"
+				class="article-graph__canvas"
+				data-graph-panel="graph"
+				tabindex="0"
+				role="tabpanel"
+				aria-labelledby="article-graph-tab-graph"
+			>
+				<div class="article-graph__column-headings" aria-hidden="true">
+					{POST_KINDS.map((kind) => <span>{POST_KIND_LABELS[kind]}</span>)}
+				</div>
 				<svg
 					viewBox={`0 0 ${width} ${height}`}
 					data-graph-svg
@@ -124,13 +192,10 @@ const kindColors = {
 					aria-label="文章关系图，连线表示两篇文章拥有相同标签"
 				>
 					<g class="article-graph__guides" aria-hidden="true">
-						{POST_KINDS.map((kind, index) => {
+						{POST_KINDS.map((_, index) => {
 							const centerX = index * columnWidth + columnWidth / 2;
 							return (
-								<>
-									<line x1={centerX} y1="54" x2={centerX} y2={height - 18} />
-									<text x={centerX} y="32" text-anchor="middle">{POST_KIND_LABELS[kind]}</text>
-								</>
+								<line x1={centerX} y1="54" x2={centerX} y2={height - 18} />
 							);
 						})}
 					</g>
@@ -191,8 +256,14 @@ const kindColors = {
 				</svg>
 			</div>
 
-			<section class="article-graph__fallback" aria-label="文章关系图的列表视图">
-				<h3>文章列表</h3>
+			<section
+				id="article-graph-panel-list"
+				class="article-graph__fallback"
+				data-graph-panel="list"
+				role="tabpanel"
+				aria-labelledby="article-graph-tab-list"
+				tabindex="0"
+			>
 				<ul>
 					{visiblePosts.map((post) => (
 						<li>
@@ -218,59 +289,143 @@ const kindColors = {
       if (root.dataset.interactiveReady === 'true') return;
       root.dataset.interactiveReady = 'true';
 
+      type GraphView = 'graph' | 'list';
+      const isGraphView = (value: string | undefined): value is GraphView => value === 'graph' || value === 'list';
+      const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-graph-view-button]'));
+      const panels = Array.from(root.querySelectorAll<HTMLElement>('[data-graph-panel]'));
       const svg = root.querySelector<SVGSVGElement>('[data-graph-svg]');
-      if (!svg) return;
-      const nodes = Array.from(svg.querySelectorAll<SVGAElement>('[data-node-key]'));
-      const edges = Array.from(svg.querySelectorAll<SVGPathElement>('[data-edge-source][data-edge-target]'));
-      if (nodes.length === 0 || edges.length === 0) return;
+      const viewportQuery = window.matchMedia('(max-width: 47.5rem)');
+      const viewportController = new AbortController();
+      let graphReady = false;
+      let userSelectedView = false;
 
-      // 边的两端 id 分存于独立属性，据此预计算邻接表，悬停时零查找成本。
-      const neighbors = new Map<string, Set<string>>();
-      const link = (from: string, to: string) => {
-        if (!neighbors.has(from)) neighbors.set(from, new Set());
-        neighbors.get(from)!.add(to);
-      };
-      edges.forEach((edge) => {
-        const { edgeSource, edgeTarget } = edge.dataset;
-        if (!edgeSource || !edgeTarget) return;
-        link(edgeSource, edgeTarget);
-        link(edgeTarget, edgeSource);
-      });
+      const setupGraph = () => {
+        if (graphReady || !svg) return;
+        graphReady = true;
 
-      const highlight = (key: string | null) => {
-        if (key === null) {
-          delete svg.dataset.focusKey;
-          edges.forEach((edge) => delete edge.dataset.active);
-          nodes.forEach((node) => delete node.dataset.related);
-          return;
-        }
+        const nodes = Array.from(svg.querySelectorAll<SVGAElement>('[data-node-key]'));
+        const edges = Array.from(svg.querySelectorAll<SVGPathElement>('[data-edge-source][data-edge-target]'));
+        if (nodes.length === 0 || edges.length === 0) return;
 
-        svg.dataset.focusKey = key;
+        /*
+         * 每个节点只保存自己的边；切换高亮时仅清理上一组并写入下一组，不再为
+         * 一次 pointerover 扫描整张图。文章和边越多，这个差异越明显。
+         */
+        const nodeByKey = new Map(nodes.map((node) => [node.dataset.nodeKey ?? '', node]));
+        const edgesByNode = new Map<string, SVGPathElement[]>();
+        const linkEdge = (key: string, edge: SVGPathElement) => {
+          const linkedEdges = edgesByNode.get(key);
+          if (linkedEdges) linkedEdges.push(edge);
+          else edgesByNode.set(key, [edge]);
+        };
         edges.forEach((edge) => {
-          // 精确等值匹配：拼接 key 的 startsWith/endsWith 在 id 互为前后缀时会误判。
-          edge.dataset.active = String(edge.dataset.edgeSource === key || edge.dataset.edgeTarget === key);
+          const { edgeSource, edgeTarget } = edge.dataset;
+          if (!edgeSource || !edgeTarget) return;
+          linkEdge(edgeSource, edge);
+          linkEdge(edgeTarget, edge);
         });
-        nodes.forEach((node) => {
-          const nodeKey = node.dataset.nodeKey ?? '';
-          node.dataset.related = String(
-            nodeKey === key || neighbors.get(key)?.has(nodeKey) === true,
-          );
+
+        let activeKey: string | null = null;
+        let activeEdges: SVGPathElement[] = [];
+        let relatedNodes: SVGAElement[] = [];
+        const highlight = (key: string | null) => {
+          if (key === activeKey) return;
+          activeEdges.forEach((edge) => delete edge.dataset.active);
+          relatedNodes.forEach((node) => delete node.dataset.related);
+          activeEdges = [];
+          relatedNodes = [];
+          activeKey = key;
+
+          if (key === null) {
+            delete svg.dataset.focusKey;
+            return;
+          }
+
+          svg.dataset.focusKey = key;
+          activeEdges = edgesByNode.get(key) ?? [];
+          const relatedKeys = new Set([key]);
+          activeEdges.forEach((edge) => {
+            edge.dataset.active = 'true';
+            if (edge.dataset.edgeSource) relatedKeys.add(edge.dataset.edgeSource);
+            if (edge.dataset.edgeTarget) relatedKeys.add(edge.dataset.edgeTarget);
+          });
+          relatedNodes = [...relatedKeys]
+            .map((relatedKey) => nodeByKey.get(relatedKey))
+            .filter((node): node is SVGAElement => Boolean(node));
+          relatedNodes.forEach((node) => { node.dataset.related = 'true'; });
+        };
+
+        svg.addEventListener('pointerover', (event) => {
+          const node = (event.target as Element | null)?.closest?.('[data-node-key]');
+          highlight(node ? node.getAttribute('data-node-key') : null);
         });
+        svg.addEventListener('pointerleave', () => highlight(null));
+        // 键盘聚焦节点时给出同样的关系预览；移出整张图后再还原。
+        svg.addEventListener('focusin', (event) => {
+          const node = (event.target as Element | null)?.closest?.('[data-node-key]');
+          highlight(node ? node.getAttribute('data-node-key') : null);
+        });
+        svg.addEventListener('focusout', () => window.setTimeout(() => {
+          if (!svg.contains(document.activeElement)) highlight(null);
+        }, 0));
       };
 
-      svg.addEventListener('pointerover', (event) => {
-        const node = (event.target as Element | null)?.closest?.('[data-node-key]');
-        highlight(node ? node.getAttribute('data-node-key') : null);
+      const setView = (view: GraphView, focusTab = false) => {
+        root.dataset.graphView = view;
+        tabs.forEach((tab) => {
+          const selected = tab.dataset.graphViewButton === view;
+          tab.setAttribute('aria-selected', String(selected));
+          tab.tabIndex = selected ? 0 : -1;
+          if (selected && focusTab) tab.focus();
+        });
+        panels.forEach((panel) => {
+          const selected = panel.dataset.graphPanel === view;
+          panel.hidden = !selected;
+          panel.inert = !selected;
+        });
+        // 手机默认停在列表，不为不可见 SVG 建邻接索引；用户切到图谱时再初始化。
+        if (view === 'graph') setupGraph();
+      };
+
+      tabs.forEach((tab, tabIndex) => {
+        tab.addEventListener('click', () => {
+          const view = tab.dataset.graphViewButton;
+          if (isGraphView(view)) {
+            userSelectedView = true;
+            setView(view);
+          }
+        });
+        tab.addEventListener('keydown', (event) => {
+          let nextIndex = tabIndex;
+          if (event.key === 'ArrowLeft') nextIndex = (tabIndex - 1 + tabs.length) % tabs.length;
+          else if (event.key === 'ArrowRight') nextIndex = (tabIndex + 1) % tabs.length;
+          else if (event.key === 'Home') nextIndex = 0;
+          else if (event.key === 'End') nextIndex = tabs.length - 1;
+          else return;
+          event.preventDefault();
+          const view = tabs[nextIndex]?.dataset.graphViewButton;
+          if (isGraphView(view)) {
+            userSelectedView = true;
+            setView(view, true);
+          }
+        });
       });
-      svg.addEventListener('pointerleave', () => highlight(null));
-      // 键盘聚焦节点时给出同样的关系预览；移出后还原。
-      svg.addEventListener('focusin', (event) => {
-        const node = (event.target as Element | null)?.closest?.('[data-node-key]');
-        highlight(node ? node.getAttribute('data-node-key') : null);
-      });
-      svg.addEventListener('focusout', () => window.setTimeout(() => {
-        if (!svg.contains(document.activeElement)) highlight(null);
-      }, 0));
+
+      if (tabs.length > 0 && panels.length > 0) {
+        const desktopDefault = root.dataset.graphDefaultView === 'list' ? 'list' : 'graph';
+        setView(viewportQuery.matches ? 'list' : desktopDefault);
+        /*
+         * 断点只在用户尚未主动选视图时接管：旋转设备会自动回到合适的初始布局，
+         * 一旦用户选择图谱或列表，后续缩放就尊重该选择，不突然替换正在看的内容。
+         */
+        window.addEventListener('resize', () => {
+          if (!userSelectedView) setView(viewportQuery.matches ? 'list' : desktopDefault);
+        }, { passive: true, signal: viewportController.signal });
+        document.addEventListener('astro:before-swap', () => viewportController.abort(), {
+          once: true,
+          signal: viewportController.signal,
+        });
+      }
     });
   }
 
@@ -292,8 +447,7 @@ const kindColors = {
 		border-block: 1px solid var(--line);
 	}
 
-	.article-graph__header p,
-	.article-graph__fallback h3 {
+	.article-graph__header p {
 		margin: 0;
 		color: var(--ink-muted);
 		font-family: var(--font-ui);
@@ -310,10 +464,93 @@ const kindColors = {
 		line-height: var(--leading-title);
 	}
 
+	.article-graph__meta {
+		display: grid;
+		justify-items: end;
+		gap: 0.75rem;
+	}
+
+	.article-graph__views {
+		display: grid;
+		grid-template-columns: repeat(2, 4.5rem);
+		border: 1px solid var(--line);
+	}
+
+	.article-graph__views button {
+		min-height: 2.25rem;
+		padding: 0 0.75rem;
+		border: 0;
+		background: transparent;
+		color: var(--ink-muted);
+		font-family: var(--font-ui);
+		font-size: 0.6875rem;
+		cursor: pointer;
+	}
+
+	.article-graph__views button + button {
+		border-inline-start: 1px solid var(--line);
+	}
+
+	.article-graph__views button:hover,
+	.article-graph__views button:focus-visible {
+		color: var(--accent-strong);
+	}
+
+	.article-graph__views button:focus-visible {
+		outline: 2px solid var(--color-focus);
+		outline-offset: -3px;
+	}
+
+	.article-graph__views button[aria-selected='true'] {
+		background: var(--accent-soft);
+		color: var(--accent-strong);
+	}
+
 	.article-graph__canvas {
-		overflow-x: auto;
+		position: relative;
+		max-height: min(68dvh, 44rem);
+		overflow: auto;
+		overscroll-behavior: contain;
+		scroll-padding-top: 3rem;
+		scrollbar-color: color-mix(in srgb, var(--accent-strong) 52%, transparent) transparent;
+		scrollbar-gutter: stable;
+		scrollbar-width: thin;
 		border-bottom: 1px solid var(--line);
 		background: color-mix(in srgb, var(--paper-0) 82%, transparent);
+		outline: none;
+	}
+
+	.article-graph__canvas:focus-visible,
+	.article-graph__fallback:focus-visible {
+		outline: 1px solid var(--color-focus);
+		outline-offset: 3px;
+	}
+
+	/*
+	 * 栏目名覆盖在 SVG 顶部并粘住滚动容器；负下边距抵消它的流内高度，
+	 * 因而不会把节点整体再向下推一行。横向滚动时它仍与六条栏目轴同步。
+	 */
+	.article-graph__column-headings {
+		position: sticky;
+		top: 0;
+		z-index: 2;
+		display: grid;
+		grid-template-columns: repeat(6, minmax(0, 1fr));
+		width: 100%;
+		min-width: 58rem;
+		height: 2.75rem;
+		margin-bottom: -2.75rem;
+		align-items: center;
+		border-bottom: 1px solid color-mix(in srgb, var(--line) 62%, transparent);
+		background: color-mix(in srgb, var(--paper-0) 94%, transparent);
+		color: var(--ink-muted);
+		font-family: var(--font-ui);
+		font-size: 0.625rem;
+		pointer-events: none;
+	}
+
+	.article-graph__column-headings span {
+		text-align: center;
 	}
 
 	.article-graph svg {
@@ -327,12 +564,6 @@ const kindColors = {
 		stroke: var(--line);
 		stroke-dasharray: 2 7;
 		stroke-width: 1;
-	}
-
-	.article-graph__guides text {
-		fill: var(--ink-muted);
-		font-family: var(--font-ui);
-		font-size: 10px;
 	}
 
 	.article-graph__edges path {
@@ -361,8 +592,12 @@ const kindColors = {
 		transition: opacity var(--duration-base) ease;
 	}
 
-	.article-graph__node[data-related='false'] {
+	.article-graph [data-graph-svg][data-focus-key]:not([data-focus-key='']) .article-graph__node {
 		opacity: 0.24;
+	}
+
+	.article-graph [data-graph-svg][data-focus-key]:not([data-focus-key='']) .article-graph__node[data-related='true'] {
+		opacity: 1;
 	}
 
 	.article-graph__node[data-related='true'] .article-graph__node-surface {
@@ -397,12 +632,20 @@ const kindColors = {
 	}
 
 	.article-graph__fallback {
-		padding: 1.5rem 0;
+		display: none;
+		max-height: min(68dvh, 44rem);
+		padding: 0 0 1rem;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		scrollbar-color: color-mix(in srgb, var(--accent-strong) 52%, transparent) transparent;
+		scrollbar-gutter: stable;
+		scrollbar-width: thin;
+		border-bottom: 1px solid var(--line);
+		outline: none;
 	}
 
-	.article-graph__fallback h3 {
-		margin-bottom: 0.75rem;
-	}
+	.article-graph[data-graph-view='list'] .article-graph__canvas { display: none; }
+	.article-graph[data-graph-view='list'] .article-graph__fallback { display: block; }
 
 	.article-graph__fallback ul {
 		display: grid;
@@ -465,13 +708,18 @@ const kindColors = {
 			gap: 0.5rem;
 		}
 
-		/* 画布在此断点隐藏，只剩列表视图；画布的悬停提示文案一并退场。 */
+		.article-graph__meta {
+			width: 100%;
+			justify-items: stretch;
+		}
+
+		/* 手机由脚本初始选中列表，之后仍可用上方标签切回完整图谱。 */
 		.article-graph__hint {
 			display: none;
 		}
 
-		.article-graph__canvas {
-			display: none;
+		.article-graph__views {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
 		}
 
 		.article-graph__fallback ul {
