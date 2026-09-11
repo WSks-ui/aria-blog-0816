@@ -366,9 +366,31 @@ const kindColors = {
       const panels = Array.from(root.querySelectorAll<HTMLElement>('[data-graph-panel]'));
       const svg = root.querySelector<SVGSVGElement>('[data-graph-svg]');
       const viewportQuery = window.matchMedia('(max-width: 47.5rem)');
+      const reduceMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
       const viewportController = new AbortController();
       let graphReady = false;
       let userSelectedView = false;
+      let activeViewTransition: ViewTransition | null = null;
+
+      const transitionNameRestore = new Map<HTMLElement, string>();
+      const setTransitionName = (element: HTMLElement | null, name: string) => {
+        if (!element) return;
+        if (!transitionNameRestore.has(element)) {
+          transitionNameRestore.set(element, element.style.viewTransitionName);
+        }
+        element.style.viewTransitionName = name;
+      };
+
+      const clearTransitionNames = () => {
+        transitionNameRestore.forEach((name, element) => {
+          if (name) element.style.viewTransitionName = name;
+          else element.style.removeProperty('view-transition-name');
+        });
+        transitionNameRestore.clear();
+        root.dataset.graphViewDirection = 'settled';
+        delete document.documentElement.dataset.graphViewTransition;
+        activeViewTransition = null;
+      };
 
       const setupGraph = () => {
         if (graphReady || !svg) return;
@@ -463,12 +485,66 @@ const kindColors = {
         if (view === 'graph') setupGraph();
       };
 
+      const switchView = (view: GraphView, focusTab = false) => {
+        const currentView: GraphView = root.dataset.graphView === 'list' ? 'list' : 'graph';
+        if (currentView === view) {
+          if (focusTab) tabs.find((tab) => tab.dataset.graphViewButton === view)?.focus();
+          return;
+        }
+
+        if (activeViewTransition) {
+          // 快速重复操作不叠加快照；焦点仍留在当前选中标签，保持 tablist 状态一致。
+          tabs.find((tab) => tab.getAttribute('aria-selected') === 'true')?.focus({ preventScroll: true });
+          return;
+        }
+        if (reduceMotionQuery.matches) {
+          root.dataset.graphViewDirection = 'settled';
+          setView(view, focusTab);
+          return;
+        }
+        if (typeof document.startViewTransition !== 'function') {
+          // WebView 等无原生共享元素能力的环境，仍保留方向性面板与标签滑动反馈。
+          root.dataset.graphViewDirection = view === 'list' ? 'to-list' : 'to-graph';
+          setView(view, focusTab);
+          return;
+        }
+
+        const sourcePanel = panels.find((panel) => panel.dataset.graphPanel === currentView) ?? null;
+        const targetPanel = panels.find((panel) => panel.dataset.graphPanel === view) ?? null;
+        if (!sourcePanel || !targetPanel) {
+          setView(view, focusTab);
+          return;
+        }
+
+        const pageMain = root.closest<HTMLElement>('[data-page-main]');
+        root.dataset.graphViewDirection = view === 'list' ? 'to-list' : 'to-graph';
+        document.documentElement.dataset.graphViewTransition = view === 'list' ? 'to-list' : 'to-graph';
+        // 页面级 main 默认拥有 Astro 换页名称；局部切换时临时摘名，避免整页跟着位移。
+        setTransitionName(pageMain, 'none');
+        setTransitionName(sourcePanel, 'aria7-graph-panel');
+
+        try {
+          const transition = document.startViewTransition(() => {
+            setView(view, focusTab);
+            setTransitionName(targetPanel, 'aria7-graph-panel');
+          });
+          activeViewTransition = transition;
+          transition.finished.catch(() => undefined).finally(() => {
+            if (activeViewTransition === transition) clearTransitionNames();
+          });
+        } catch {
+          clearTransitionNames();
+          root.dataset.graphViewDirection = view === 'list' ? 'to-list' : 'to-graph';
+          setView(view, focusTab);
+        }
+      };
+
       tabs.forEach((tab, tabIndex) => {
         tab.addEventListener('click', () => {
           const view = tab.dataset.graphViewButton;
           if (isGraphView(view)) {
             userSelectedView = true;
-            setView(view);
+            switchView(view);
           }
         });
         tab.addEventListener('keydown', (event) => {
@@ -482,7 +558,7 @@ const kindColors = {
           const view = tabs[nextIndex]?.dataset.graphViewButton;
           if (isGraphView(view)) {
             userSelectedView = true;
-            setView(view, true);
+            switchView(view, true);
           }
         });
       });
@@ -497,7 +573,11 @@ const kindColors = {
         window.addEventListener('resize', () => {
           if (!userSelectedView) setView(viewportQuery.matches ? 'list' : desktopDefault);
         }, { passive: true, signal: viewportController.signal });
-        document.addEventListener('astro:before-swap', () => viewportController.abort(), {
+        document.addEventListener('astro:before-swap', () => {
+          viewportController.abort();
+          activeViewTransition?.skipTransition();
+          clearTransitionNames();
+        }, {
           once: true,
           signal: viewportController.signal,
         });
@@ -628,10 +708,27 @@ const kindColors = {
 	}
 
 	.article-graph__views {
+		position: relative;
 		display: none;
 		grid-template-columns: repeat(2, 5rem);
+		overflow: hidden;
 		border: 1px solid var(--line-strong);
 		background: var(--paper-0);
+	}
+
+	.article-graph__views::before {
+		position: absolute;
+		inset: 0 auto 0 0;
+		width: 50%;
+		background: var(--ink);
+		content: '';
+		transform: translateX(0);
+		transition: transform 440ms var(--ease-rain);
+		will-change: transform;
+	}
+
+	.article-graph[data-graph-view='list'] .article-graph__views::before {
+		transform: translateX(100%);
 	}
 
 	/* 脚本完成面板状态同步前不暴露死控件；内联脚本会在首帧前写入该标记。 */
@@ -640,6 +737,8 @@ const kindColors = {
 	}
 
 	.article-graph__views button {
+		position: relative;
+		z-index: 1;
 		display: inline-flex;
 		min-height: 2.75rem;
 		align-items: center;
@@ -673,7 +772,7 @@ const kindColors = {
 	}
 
 	.article-graph__views button[aria-selected='true'] {
-		background: var(--ink);
+		background: transparent;
 		color: var(--paper-0);
 	}
 
@@ -919,6 +1018,15 @@ const kindColors = {
 	.article-graph[data-graph-view='list'] .article-graph__canvas { display: none; }
 	.article-graph[data-graph-view='list'] .article-graph__fallback { display: block; }
 	.article-graph [data-graph-panel]:not([hidden]) { animation: article-graph-panel-in var(--duration-base) var(--ease-rain) both; }
+	.article-graph[data-graph-view-direction='to-list'] [data-graph-panel]:not([hidden]) {
+		animation: article-graph-panel-in-right 430ms var(--ease-rain) both;
+	}
+	.article-graph[data-graph-view-direction='to-graph'] [data-graph-panel]:not([hidden]) {
+		animation: article-graph-panel-in-left 430ms var(--ease-rain) both;
+	}
+	.article-graph[data-graph-view-direction='settled'] [data-graph-panel]:not([hidden]) {
+		animation: none;
+	}
 
 	.article-graph__list {
 		display: grid;
@@ -1058,6 +1166,16 @@ const kindColors = {
 		to { opacity: 1; }
 	}
 
+	@keyframes article-graph-panel-in-right {
+		from { opacity: 0; transform: translateX(1.35rem) scale(0.992); }
+		to { opacity: 1; transform: translateX(0) scale(1); }
+	}
+
+	@keyframes article-graph-panel-in-left {
+		from { opacity: 0; transform: translateX(-1.35rem) scale(0.992); }
+		to { opacity: 1; transform: translateX(0) scale(1); }
+	}
+
 	@media (max-width: 47.5rem) {
 		.article-graph {
 			box-shadow: none;
@@ -1110,8 +1228,81 @@ const kindColors = {
 	}
 
 	@media (prefers-reduced-motion: reduce) {
+		.article-graph__views::before {
+			transition-duration: 1ms;
+		}
+
 		.article-graph [data-graph-panel]:not([hidden]) {
 			animation: none;
+		}
+	}
+</style>
+
+<style is:global>
+	/*
+	 * 图谱与列表面板共用一个命名快照，浏览器会在两种容器尺寸之间做几何插值；
+	 * 标签选中态由组件内的滑块过渡完成。规则只在脚本写入局部标记时接管，
+	 * 避免干扰 Astro 的跨页面转场。
+	 */
+	html[data-graph-view-transition] .article-graph [data-graph-panel]:not([hidden]) {
+		animation: none;
+	}
+
+	html[data-graph-view-transition]::view-transition-group(aria7-graph-panel) {
+		z-index: 20;
+		animation-duration: 580ms;
+		animation-timing-function: var(--ease-rain, cubic-bezier(0.22, 0.75, 0.28, 1));
+	}
+
+	html[data-graph-view-transition]::view-transition-image-pair(aria7-graph-panel) {
+		isolation: isolate;
+	}
+
+	html[data-graph-view-transition]::view-transition-old(aria7-graph-panel),
+	html[data-graph-view-transition]::view-transition-new(aria7-graph-panel) {
+		mix-blend-mode: normal;
+	}
+
+	html[data-graph-view-transition='to-list']::view-transition-old(aria7-graph-panel) {
+		animation: aria7-graph-panel-out-left 250ms var(--ease-rain, cubic-bezier(0.22, 0.75, 0.28, 1)) both;
+	}
+
+	html[data-graph-view-transition='to-list']::view-transition-new(aria7-graph-panel) {
+		animation: aria7-graph-panel-in-right 430ms var(--ease-rain, cubic-bezier(0.22, 0.75, 0.28, 1)) 90ms both;
+	}
+
+	html[data-graph-view-transition='to-graph']::view-transition-old(aria7-graph-panel) {
+		animation: aria7-graph-panel-out-right 250ms var(--ease-rain, cubic-bezier(0.22, 0.75, 0.28, 1)) both;
+	}
+
+	html[data-graph-view-transition='to-graph']::view-transition-new(aria7-graph-panel) {
+		animation: aria7-graph-panel-in-left 430ms var(--ease-rain, cubic-bezier(0.22, 0.75, 0.28, 1)) 90ms both;
+	}
+
+	@keyframes aria7-graph-panel-out-left {
+		from { opacity: 1; transform: translateX(0) scale(1); }
+		to { opacity: 0; transform: translateX(-1.1rem) scale(0.992); }
+	}
+
+	@keyframes aria7-graph-panel-in-right {
+		from { opacity: 0; transform: translateX(1.35rem) scale(0.992); }
+		to { opacity: 1; transform: translateX(0) scale(1); }
+	}
+
+	@keyframes aria7-graph-panel-out-right {
+		from { opacity: 1; transform: translateX(0) scale(1); }
+		to { opacity: 0; transform: translateX(1.1rem) scale(0.992); }
+	}
+
+	@keyframes aria7-graph-panel-in-left {
+		from { opacity: 0; transform: translateX(-1.35rem) scale(0.992); }
+		to { opacity: 1; transform: translateX(0) scale(1); }
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		html[data-graph-view-transition]::view-transition-group(aria7-graph-panel) {
+			animation-duration: 1ms !important;
+			animation-delay: 0ms !important;
 		}
 	}
 </style>
