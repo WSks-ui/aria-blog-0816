@@ -22,7 +22,25 @@ const year = new Date().getFullYear();
 			<ArrowUp size={16} stroke-width={1.5} aria-hidden="true" />
 		</button>
 	</nav>
-	<p class="site-footer__copy">© {year} Aria-7</p>
+	<p class="site-footer__copy">
+		© <span data-footer-year>{year}</span> Aria-7
+		<a
+			class="site-footer__beian"
+			href="https://beian.miit.gov.cn/"
+			target="_blank"
+			rel="noopener noreferrer"
+		>
+			豫ICP备2026042988号
+		</a>
+		<a
+			class="site-footer__beian"
+			href="https://beian.mps.gov.cn/#/query/webSearch?code=41170202411843"
+			target="_blank"
+			rel="noopener noreferrer"
+		>
+			豫公网安备41170202411843号
+		</a>
+	</p>
 </footer>
 
 <script>
@@ -37,8 +55,21 @@ const year = new Date().getFullYear();
 		});
 	}
 
+	// 构建时年份会被固化进静态 HTML；客户端每次加载刷新为当前年份，
+	// 这样跨年后即使不重新构建部署，页脚年份也能自动更新。
+	function initFooterYear() {
+		const y = String(new Date().getFullYear());
+		document.querySelectorAll<HTMLElement>('[data-footer-year]').forEach((el) => {
+			el.textContent = y;
+		});
+	}
+
 	initBackToTopButtons();
-	document.addEventListener('astro:page-load', initBackToTopButtons);
+	initFooterYear();
+	document.addEventListener('astro:page-load', () => {
+		initBackToTopButtons();
+		initFooterYear();
+	});
 </script>
 
 <style>
@@ -132,6 +163,24 @@ const year = new Date().getFullYear();
 
 	.site-footer__copy {
 		grid-column: 2 / -1;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 10px;
+	}
+
+	/* 备案号：与版权同行弱化展示，按工信部要求可点击跳转 */
+	.site-footer a.site-footer__beian {
+		color: var(--ink-muted);
+		font-size: 12px;
+		text-decoration: none;
+		transition: color var(--duration-fast) ease;
+	}
+
+	.site-footer a.site-footer__beian:hover,
+	.site-footer a.site-footer__beian:focus-visible {
+		color: var(--accent-strong);
+		font-weight: var(--font-ui-weight);
 	}
 
 	/* 夜间模式下站标恢复为浅色线稿，与深底保持制图线的可读对比。 */
