@@ -710,6 +710,23 @@ const paperMarks = [
 		};
 
 		/*
+		 * 底渐变按「模式 + 尺寸」缓存。它每次要铺满一枚线性渐变加两枚柔光（本机约
+		 * 12ms），而 uploadTextures 会被窗口尺寸变化、天气模式切换、阅读焦点切换反复
+		 * 调到——那些重复调用不必重算。只保留最近三张（三种模式同尺寸），尺寸变化时
+		 * 整批换掉，避免无限累积。
+		 */
+		const groundRasterCache = new Map<string, HTMLCanvasElement>();
+		const cachedGroundTexture = (mode: WeatherMode, width: number, height: number) => {
+			const key = `${mode}:${width}x${height}`;
+			const hit = groundRasterCache.get(key);
+			if (hit) return hit;
+			const made = makeGroundTexture(mode, readTokens(), width, height);
+			if (groundRasterCache.size >= 3) groundRasterCache.clear();
+			groundRasterCache.set(key, made);
+			return made;
+		};
+
+		/*
 		 * 按当前显示分辨率重新光栅化三张纹理。壁画里 1px 的微网格与细曲线只
 		 * 有按实际显示分辨率光栅化才保得住（DOM 版由浏览器按屏幕分辨率渲染
 		 * SVG）；纤维按平铺周期 × DPR 做 1:1 采样；底渐变按画布长宽比生成，
@@ -738,9 +755,8 @@ const paperMarks = [
 			}
 			const groundAspect = canvas.width / canvas.height;
 			const groundLongEdge = Math.max(1, Math.round(groundTextureLongEdge));
-			const ground = makeGroundTexture(
+			const ground = cachedGroundTexture(
 				mode,
-				readTokens(),
 				groundAspect >= 1 ? groundLongEdge : Math.max(1, Math.round(groundLongEdge * groundAspect)),
 				groundAspect >= 1 ? Math.max(1, Math.round(groundLongEdge / groundAspect)) : groundLongEdge,
 			);
