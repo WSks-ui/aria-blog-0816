@@ -1358,19 +1358,65 @@ const kindColors = {
 
 	.article-graph__canvas {
 		position: relative;
-		/* 类型栏与画布同处一行；画布有 53rem 的可读性下限，不够宽时整体横向平移。 */
+		/* 类型栏与画布同处一行；画布有 64rem 的可读性下限，不够宽时整体横向平移。 */
 		display: grid;
-		grid-template-columns: var(--graph-rail-width, 7.5rem) minmax(53rem, 1fr);
+		grid-template-columns: var(--graph-rail-width, 9.5rem) minmax(64rem, 1fr);
+		/*
+		 * 行高必须锁成 max-content，不能留给默认的 auto。画布高度会被 max-height
+		 * 夹住，而舞台高度是 SVG 按 aspect-ratio 定的（舞台有 64rem 下限，所以
+		 * 恒为 706.5px）：auto 行会跟着画布缩到 630px，SVG 溢出舞台，类型栏却按
+		 * 被压扁的行高铺 fr——标签越往下越往上飘（1366×768 下指南差 67px）。
+		 * 锁成 max-content 后行高 = 舞台实际高度，fr 与节点行永远同拍，画布多出来
+		 * 的部分交给纵向滚动。注意 align-content 治不了这个：它不改变被夹住的行高。
+		 */
+		grid-template-rows: max-content;
 		align-items: stretch;
-		max-height: min(68dvh, 44rem);
+		max-height: min(82dvh, 58rem);
 		overflow: auto;
-		overscroll-behavior: contain;
+		/*
+		 * 分轴处理：横向 contain，避免横滑带出页面级回弹与手势导航；纵向留 auto，
+		 * 让触屏的原生纵滑在画布内滚完还能顺下去滚页面。
+		 */
+		overscroll-behavior-x: contain;
+		overscroll-behavior-y: auto;
 		scroll-padding-top: 3.75rem;
 		scrollbar-color: color-mix(in srgb, var(--accent-strong) 38%, transparent) transparent;
 		scrollbar-gutter: stable;
 		scrollbar-width: thin;
-		background: color-mix(in srgb, var(--paper-0) 74%, transparent);
+		/*
+		 * 类型栏的底色与右边界线同样画在画布自身上一份：画布自己的背景不随内容
+		 * 滚动，sticky 的类型栏又始终停在左边缘，两者永远重合。这样当画布比舞台
+		 * 高时（关系轨道把外层行撑高），栏的底色与界线也能一直落到画布底部，
+		 * 不会在舞台下沿断掉一截。
+		 */
+		background:
+			linear-gradient(
+					to right,
+					color-mix(in srgb, var(--paper-0) 95%, transparent) 0
+						calc(var(--graph-rail-width, 9.5rem) - 1px),
+					var(--line) calc(var(--graph-rail-width, 9.5rem) - 1px)
+						var(--graph-rail-width, 9.5rem),
+					transparent var(--graph-rail-width, 9.5rem)
+				),
+			color-mix(in srgb, var(--paper-0) 74%, transparent);
 		outline: none;
+	}
+
+	/*
+	 * 只有真的存在横向溢出，才把站点光标换成可拖拽提示。站点的档案光标是
+	 * html[data-archive-cursor] * 上的 !important 规则，这里必须以同级权重声明
+	 * 才能让「这张图可以拖」被看见；图能一眼看全时立即交回原光标。
+	 */
+	.article-graph__canvas[data-pannable='true'] {
+		cursor: grab !important;
+	}
+
+	.article-graph__canvas[data-pannable='true'][data-dragging='true'] {
+		cursor: grabbing !important;
+	}
+
+	.article-graph__canvas[data-dragging='true'] {
+		user-select: none;
 	}
 
 	.article-graph__canvas:focus-visible,
