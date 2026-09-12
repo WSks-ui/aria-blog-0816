@@ -96,6 +96,29 @@ const paperMarks = [
 		transition: background-color 900ms var(--ease-rain);
 	}
 
+	/*
+	 * 首屏先不放氛围层。这一层自身的布局与绘制（底材、壁画、纸纤维、图纸 SVG、
+	 * 三层玻璃板，混合与模糊叠了十几层）实测要占掉约 115ms 的 FCP、170ms 的 DCL
+	 * 与 72ms 的初次布局——它只是氛围，不该抢在内容前面。等内容渲染完、着色器
+	 * 首帧就绪，再用一次 0.72s 的交叉溶解把它显影进来：先内容，后氛围。
+	 * data-rainfield 一旦落到 entering / gl / dom 即保持可见，换页由 before-swap
+	 * 把该状态搬进新文档，所以之后不会再出现"背景消失一帧"。
+	 */
+	:global(html:not([data-rainfield])) .rain-field { display: none; }
+
+	/*
+	 * 回退态（减少动态效果 / 着色器不可用 / 上下文丢失）直接显示 DOM 底材：
+	 * display 从 none 切回 block 没法用 transition 接住，改用一段入场关键帧。
+	 */
+	:global(html[data-rainfield='dom']) .rain-field {
+		animation: rainfield-field-in 420ms var(--ease-drift, ease) both;
+	}
+
+	@keyframes rainfield-field-in {
+		from { opacity: 0; }
+		to { opacity: 1; }
+	}
+
 	.rain-field__gl {
 		position: absolute;
 		inset: 0;
@@ -124,6 +147,33 @@ const paperMarks = [
 	:global(html[data-rainfield='gl']) .rain-field__ground,
 	:global(html[data-rainfield='gl']) .rain-field__mural,
 	:global(html[data-rainfield='gl']) .rain-field__fiber { display: none; }
+
+	/*
+	 * 接管时刻做成一次入场，而不是硬切。旧的写法在同一帧里既显示画布又隐藏三层
+	 * 底材，画面上是一次跳变；现在先让画布在 0.72s（--duration-scene）里淡入并
+	 * 微微收拢——只动合成层上的 opacity/transform，不触发布局——同时 DOM 底材
+	 * 同拍退去，落定后才撤 display，中间没有可见的缝。
+	 */
+	:global(html[data-rainfield='entering']) .rain-field__gl {
+		display: block;
+		animation: rainfield-handoff var(--duration-scene, 720ms) var(--ease-drift, ease) both;
+	}
+
+	:global(html[data-rainfield='entering']) .rain-field__ground,
+	:global(html[data-rainfield='entering']) .rain-field__mural,
+	:global(html[data-rainfield='entering']) .rain-field__fiber {
+		animation: rainfield-dom-out var(--duration-scene, 720ms) var(--ease-drift, ease) both;
+	}
+
+	@keyframes rainfield-handoff {
+		from { opacity: 0; transform: scale(1.015); }
+		to { opacity: 1; transform: none; }
+	}
+
+	@keyframes rainfield-dom-out {
+		from { opacity: 1; }
+		to { opacity: 0; }
+	}
 
 	.rain-field__ground {
 		background:
@@ -572,16 +622,30 @@ const paperMarks = [
 		return canvas;
 	}
 
+	/*
+	 * 回退态：氛围层立即可见、走 DOM 底材（不藏着色器）。首屏默认是「无状态 =
+	 * 不显示」，所以凡是没能起着色器的路径都必须落到这里，否则整层会一直空着。
+	 */
+	function showRainFieldFallback() {
+		document.documentElement.dataset.rainfield = 'dom';
+	}
+
 	function initRainFieldGL() {
 		const root = document.querySelector<HTMLElement>('[data-rain-field]');
 		if (!root || root.dataset.rainfieldReady === 'true') return;
 		root.dataset.rainfieldReady = 'true';
 		// reduced-motion 用户走 DOM 回退（CSS 已冻结其动画），不再起 GL 循环。
 		const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-		if (reduceMotion.matches) return;
+		if (reduceMotion.matches) {
+			showRainFieldFallback();
+			return;
+		}
 
 		const canvas = root.querySelector<HTMLCanvasElement>('[data-rainfield-gl]');
-		if (!canvas) return;
+		if (!canvas) {
+			showRainFieldFallback();
+			return;
+		}
 		const gl = canvas.getContext('webgl2', {
 			alpha: false,
 			antialias: false,
@@ -589,7 +653,10 @@ const paperMarks = [
 			stencil: false,
 			powerPreference: 'low-power',
 		});
-		if (!gl) return;
+		if (!gl) {
+			showRainFieldFallback();
+			return;
+		}
 
 		const compile = (type: number, source: string) => {
 			const shader = gl.createShader(type);
@@ -606,14 +673,21 @@ const paperMarks = [
 
 		const vs = compile(gl.VERTEX_SHADER, VERTEX_SHADER);
 		const fs = compile(gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
-		if (!vs || !fs) return;
+		if (!vs || !fs) {
+			showRainFieldFallback();
+			return;
+		}
 		const program = gl.createProgram();
-		if (!program) return;
+		if (!program) {
+			showRainFieldFallback();
+			return;
+		}
 		gl.attachShader(program, vs);
 		gl.attachShader(program, fs);
 		gl.linkProgram(program);
 		if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
 			console.error('[RainField] 程序链接失败', gl.getProgramInfoLog(program));
+			showRainFieldFallback();
 			return;
 		}
 		gl.useProgram(program);
@@ -923,7 +997,8 @@ const paperMarks = [
 			focusObserver?.disconnect();
 			routeObserver?.disconnect();
 			controller.abort();
-			delete document.documentElement.dataset.rainfield;
+			// 退回 DOM 底材并保持可见：删除状态会让整层回到「首屏未入场」的隐藏态。
+			showRainFieldFallback();
 			// 主动弃用上下文，立即归还 GPU 资源（光栅纹理 + 命令缓冲）。
 			gl.getExtension('WEBGL_lose_context')?.loseContext();
 		};
@@ -934,9 +1009,16 @@ const paperMarks = [
 		 * 新文档的 <html> 属性会覆盖运行标记，因此 after-swap 立即补回显示状态，
 		 * page-load（视图转场播放完毕）再恢复慢速壁画绘制。
 		 */
-		document.addEventListener('astro:before-swap', () => {
+		document.addEventListener('astro:before-swap', (event) => {
 			swapPaused = true;
 			syncRoutePause();
+			/*
+			 * 首屏的隐藏态靠 <html> 上没有 data-rainfield 表达，而换页会用新文档的
+			 * 属性覆盖它——不搬过去的话，每次换页都会闪一帧没有背景的空白。
+			 */
+			const current = document.documentElement.dataset.rainfield;
+			const incoming = (event as Event & { newDocument?: Document }).newDocument;
+			if (current && incoming?.documentElement) incoming.documentElement.dataset.rainfield = current;
 		}, { signal });
 		document.addEventListener('astro:after-swap', () => {
 			if (disposed || !ready) return;
@@ -1015,13 +1097,45 @@ const paperMarks = [
 			// 先绘制有效首帧再切换：避免 canvas 刚显示时把默认黑色清屏
 			// 暴露给用户一帧；纹理就绪期间 DOM 层仍保持可见，不会出现空窗。
 			drawFrame(performance.now());
-			document.documentElement.dataset.rainfield = 'gl';
+			// 进场：画布与 DOM 底材在 RAINFIELD_HANDOFF_MS 内交叉溶解，
+			// 落定后再切到 'gl'（此时 DOM 底材已透明，撤 display 不会有跳变）。
+			document.documentElement.dataset.rainfield = 'entering';
 			startLoop();
+			window.setTimeout(() => {
+				if (disposed) return;
+				document.documentElement.dataset.rainfield = 'gl';
+			}, RAINFIELD_HANDOFF_MS);
 		}).catch((error) => {
 			console.error('[RainField] 纹理装载失败，保持 DOM 回退', error);
+			showRainFieldFallback();
 		});
 	}
 
-	initRainFieldGL();
-	document.addEventListener('astro:page-load', initRainFieldGL);
-</script>
+	/* 进场时长与 CSS 的 --duration-scene 对齐：两侧同拍才看不出接缝。 */
+	const RAINFIELD_HANDOFF_MS = 720;
+
+	/*
+	 * 首次进入延后接管底材。着色器编译、三张壁画的光栅化与纹理上传都在主线程上，
+	 * 实测它们把首屏初次布局从约 94ms 顶到 169ms、FCP 从 216 顶到 332ms、
+	 * load 从 373 顶到 586ms——而这段时间正是读者开始滚动的时刻。等到 load 之后
+	 * 取一个空闲帧再接管；DOM 底材本来就是它的回退态、此刻正显示着，所以画面
+	 * 不空，只是先按纸面静止着，随后由入场动画接管。
+	 */
+	let rainfieldScheduleDone = false;
+	const runRainFieldGL = () => {
+		rainfieldScheduleDone = true;
+		initRainFieldGL();
+	};
+	const scheduleRainFieldGL = () => {
+		if (typeof window.requestIdleCallback === 'function') {
+			window.requestIdleCallback(runRainFieldGL, { timeout: 1200 });
+		} else {
+			window.setTimeout(runRainFieldGL, 320);
+		}
+	};
+	if (document.readyState === 'complete') scheduleRainFieldGL();
+	else window.addEventListener('load', scheduleRainFieldGL, { once: true });
+	// 首次之后的换页（层被 transition:persist 保留）按原节奏接管，不再等空闲。
+	document.addEventListener('astro:page-load', () => {
+		if (rainfieldScheduleDone) initRainFieldGL();
+	});</script>
