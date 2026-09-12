@@ -588,6 +588,7 @@ const kindColors = {
       const viewportQuery = window.matchMedia('(max-width: 47.5rem)');
       const reduceMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
       const viewportController = new AbortController();
+      const motionController = new AbortController();
       let graphReady = false;
       let userSelectedView = false;
       let activeViewTransition: ViewTransition | null = null;
@@ -1039,6 +1040,12 @@ const kindColors = {
           signal: viewportController.signal,
         });
       }
+
+      setupMotion();
+      document.addEventListener('astro:before-swap', () => {
+        motionController.abort();
+        motionFrames.splice(0).forEach((frame) => window.cancelAnimationFrame(frame));
+      }, { once: true, signal: motionController.signal });
     });
   }
 
@@ -1317,6 +1324,16 @@ const kindColors = {
 	.article-graph__fallback:focus-visible {
 		outline: 2px solid var(--color-focus);
 		outline-offset: -3px;
+	}
+
+	/* 哨兵绝对定位不占位：它随内容滚出画布顶部，就是「已滚动」的唯一信号。 */
+	.article-graph__scroll-sentinel {
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: 1px;
+		height: 1px;
+		pointer-events: none;
 	}
 
 	.article-graph__canvas::-webkit-scrollbar,
@@ -1657,6 +1674,35 @@ const kindColors = {
 	}
 
 	/*
+	 * 入场编排：开关是 root 上的 data-motion-state="drawn"（IntersectionObserver 打开，
+	 * 只开一次）。三段错拍值成组列在这里——连线 16ms/条、列头 90ms/列、节点 26ms/步。
+	 *
+	 * fill-mode 一律用 backwards 而非 both：动画结束后必须把 opacity / transform
+	 * 让回给聚焦态规则，否则高亮压暗会被动画终态永久锁死。同理，延迟期间靠
+	 * backwards 持有起始帧，元素不会先闪一下再入场。
+	 */
+	.article-graph[data-motion-state='drawn'] .article-graph__edges path {
+		animation: article-graph-edge-draw var(--duration-slow) var(--ease-rain) backwards;
+		animation-delay: calc(var(--edge-order, 0) * 16ms);
+	}
+
+	.article-graph[data-motion-state='drawn'] .article-graph__node {
+		animation: article-graph-node-in var(--duration-base) var(--ease-rain) backwards;
+		animation-delay: calc(120ms + var(--node-order, 0) * 26ms);
+	}
+
+	.article-graph[data-motion-state='drawn'] .article-graph__band-rail span {
+		animation: article-graph-heading-in var(--duration-base) var(--ease-rain) backwards;
+		animation-delay: calc(var(--band-order, 0) * 90ms);
+	}
+
+	/* 列表行每次切入列表视图都会重放：display:none → block 会让动画重新开始。 */
+	.article-graph[data-motion-state='drawn'][data-graph-view='list'] .article-graph__list li {
+		animation: article-graph-row-in var(--duration-base) var(--ease-rain) backwards;
+		animation-delay: calc(var(--row-order, 0) * 24ms);
+	}
+
+	/*
 	 * 聚焦某个节点时：它的边实体化、相邻节点保留描边，其余节点与边退到纸面
 	 * 之下。全部状态由脚本写 data 属性，这里只做呈现，不承担命中判定。
 	 *
@@ -1729,6 +1775,12 @@ const kindColors = {
 		stroke: transparent;
 		stroke-width: 2;
 		vector-effect: non-scaling-stroke;
+		transition: stroke var(--duration-fast) ease;
+	}
+
+	/* 悬停时先给一圈淡描边，点选或 Tab 到达后再走完整的焦点色。 */
+	.article-graph__node:hover .article-graph__focus-ring {
+		stroke: color-mix(in srgb, var(--accent-strong) 42%, transparent);
 	}
 
 	.article-graph__node:hover .article-graph__node-surface,
@@ -2092,6 +2144,23 @@ const kindColors = {
 
 		.article-graph [data-graph-panel]:not([hidden]) {
 			animation: none;
+		}
+
+		/*
+		 * motion.css 的全局兜底只压 duration 不清 delay，而入场动画用 backwards
+		 * 在延迟期间持有起始帧；若这里不清零延迟，减少动态下会看到最长半秒的空图。
+		 */
+		.article-graph[data-motion-state='drawn'] .article-graph__edges path,
+		.article-graph[data-motion-state='drawn'] .article-graph__node,
+		.article-graph[data-motion-state='drawn'] .article-graph__band-rail span,
+		.article-graph[data-motion-state='drawn'][data-graph-view='list'] .article-graph__list li {
+			animation-delay: 0ms !important;
+			animation-duration: 1ms !important;
+		}
+
+		.article-graph__node:hover,
+		.article-graph__node:focus-visible {
+			transform: none;
 		}
 	}
 </style>
