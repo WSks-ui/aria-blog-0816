@@ -53,19 +53,19 @@ const graphPosts = [...visiblePosts].sort((left, right) => left.id.localeCompare
  * 版面按行组织：每个内容类型是一条横带，类型标签落在左侧竖栏，文章在带内
  * 从左往右排，一行放满 cellsPerRow 张就换到本类型的下一行。
  *
- * 这样做的好处是宽度换高度——札记这类高产类型不再把整张图拉成一条竖带，
- * 画布无需纵向滚动，代价是画布可以横向平移。类型标签用 HTML 侧栏实现
- * （position: sticky; left: 0），横向平移时始终留在视野里。
+ * 尺寸整体比常规列表放大一档：舞台是 1200×828 的用户单位，按 64rem 的可读性
+ * 下限渲染时缩放约 0.85，节点标题落屏约 13.6px、元信息约 9.4px。信息量本来就
+ * 大（18 篇 / 34 条边 / 28 个标签），宁可用横向平移换呼吸感，也不要把字压小。
  */
-const cellWidth = 200;
+const cellWidth = 240;
 const cellsPerRow = 5;
-const nodeWidth = 184;
-const nodeHeight = 68;
-const rowHeight = 100;
-const topPadding = 44;
-const bottomPadding = 36;
+const nodeWidth = 216;
+const nodeHeight = 84;
+const rowHeight = 122;
+const topPadding = 52;
+const bottomPadding = 44;
 /* 节点标题的可排宽度（用户单位）：节点宽减去左内边距和右侧留给 N/L 元信息的空间。 */
-const labelUnits = 12;
+const labelUnits = 11;
 
 const bands: GraphBand[] = [];
 let lineCursor = 0;
@@ -481,19 +481,19 @@ const kindColors = {
 										class="article-graph__node-accent"
 										x={node.x}
 										y={node.y}
-										width="4"
+										width="5"
 										height={nodeHeight}
 										fill={kindColors[node.kind]}
 									/>
-									<text class="article-graph__node-label" x={node.x + 16} y={node.y + 24}>
+									<text class="article-graph__node-label" x={node.x + 18} y={node.y + 30}>
 										{node.labelLines.map((line, lineIndex) => (
-											<tspan x={node.x + 16} dy={lineIndex === 0 ? 0 : 17}>{line}</tspan>
+											<tspan x={node.x + 18} dy={lineIndex === 0 ? 0 : 21}>{line}</tspan>
 										))}
 									</text>
 									<text
 										class="article-graph__node-meta"
-										x={node.x + nodeWidth - 11}
-										y={node.y + nodeHeight - 9}
+										x={node.x + nodeWidth - 13}
+										y={node.y + nodeHeight - 13}
 										text-anchor="end"
 										aria-hidden="true"
 									>
@@ -1084,7 +1084,7 @@ const kindColors = {
 
 	.article-graph[data-graph-view='graph'] {
 		/* 轨道宽度独立命名：站内 --rail-width 是文章侧轨的令牌，不该互相牵动。 */
-		grid-template-columns: minmax(0, 1fr) var(--graph-rail-width, 15rem);
+		grid-template-columns: minmax(0, 1fr) var(--graph-rail-width, 18rem);
 		grid-template-areas:
 			'header header'
 			'canvas readout'
@@ -1216,7 +1216,7 @@ const kindColors = {
 	.article-graph__stats dt {
 		color: var(--ink-muted);
 		font-family: var(--font-mono);
-		font-size: 0.5rem;
+		font-size: 0.625rem;
 		font-weight: 400;
 		line-height: 1.35;
 	}
@@ -1225,7 +1225,7 @@ const kindColors = {
 		margin: 0;
 		color: var(--accent-strong);
 		font-family: var(--font-mono);
-		font-size: 1.25rem;
+		font-size: 1.5rem;
 		font-weight: 400;
 		line-height: 1.1;
 	}
@@ -1272,7 +1272,7 @@ const kindColors = {
 		background: transparent;
 		color: var(--ink-muted);
 		font-family: var(--font-ui);
-		font-size: 0.6875rem;
+		font-size: 0.75rem;
 		cursor: pointer;
 		transition:
 			background-color var(--duration-fast) var(--ease-rain),
@@ -1365,7 +1365,7 @@ const kindColors = {
 		min-width: 0;
 		min-height: 0;
 		max-height: min(68dvh, 44rem);
-		padding: 1.1rem 1.3rem 1.4rem;
+		padding: 1.35rem 1.5rem 1.6rem;
 		overflow-y: auto;
 		overscroll-behavior: contain;
 		border-left: 1px solid var(--line);
@@ -1380,7 +1380,7 @@ const kindColors = {
 			color-mix(in srgb, var(--paper-0) 94%, transparent);
 		color: var(--ink-muted);
 		font-family: var(--font-ui);
-		font-size: 0.75rem;
+		font-size: 0.8125rem;
 		line-height: 1.6;
 		scrollbar-color: color-mix(in srgb, var(--accent-strong) 38%, transparent) transparent;
 		scrollbar-width: thin;
@@ -1402,7 +1402,7 @@ const kindColors = {
 		gap: 0.55rem;
 		margin: 0;
 		color: var(--ink-muted);
-		font-size: 0.6875rem;
+		font-size: 0.75rem;
 		line-height: 1.7;
 	}
 
@@ -1439,7 +1439,7 @@ const kindColors = {
 		margin: 0;
 		color: var(--ink-muted);
 		font-family: var(--font-mono);
-		font-size: 0.5625rem;
+		font-size: 0.625rem;
 		letter-spacing: var(--tracking-hud);
 	}
 
@@ -1459,13 +1459,13 @@ const kindColors = {
 		border: 1px solid color-mix(in srgb, var(--accent-strong) 42%, transparent);
 		color: var(--accent-strong);
 		font-family: var(--font-mono);
-		font-size: 0.5625rem;
+		font-size: 0.625rem;
 	}
 
 	.article-graph__readout-body :global(.article-graph__readout-title) {
 		color: var(--ink);
 		font-family: var(--font-display);
-		font-size: 1.0625rem;
+		font-size: 1.1875rem;
 		font-weight: 500;
 		line-height: 1.45;
 		overflow-wrap: anywhere;
@@ -1477,7 +1477,7 @@ const kindColors = {
 		border-top: 1px solid var(--line);
 		color: var(--accent-strong);
 		font-family: var(--font-mono);
-		font-size: 0.625rem;
+		font-size: 0.6875rem;
 		line-height: 1.75;
 	}
 
@@ -1532,7 +1532,7 @@ const kindColors = {
 		display: block;
 		color: var(--ink);
 		font-family: var(--font-display);
-		font-size: 0.8125rem;
+		font-size: 0.9375rem;
 		line-height: 1.45;
 		overflow-wrap: anywhere;
 		text-decoration: none;
@@ -1555,7 +1555,7 @@ const kindColors = {
 		margin-top: 0.25rem;
 		color: var(--line-strong);
 		font-family: var(--font-mono);
-		font-size: 0.5625rem;
+		font-size: 0.625rem;
 		font-style: normal;
 	}
 
@@ -1565,7 +1565,7 @@ const kindColors = {
 		padding: 0.7rem 0.8rem;
 		border: 1px dashed color-mix(in srgb, var(--line) 72%, transparent);
 		color: var(--ink-muted);
-		font-size: 0.6875rem;
+		font-size: 0.75rem;
 		line-height: 1.7;
 	}
 
@@ -1605,7 +1605,7 @@ const kindColors = {
 		background: color-mix(in srgb, var(--paper-0) 95%, transparent);
 		color: var(--ink-muted);
 		font-family: var(--font-ui);
-		font-size: 0.625rem;
+		font-size: 0.75rem;
 		pointer-events: none;
 		backdrop-filter: blur(10px);
 		transition: box-shadow var(--duration-base) var(--ease-rain);
@@ -1637,7 +1637,7 @@ const kindColors = {
 	.article-graph__band-rail small {
 		color: var(--ink-muted);
 		font-family: var(--font-mono);
-		font-size: 0.5rem;
+		font-size: 0.625rem;
 	}
 
 	.article-graph [data-graph-svg] {
@@ -1810,15 +1810,15 @@ const kindColors = {
 	.article-graph__node-label {
 		fill: currentColor;
 		font-family: var(--font-display);
-		/* 舞台 1080 用户单位会缩到约 944px 显示，13px 落屏约 11.4px。 */
-		font-size: 13px;
+		/* 舞台 1200 用户单位按 64rem 下限渲染时缩放约 0.85，16px 落屏约 13.6px。 */
+		font-size: 16px;
 		pointer-events: none;
 	}
 
 	.article-graph__node-meta {
 		fill: var(--ink-muted);
 		font-family: var(--font-mono);
-		font-size: 8.5px;
+		font-size: 11px;
 		pointer-events: none;
 	}
 
@@ -1866,7 +1866,7 @@ const kindColors = {
 		position: relative;
 		display: grid;
 		grid-template-columns: 3.2rem minmax(0, 1fr);
-		min-height: 7.75rem;
+		min-height: 8.5rem;
 		background: color-mix(in srgb, var(--paper-0) 96%, transparent);
 		transition: background-color var(--duration-fast) var(--ease-rain);
 	}
@@ -1883,7 +1883,7 @@ const kindColors = {
 		border-right: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
 		color: var(--ink-muted);
 		font-family: var(--font-mono);
-		font-size: 0.5625rem;
+		font-size: 0.625rem;
 		transition: color var(--duration-fast) var(--ease-rain);
 	}
 
@@ -1904,7 +1904,7 @@ const kindColors = {
 		gap: 1rem;
 		color: var(--ink-muted);
 		font-family: var(--font-mono);
-		font-size: 0.5rem;
+		font-size: 0.625rem;
 	}
 
 	.article-graph__list-meta small {
@@ -1935,7 +1935,7 @@ const kindColors = {
 		margin-top: 0.55rem;
 		color: var(--ink);
 		font-family: var(--font-display);
-		font-size: 1rem;
+		font-size: 1.0625rem;
 		font-weight: 500;
 		line-height: 1.4;
 		text-decoration: none;
@@ -1974,7 +1974,7 @@ const kindColors = {
 		margin: 0.5rem 0 0;
 		color: var(--ink-muted);
 		font-family: var(--font-ui);
-		font-size: 0.625rem;
+		font-size: 0.75rem;
 		line-height: 1.5;
 		overflow-wrap: anywhere;
 	}
@@ -1996,7 +1996,7 @@ const kindColors = {
 	.article-graph__list-relations b {
 		color: var(--accent-strong);
 		font-family: var(--font-mono);
-		font-size: 0.5625rem;
+		font-size: 0.625rem;
 		font-weight: 500;
 	}
 
@@ -2007,7 +2007,7 @@ const kindColors = {
 	.article-graph__list-relations em {
 		color: var(--line-strong);
 		font-family: var(--font-mono);
-		font-size: 0.5625rem;
+		font-size: 0.625rem;
 		font-style: normal;
 	}
 
@@ -2060,13 +2060,13 @@ const kindColors = {
 	/* 轨道随视口收窄，把宽度让给画布；画布不够宽时靠横向平移，不改变结构。 */
 	@media (max-width: 80rem) {
 		.article-graph[data-graph-view='graph'] {
-			grid-template-columns: minmax(0, 1fr) 13rem;
+			grid-template-columns: minmax(0, 1fr) 15rem;
 		}
 	}
 
 	@media (max-width: 60rem) {
 		.article-graph[data-graph-view='graph'] {
-			grid-template-columns: minmax(0, 1fr) 12rem;
+			grid-template-columns: minmax(0, 1fr) 13rem;
 		}
 	}
 
