@@ -3,7 +3,8 @@
  * 全站背景不再复用一张雨线平铺图，而是将纸张、远景制图、天气和碎片分开。
  * 这些数组只描述静态初始位置；循环只修改 transform / opacity，避免滚动时重排。
  * 有 WebGL2 时整组「底渐变 + 壁画 + 纤维」交给单个片元着色器一次画完
- * （合成器不再逐帧混合大面积正片叠底层）。雨丝仍保留在 z-index: 5 的 DOM
+ * （合成器不再逐帧混合大面积正片叠底层）。底渐变没有任何细节，直接在片元里按
+ * UV 现算，不经过光栅化与纹理上传（详见 groundColor）。雨丝仍保留在 z-index: 5 的 DOM
  * 前景层：它只有 7 条 1px 线，却必须位于制图线与玻璃板之上，才能保持原画面的
  * 前景雨痕与透明度语义；DOM 层同时也是 WebGL 不可用时的完整回退。
  */
@@ -368,8 +369,9 @@ const paperMarks = [
 	/*
 	 * 单 pass 背景材质着色器：把「底渐变 + 壁画漂移(正片叠底) + 纤维平铺(正片叠底)」
 	 * 画进一张不透明画布。此前这些全屏层各自为政，合成器在 4K 下每帧都要重新
-	 * 混合整屏；收进着色器后，每帧只有一次大面积 draw call。7 条前景雨丝仍留在
-	 * DOM 的 z-index:5 层，以保持原有的前景顺序和 CSS 渐变语义。
+	 * 混合整屏；收进着色器后，每帧只有一次大面积 draw call。底渐变没有细节，按
+	 * UV 现算即可，因此不需要纹理；壁画与纤维按显示分辨率光栅化成两张贴图。
+	 * 7 条前景雨丝仍留在 DOM 的 z-index:5 层，以保持原有的前景顺序和 CSS 渐变语义。
 	 * 回退链：无 WebGL2 或 prefers-reduced-motion → 保持原 DOM 层（本文件的
 	 * 现有行为，reduced-motion 由 CSS 冻结动画）。
 	 */
@@ -392,7 +394,11 @@ const paperMarks = [
 	uniform float uFiberBlend;
 	uniform float uMuralScale;
 	uniform vec2 uMuralDrift;
-	uniform sampler2D uGround;
+	uniform vec3 uGroundBase;
+	uniform vec3 uGroundSurface;
+	uniform vec3 uGroundHaze;
+	uniform vec3 uGroundGlow;
+	uniform float uGroundFlat;    // 1 = 夜间：底材压平为纯 base（themes.css）
 	uniform sampler2D uMural;
 	uniform sampler2D uFiber;
 	out vec4 outColor;
@@ -419,12 +425,47 @@ const paperMarks = [
 		return uv;
 	}
 
-	void main() {
-		// uv：0-1、y 向上；point：CSS 像素、y 向下（与 CSS/纹理方向一致）。
-		vec2 uv = gl_FragCoord.xy / (uRes * uDpr);
-		vec3 col = texture(uGround, vec2(uv.x, 1.0 - uv.y)).rgb;
+	/*
+	 * CSS radial-gradient(ellipse at cx cy, c, transparent stop) 的 farthest-corner
+	 * 椭圆：rx/ry = 画布宽高比，且恰好穿过最远角。换算到归一化 UV（u = x/w、
+	 * v = y/h、y 向下）后这个椭圆是正圆，半径 K = |中心 − 最远角| 只由百分比中心
+	 * 决定，与画布尺寸、DPR 都无关——所以这里不需要任何尺寸 uniform。
+	 * alpha 从中心到 stop 线性衰减到 0（不是 smoothstep），与 canvas
+	 * createRadialGradient 在 stop 处的色停一致。
+	 */
+	float radialAlpha(vec2 uvNorm, vec2 center, float alpha, float stopFrac) {
+		vec2 farCorner = vec2(center.x < 0.5 ? 1.0 : 0.0, center.y < 0.5 ? 1.0 : 0.0);
+		float distance = length(uvNorm - center) / length(farCorner - center);
+		return alpha * clamp(1.0 - distance / stopFrac, 0.0, 1.0);
+	}
 
-		vec2 point = vec2(uv.x, 1.0 - uv.y) * uRes;
+	/*
+	 * 底材在片元里现算，对应 DOM 版 .rain-field__ground 的三层背景，顺序与 CSS
+	 * 多背景一致：linear 最底、haze 先铺、glow 最上。它原本按 768 长边光栅化成
+	 * 一张纹理再采样，只为省片元，代价是每次重建 12ms（用户机 60ms）的主线程
+	 * 尖峰；现算之后没有光栅化与上传，也不再受贴图分辨率限制（无 banding）。
+	 */
+	vec3 groundColor(vec2 uvNorm, vec2 point) {
+		if (uGroundFlat > 0.5) return uGroundBase;
+		// linear-gradient(128deg, base, surface)：CSS 角度 0deg 向上、顺时针，
+		// 方向 (sinθ, -cosθ)；渐变线长度 = |w·sinθ| + |h·cosθ|，起止点过中心。
+		const vec2 direction = vec2(0.7880108, 0.6156615);
+		float lineLength = abs(uRes.x * direction.x) + abs(uRes.y * direction.y);
+		float t = clamp(dot(point - uRes * 0.5, direction) / lineLength + 0.5, 0.0, 1.0);
+		vec3 col = mix(uGroundBase, uGroundSurface, t);
+		col = mix(col, uGroundHaze, radialAlpha(uvNorm, vec2(0.18, 0.88), 0.28, 0.38));
+		col = mix(col, uGroundGlow, radialAlpha(uvNorm, vec2(0.76, 0.12), 0.42, 0.35));
+		return col;
+	}
+
+	void main() {
+		// uv：0-1、y 向上；canvasUV：0-1、y 向下（与 CSS/画布坐标方向一致）；
+		// point：CSS 像素、y 向下。
+		vec2 uv = gl_FragCoord.xy / (uRes * uDpr);
+		vec2 canvasUV = vec2(uv.x, 1.0 - uv.y);
+		vec2 point = canvasUV * uRes;
+		vec3 col = groundColor(canvasUV, point);
+
 		vec2 uvM = (coverUV(point, uMuralAspect) - 0.5) / uMuralScale + 0.5 - uMuralDrift;
 		vec4 mural = texture(uMural, clamp(uvM, 0.0, 1.0));
 		col = blendLayer(col, mural, uMuralOpacity, uMuralBlend);
@@ -446,13 +487,6 @@ const paperMarks = [
 	// 纹理按实际显示分辨率光栅化（详见 uploadTextures）。4096 能保住壁画中
 	// 1px 制图线与 SVG 噪声的锐度，同时仍给低端设备留出显存上限。
 	const TEXTURE_LONG_EDGE_CAP = 4096;
-	/*
-	 * 底渐变纹理的长边。这一层只有一枚线性渐变 + 两枚柔光径向渐变，没有任何细节：
-	 * 按 1600 光栅化要填约 380 万像素，实测本机 16ms、用户机 60ms 的主线程尖峰就是
-	 * 它（一次接管/重建卡掉 60ms）。768 只填约 33 万像素（约 1/12），上采样后由
-	 * 壁画与纸纤维两层细节盖住，柔光本身的量化台阶看不出来。
-	 */
-	const GROUND_TEXTURE_LONG_EDGE = 768;
 	// 窗口拖拽期间的重光栅化防抖。
 	const TEXTURE_REBUILD_DEBOUNCE = 180;
 	// 与 CSS background-size 保持同步（含移动端降档）。
@@ -476,11 +510,15 @@ const paperMarks = [
 			image.src = src;
 		});
 
-	const hexToRgb = (hex: string): [number, number, number] => {
+	// 主题色以 CSS 变量给出，着色器要 0-1 分量。四个 --weather-* 目前都是 #rrggbb；
+	// 若日后换成 rgb()/color-mix() 写法，这里要同步扩写（旧实现把字符串直接交给
+	// canvas fillStyle，能认的写法更多）。
+	const hexToUnit = (hex: string): [number, number, number] => {
 		const value = hex.replace('#', '');
 		const full = value.length === 3 ? value.split('').map((ch) => ch + ch).join('') : value;
 		const int = Number.parseInt(full, 16);
-		return Number.isNaN(int) ? [1, 1, 1] : [(int >> 16) & 255, (int >> 8) & 255, int & 255];
+		if (Number.isNaN(int)) return [1, 1, 1];
+		return [((int >> 16) & 255) / 255, ((int >> 8) & 255) / 255, (int & 255) / 255];
 	};
 
 	interface WeatherTokens {
@@ -513,79 +551,6 @@ const paperMarks = [
 			fiberBlend: read('--weather-fiber-blend') === 'screen' ? 1 : 0,
 		};
 	};
-
-	/*
-	 * 底渐变贴图：复刻 .rain-field__ground 的三层背景（含 themes.css 的夜间
-	 * 压平规则）。canvas 渐变按非预乘插值，末端色停用「同 RGB、alpha=0」
-	 * 才能对上 CSS 从有色到 transparent 的渐变路径。
-	 */
-	function makeGroundTexture(mode: WeatherMode, tokens: WeatherTokens, width: number, height: number): HTMLCanvasElement {
-		const canvas = document.createElement('canvas');
-		canvas.width = width;
-		canvas.height = height;
-		const ctx = canvas.getContext('2d');
-		if (!ctx) return canvas;
-
-		if (mode === 'night') {
-			// themes.css：夜间底材完全压平为纯 base 色。
-			ctx.fillStyle = tokens.base;
-			ctx.fillRect(0, 0, width, height);
-			return canvas;
-		}
-
-		// linear-gradient(128deg, base, surface)。CSS 角度 0deg 向上、顺时针，
-		// 方向向量 (sin θ, -cos θ)；渐变线长度 = |w·sinθ| + |h·cosθ|。
-		const radians = (128 * Math.PI) / 180;
-		const dx = Math.sin(radians);
-		const dy = -Math.cos(radians);
-		const lineLength = Math.abs(width * dx) + Math.abs(height * dy);
-		const linear = ctx.createLinearGradient(
-			width / 2 - (dx * lineLength) / 2,
-			height / 2 - (dy * lineLength) / 2,
-			width / 2 + (dx * lineLength) / 2,
-			height / 2 + (dy * lineLength) / 2,
-		);
-		linear.addColorStop(0, tokens.base);
-		linear.addColorStop(1, tokens.surface);
-		ctx.fillStyle = linear;
-		ctx.fillRect(0, 0, width, height);
-
-		// radial-gradient(ellipse at x% y%, c, transparent stop%)：
-		// farthest-corner 椭圆，rx/ry = 宽高比，穿过最远角（CSS 规范公式）。
-		const paintRadial = (px: number, py: number, hex: string, alpha: number, stopFrac: number) => {
-			const [r, g, b] = hexToRgb(hex);
-			const farX = px < width / 2 ? width : 0;
-			const farY = py < height / 2 ? height : 0;
-			const spanX = Math.abs(farX - px);
-			const spanY = Math.abs(farY - py);
-			const radiusX = Math.hypot(spanX, (spanY * width) / height);
-			const radiusY = (radiusX * height) / width;
-			ctx.save();
-			ctx.translate(px, py);
-			// Y 轴按 rx:ry 压缩后椭圆变正圆，半径 rx 的方形即覆盖整个渐变。
-			ctx.scale(1, radiusY / radiusX);
-			const radial = ctx.createRadialGradient(0, 0, 0, 0, 0, radiusX);
-			radial.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${alpha})`);
-			radial.addColorStop(stopFrac, `rgba(${r}, ${g}, ${b}, 0)`);
-			ctx.fillStyle = radial;
-			/*
-			 * 只填画布真正覆盖到的那块。渐变中心在 (px, py)，按半径铺的方框边长
-			 * 2·radiusX——1600×900 画布上约 2650px，单枚光源就要填 700 万像素，
-			 * 其中大半落在画布外。画布在局部坐标里对应 x ∈ [-px, width-px]、
-			 * y ∈ [-py·k, (height-py)·k]，k = rx/ry；渐变取值逐像素一致。
-			 * 实测这一处本机 19.9 → 16.0ms：有用但不是主因，主因是纹理本身的
-			 * 像素量（见 GROUND_TEXTURE_LONG_EDGE）。
-			 */
-			const clipScale = radiusX / radiusY;
-			ctx.fillRect(-px, -py * clipScale, width, height * clipScale);
-			ctx.restore();
-		};
-		// CSS 多背景从后往前绘制：linear 在最底，haze 先铺，最上层才是 glow。
-		// 先画 haze 再画 glow，避免两枚光源重叠时把原有层次倒置。
-		paintRadial(width * 0.18, height * 0.88, tokens.haze, 0.28, 0.38);
-		paintRadial(width * 0.76, height * 0.12, tokens.glow, 0.42, 0.35);
-		return canvas;
-	}
 
 	function initRainFieldGL() {
 		const root = document.querySelector<HTMLElement>('[data-rain-field]');
@@ -642,7 +607,6 @@ const paperMarks = [
 			Number(gl.getParameter(gl.MAX_TEXTURE_SIZE)) || TEXTURE_LONG_EDGE_CAP,
 		);
 		const muralTextureLongEdgeCap = Math.min(TEXTURE_LONG_EDGE_CAP, maxTextureSize);
-		const groundTextureLongEdge = Math.min(GROUND_TEXTURE_LONG_EDGE, maxTextureSize);
 
 		const uniform = (name: string) => gl.getUniformLocation(program, name);
 		const locations = {
@@ -654,15 +618,18 @@ const paperMarks = [
 			fiberTile: uniform('uFiberTile'),
 			muralScale: uniform('uMuralScale'),
 			muralDrift: uniform('uMuralDrift'),
-			ground: uniform('uGround'),
+			groundBase: uniform('uGroundBase'),
+			groundSurface: uniform('uGroundSurface'),
+			groundHaze: uniform('uGroundHaze'),
+			groundGlow: uniform('uGroundGlow'),
+			groundFlat: uniform('uGroundFlat'),
 			mural: uniform('uMural'),
 			fiber: uniform('uFiber'),
 			muralBlend: uniform('uMuralBlend'),
 			fiberBlend: uniform('uFiberBlend'),
 		};
-		// sampler 的默认值都是纹理单元 0；若不显式绑定，壁画和纤维会
-		// 错误地重复采样地面贴图，表现为大面积材质细节完全消失。
-		gl.uniform1i(locations.ground, 0);
+		// sampler 的默认值都是纹理单元 0；若不显式绑定，纤维会错误地重复采样
+		// 壁画贴图，表现为大面积材质细节完全消失。
 		gl.uniform1i(locations.mural, 1);
 		gl.uniform1i(locations.fiber, 2);
 
@@ -684,9 +651,8 @@ const paperMarks = [
 		gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
 
 		const muralTexture = createTexture(false);
-		const groundTexture = createTexture(false);
 		const fiberTexture = createTexture(true);
-		if (!groundTexture || !fiberTexture || !muralTexture) return;
+		if (!fiberTexture || !muralTexture) return;
 
 		const currentMode = (): WeatherMode => {
 			const value = document.documentElement.dataset.weatherMode;
@@ -710,27 +676,10 @@ const paperMarks = [
 		};
 
 		/*
-		 * 底渐变按「模式 + 尺寸」缓存。它每次要铺满一枚线性渐变加两枚柔光（本机约
-		 * 12ms），而 uploadTextures 会被窗口尺寸变化、天气模式切换、阅读焦点切换反复
-		 * 调到——那些重复调用不必重算。只保留最近三张（三种模式同尺寸），尺寸变化时
-		 * 整批换掉，避免无限累积。
-		 */
-		const groundRasterCache = new Map<string, HTMLCanvasElement>();
-		const cachedGroundTexture = (mode: WeatherMode, width: number, height: number) => {
-			const key = `${mode}:${width}x${height}`;
-			const hit = groundRasterCache.get(key);
-			if (hit) return hit;
-			const made = makeGroundTexture(mode, readTokens(), width, height);
-			if (groundRasterCache.size >= 3) groundRasterCache.clear();
-			groundRasterCache.set(key, made);
-			return made;
-		};
-
-		/*
-		 * 按当前显示分辨率重新光栅化三张纹理。壁画里 1px 的微网格与细曲线只
+		 * 按当前显示分辨率重新光栅化两张纹理。壁画里 1px 的微网格与细曲线只
 		 * 有按实际显示分辨率光栅化才保得住（DOM 版由浏览器按屏幕分辨率渲染
-		 * SVG）；纤维按平铺周期 × DPR 做 1:1 采样；底渐变按画布长宽比生成，
-		 * 保证 128° 渐变角与辉光位置在任意窗口形状下都与 CSS 一致。
+		 * SVG）；纤维按平铺周期 × DPR 做 1:1 采样。底渐变不再属于这里：它在
+		 * 片元着色器里按 UV 现算，与窗口形状、DPR 天然一致（见 groundColor）。
 		 * 壁画必须保持 SVG 自身的 1600×1000 比例光栅化：drawImage 对无尺寸
 		 * SVG 是位图拉伸，不执行 slice 裁剪语义，按画布宽高比光栅化会把画面
 		 * 纵向压扁；cover 的裁切由着色器 coverUV 按 MURAL_ASPECT 完成。
@@ -753,14 +702,6 @@ const paperMarks = [
 				const tilePx = Math.min(maxTextureSize, Math.max(1, Math.round(fiberTile() * dpr())));
 				uploadRaster(fiberTexture, rasterizeImage(fiberImage, tilePx, tilePx), gl.TEXTURE2);
 			}
-			const groundAspect = canvas.width / canvas.height;
-			const groundLongEdge = Math.max(1, Math.round(groundTextureLongEdge));
-			const ground = cachedGroundTexture(
-				mode,
-				groundAspect >= 1 ? groundLongEdge : Math.max(1, Math.round(groundLongEdge * groundAspect)),
-				groundAspect >= 1 ? Math.max(1, Math.round(groundLongEdge / groundAspect)) : groundLongEdge,
-			);
-			uploadRaster(groundTexture, ground, gl.TEXTURE0);
 			uploadedMode = mode;
 		};
 
@@ -820,12 +761,23 @@ const paperMarks = [
 			gl.uniform2f(locations.muralDrift, -0.008 + 0.016 * progress, -0.005 + 0.012 * progress);
 		};
 
-		const syncUniforms = () => {
+		/*
+		 * 主题 uniform 只在模式/阅读焦点切换时同步一次。底材四个颜色与
+		 * --weather-mural-opacity 同源，都来自根主题变量，所以底渐变换色不需要
+		 * 任何纹理重建；夜间 themes.css 把底材压平成纯 base，这里用 uGroundFlat
+		 * 复刻同一条规则（对应 CSS 里 .rain-field__ground 的夜间覆盖）。
+		 */
+		const syncUniforms = (mode: WeatherMode) => {
 			const tokens = readTokens();
 			gl.uniform1f(locations.muralBlend, tokens.muralBlend);
 			gl.uniform1f(locations.fiberBlend, tokens.fiberBlend);
 			gl.uniform1f(locations.muralOpacity, tokens.muralOpacity);
 			gl.uniform1f(locations.fiberOpacity, tokens.fiberOpacity);
+			gl.uniform3fv(locations.groundBase, hexToUnit(tokens.base));
+			gl.uniform3fv(locations.groundSurface, hexToUnit(tokens.surface));
+			gl.uniform3fv(locations.groundHaze, hexToUnit(tokens.haze));
+			gl.uniform3fv(locations.groundGlow, hexToUnit(tokens.glow));
+			gl.uniform1f(locations.groundFlat, mode === 'night' ? 1 : 0);
 		};
 		const applyMode = (mode: WeatherMode, rebuildTextures = true) => {
 			/*
@@ -833,7 +785,7 @@ const paperMarks = [
 			 * 旧实现为了追随 CSS 过渡，在随后 960ms 的每个绘制帧读取三份
 			 * computed style；这会强制结算刚交换进来的整页样式，正好卡住入场动画。
 			 */
-			syncUniforms();
+			syncUniforms(mode);
 			if (rebuildTextures && uploadedMode !== mode) {
 				// 持久化画布会收到“目标文档恢复同一主题”的重复事件；纹理未变时
 				// 不再重新光栅化和上传全屏贴图。
