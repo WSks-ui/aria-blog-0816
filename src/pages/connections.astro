@@ -11,13 +11,14 @@ const posts = await getPosts();
 	<div class="page-shell">
 		<PageHeader eyebrow="MAP / CONNECTIONS" title="伞骨关系图" count={posts.length} />
 		<div class="graph-mount">
-			<ArticleGraph posts={posts} heading="共享标签形成的联系" />
+			<ArticleGraph posts={posts} heading="" />
 		</div>
 	</div>
 </BaseLayout>
 
 <style>
-	.page-shell { max-width: var(--content-max); margin-inline: auto; padding-inline: var(--page-gutter); }
+	/* 图谱与关系轨道并排后需要更宽的版面，这一页用 --content-wide 而不是阅读宽度。 */
+	.page-shell { max-width: var(--content-wide); margin-inline: auto; padding-inline: var(--page-gutter); }
 	.graph-mount { margin-top: 64px; }
 	@media (max-width: 760px) { .page-shell { padding-inline: 20px; } }
 </style>
