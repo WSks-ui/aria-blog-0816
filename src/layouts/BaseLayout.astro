@@ -266,6 +266,20 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 			}
 
 			/*
+			 * 页面级换页（栏目 tab / 归档 / 关系图 / 首页互跳）不把命名元素从页面
+			 * 里提出来。这类转场只有页面层在动：旧页带 3.2% 横向位移退净、新页再
+			 * 从行进方向落定。被提出去的命名元素（首页封面、文章行标题）拿不到这
+			 * 段位移，只按浏览器默认原地渐隐，于是和滑走的页面错开半个节拍——1440
+			 * 宽下最多差约 46px，封面这种大块最显眼。留在页面快照里，整页一起滑、
+			 * 一起淡，才是这套编排本来想说的「整体退净、不留残影」。
+			 * main 是页面层本体必须留着；文章导航（data-article-nav）与镜像旅程
+			 * （data-title-flight）各自有配对与编排，不受这条影响。
+			 */
+			html:not([data-article-nav]):not([data-title-flight='active'])
+				[data-astro-transition-scope]:not([data-page-main]) {
+				view-transition-name: none;
+			}
+			/*
 			 * 飞行期间只留标题这一个命名对。Astro 给每个 transition:name 元素生成
 			 * [data-astro-transition-scope="…"] { view-transition-name: … }，首页的
 			 * 文章封面与六条文章行标题也算在内；它们在关于页没有对应元素，浏览器会
