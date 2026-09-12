@@ -823,8 +823,20 @@
 		background: var(--weather-base);
 	}
 
+	/*
+	 * 夜间遮罩沿用白天的收边结构：::before 只盖住左侧文案栏，在 44% 处收口。
+	 * 原来这里是平色填充，收口处就成了一条硬接缝——暗底上实测 56% 处亮度
+	 * 一跳 29/34/36（白天同位置是渐变到 transparent，所以看不出来），文案栏
+	 * 也因此是一块死平的黑。改成同款渐变后，制图线与纹理从文案栏平滑过渡进
+	 * 场景；最左端浓度比白天略高，保证标题与正文所在区域的底色与原来一致。
+	 */
 	:global(html[data-weather-mode='night']) .hero-scene::before {
-		background: color-mix(in srgb, var(--night-0) 86%, transparent);
+		background: linear-gradient(
+			90deg,
+			color-mix(in srgb, var(--night-0) 94%, transparent),
+			color-mix(in srgb, var(--night-0) 86%, transparent) 66%,
+			transparent
+		);
 	}
 
 	:global(html[data-weather-mode='night']) .hero-scene__grid {
