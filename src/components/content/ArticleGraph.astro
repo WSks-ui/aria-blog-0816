@@ -822,18 +822,52 @@ const kindColors = {
          * svg 的 pointerleave，鼠标一离开文章块（哪怕只是移向读数条）就会
          * 收起，汇总行永远读不完。现在移出组件才取消高亮，读数条本身常驻。
          */
+        /*
+         * 悬停意图：指针扫过卡片时不应该连带改写右侧轨道的内容。画布高亮延迟 110ms，
+         * 跨过卡片间隙不会闪；轨道内容延迟 240ms，只有真正停下来看某一篇才切换——
+         * 否则鼠标从卡片里往外移时会一路扫过兄弟卡片，把正在读的那篇换掉。
+         */
+        let highlightTimer = 0;
+        let readoutTimer = 0;
+        const clearHoverTimers = () => {
+          window.clearTimeout(highlightTimer);
+          window.clearTimeout(readoutTimer);
+        };
+        const requestHighlight = (key: string | null, withReadout = true) => {
+          clearHoverTimers();
+          if (key === null) {
+            highlightTimer = window.setTimeout(() => highlight(null), 110);
+            return;
+          }
+          highlightTimer = window.setTimeout(() => highlight(key, false), 110);
+          if (withReadout) readoutTimer = window.setTimeout(() => renderReadout(key), 240);
+        };
+        motionController.signal.addEventListener('abort', clearHoverTimers);
+
         root.addEventListener('pointerover', (event) => {
           const target = event.target as Element | null;
           const node = target?.closest?.('[data-node-key]');
           if (node) {
-            highlight(node.getAttribute('data-node-key'));
+            requestHighlight(node.getAttribute('data-node-key'));
             return;
           }
-          // 轨道条目反向联动：指向关联文章时，画布上同步高亮那一个节点。
+          // 轨道条目反向联动：指向关联文章时，画布上同步高亮那一个节点（不换轨道内容）。
           const entry = target?.closest?.('[data-relation-key]');
-          if (entry) highlight(entry.getAttribute('data-relation-key'), false);
+          if (entry) {
+            requestHighlight(entry.getAttribute('data-relation-key'), false);
+            return;
+          }
+          // 轨道内部保持原状（读者要把鼠标移过去读汇总行），移回画布空白处才释放高亮。
+          if (target?.closest?.('[data-graph-readout]')) {
+            clearHoverTimers();
+            return;
+          }
+          requestHighlight(null);
         });
-        root.addEventListener('pointerleave', () => highlight(null));
+        root.addEventListener('pointerleave', () => {
+          clearHoverTimers();
+          highlight(null);
+        });
         // 键盘聚焦节点时给出同样的关系预览；聚焦轨道条目时只联动画布。
         root.addEventListener('focusin', (event) => {
           const target = event.target as Element | null;
