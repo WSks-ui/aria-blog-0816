@@ -163,18 +163,33 @@ const kindColors = {
 >
 	<header class="article-graph__header">
 		<div class="article-graph__intro">
-			<p><span aria-hidden="true"></span> CONNECTIONS / SHARED TAGS</p>
-			<h2 id="article-graph-title">{heading}</h2>
+			{heading
+				? <h2 id="article-graph-title">{heading}</h2>
+				: <h2 id="article-graph-title" class="sr-only">按共享标签形成的文章关系</h2>}
+			{/*
+			 * 图例是这张图能被读懂的前提：N##/L## 与曲线含义此前只存在于作者脑中，
+			 * 读者只能看到一串无解释的代号。
+			 */}
+			<ul class="article-graph__legend">
+				<li><i class="article-graph__legend-kind" aria-hidden="true"></i>行 = 内容类型，超过 5 篇换行</li>
+				<li><i class="article-graph__legend-edge" aria-hidden="true"></i>曲线 = 共享标签，越粗共享越多</li>
+				<li>
+					<code>N05</code> 类型内序号
+					<span aria-hidden="true">·</span>
+					<code>L07</code> 关联篇数
+				</li>
+				<li><i class="article-graph__legend-dashed" aria-hidden="true"></i>虚线框 = 暂无关联</li>
+			</ul>
 		</div>
 		<div class="article-graph__meta">
 			<dl class="article-graph__stats" aria-label="关系图统计">
 				<div>
 					<dt>ARTICLES</dt>
-					<dd>{String(visiblePosts.length).padStart(2, '0')}</dd>
+					<dd data-count-to={visiblePosts.length}>{String(visiblePosts.length).padStart(2, '0')}</dd>
 				</div>
 				<div>
 					<dt>LINKS</dt>
-					<dd>{String(edges.length).padStart(2, '0')}</dd>
+					<dd data-count-to={edges.length}>{String(edges.length).padStart(2, '0')}</dd>
 				</div>
 			</dl>
 			{visiblePosts.length > 0 && <div class="article-graph__views" role="tablist" aria-label="关系图视图">
@@ -206,7 +221,7 @@ const kindColors = {
 		</div>
 	</header>
 	<p id="article-graph-navigation-hint" class="sr-only">
-		图谱可以横向和纵向滚动；聚焦文章节点时会突出显示共享标签关系。
+		图谱可以横向和纵向滚动；聚焦任一节点会高亮它的连线，并在关系轨道里读出共享标签与关联文章。
 	</p>
 
 	{visiblePosts.length > 0 ? (
@@ -641,24 +656,53 @@ const kindColors = {
 		min-width: 0;
 	}
 
-	.article-graph__intro p {
+	/*
+	 * 图例取代了原先的 CONNECTIONS / SHARED TAGS eyebrow：后者与页面 PageHeader
+	 * 的 MAP / CONNECTIONS 重复，而读者真正缺的是曲线、N##、L## 的含义。
+	 */
+	.article-graph__legend {
 		display: flex;
-		align-items: center;
-		gap: 0.55rem;
-		margin: 0;
+		flex-wrap: wrap;
+		gap: 0.35rem 1.15rem;
+		margin: 0.7rem 0 0;
+		padding: 0;
 		color: var(--ink-muted);
 		font-family: var(--font-mono);
 		font-size: 0.5625rem;
-		font-weight: 500;
-		line-height: 1.5;
+		line-height: 1.6;
+		list-style: none;
 	}
 
-	.article-graph__intro p span {
+	.article-graph__legend li {
+		display: inline-flex;
+		flex: 0 0 auto;
+		align-items: center;
+		gap: 0.4rem;
+	}
+
+	.article-graph__legend code {
+		padding: 0 0.25rem;
+		border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+		color: var(--accent-strong);
+		font-family: inherit;
+		font-size: inherit;
+	}
+
+	.article-graph__legend-kind {
 		width: 0.4rem;
 		height: 0.4rem;
-		flex: 0 0 auto;
 		background: var(--accent-strong);
-		box-shadow: 0 0 0 0.22rem color-mix(in srgb, var(--accent-soft) 58%, transparent);
+	}
+
+	.article-graph__legend-edge {
+		width: 1.1rem;
+		border-top: 2px solid color-mix(in srgb, var(--accent-strong) 52%, transparent);
+	}
+
+	.article-graph__legend-dashed {
+		width: 0.85rem;
+		height: 0.55rem;
+		border: 1px dashed var(--line-strong);
 	}
 
 	.article-graph__header h2 {
