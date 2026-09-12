@@ -19,6 +19,21 @@
 	position: relative;
 }
 
+/*
+ * 首屏之外的四个区块做布局/绘制隔离。首页首次进入时主线程要连着做完「解析样式 →
+ * 初次布局 → 各组件初始化」，实测生产构建里初次布局单项就有 ~170ms，而这段时间
+ * 正是读者开始滚动的时刻。contain 让区块内部的布局与绘制不外溢，页面级的样式重算
+ * 和绘制不必穿过这些子树（实测滚动期间 recalc 216→199ms、paint 43→35ms）。
+ *
+ * 这里刻意不用 content-visibility: auto：它要用 contain-intrinsic-size 猜一个占位
+ * 高度，而这四个区块的真实高度在 491–1140px 之间跳（随文章数与视口变化），占位与
+ * 真值差多少，区块渲染时页面就跳多少——实测差了 979px，比要修的卡顿更糟。
+ * hero 不在其中：它在首屏，且承载 canvas 场景。
+ */
+:where(.home-scene--featured, .home-scene--recent, .home-scene--index, .home-scene--coda) {
+	contain: layout paint style;
+}
+
 /* 精选舞台与收束区共用的深色作用域：一次定义，两种场景按需微调底色。 */
 .stage-dark {
 	--ink: #edf1ef;
