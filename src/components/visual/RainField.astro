@@ -446,7 +446,13 @@ const paperMarks = [
 	// 纹理按实际显示分辨率光栅化（详见 uploadTextures）。4096 能保住壁画中
 	// 1px 制图线与 SVG 噪声的锐度，同时仍给低端设备留出显存上限。
 	const TEXTURE_LONG_EDGE_CAP = 4096;
-	const GROUND_TEXTURE_LONG_EDGE = 1600;
+	/*
+	 * 底渐变纹理的长边。这一层只有一枚线性渐变 + 两枚柔光径向渐变，没有任何细节：
+	 * 按 1600 光栅化要填约 380 万像素，实测本机 16ms、用户机 60ms 的主线程尖峰就是
+	 * 它（一次接管/重建卡掉 60ms）。768 只填约 33 万像素（约 1/12），上采样后由
+	 * 壁画与纸纤维两层细节盖住，柔光本身的量化台阶看不出来。
+	 */
+	const GROUND_TEXTURE_LONG_EDGE = 768;
 	// 窗口拖拽期间的重光栅化防抖。
 	const TEXTURE_REBUILD_DEBOUNCE = 180;
 	// 与 CSS background-size 保持同步（含移动端降档）。
@@ -562,7 +568,16 @@ const paperMarks = [
 			radial.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${alpha})`);
 			radial.addColorStop(stopFrac, `rgba(${r}, ${g}, ${b}, 0)`);
 			ctx.fillStyle = radial;
-			ctx.fillRect(-radiusX, -radiusX, radiusX * 2, radiusX * 2);
+			/*
+			 * 只填画布真正覆盖到的那块。渐变中心在 (px, py)，按半径铺的方框边长
+			 * 2·radiusX——1600×900 画布上约 2650px，单枚光源就要填 700 万像素，
+			 * 其中大半落在画布外。画布在局部坐标里对应 x ∈ [-px, width-px]、
+			 * y ∈ [-py·k, (height-py)·k]，k = rx/ry；渐变取值逐像素一致。
+			 * 实测这一处本机 19.9 → 16.0ms：有用但不是主因，主因是纹理本身的
+			 * 像素量（见 GROUND_TEXTURE_LONG_EDGE）。
+			 */
+			const clipScale = radiusX / radiusY;
+			ctx.fillRect(-px, -py * clipScale, width, height * clipScale);
 			ctx.restore();
 		};
 		// CSS 多背景从后往前绘制：linear 在最底，haze 先铺，最上层才是 glow。
