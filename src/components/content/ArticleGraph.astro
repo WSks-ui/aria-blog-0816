@@ -11,6 +11,10 @@ interface Props {
 interface GraphNode {
 	post: PostEntry;
 	kind: PostKind;
+	bandIndex: number;
+	line: number;
+	absoluteLine: number;
+	column: number;
 	x: number;
 	y: number;
 	centerX: number;
@@ -45,41 +49,99 @@ const { posts, heading = '文章关系图' } = Astro.props;
 const visiblePosts = sortPosts(posts.filter((post) => !post.data.draft));
 const graphPosts = [...visiblePosts].sort((left, right) => left.id.localeCompare(right.id));
 
-const width = 1080;
-const columnWidth = width / POST_KINDS.length;
-const nodeWidth = 152;
-const nodeHeight = 64;
-const rowHeight = 96;
-const headerHeight = 86;
+/*
+ * 版面按行组织：每个内容类型是一条横带，类型标签落在左侧竖栏，文章在带内
+ * 从左往右排，一行放满 cellsPerRow 张就换到本类型的下一行。
+ *
+ * 这样做的好处是宽度换高度——札记这类高产类型不再把整张图拉成一条竖带，
+ * 画布无需纵向滚动，代价是画布可以横向平移。类型标签用 HTML 侧栏实现
+ * （position: sticky; left: 0），横向平移时始终留在视野里。
+ */
+const cellWidth = 200;
+const cellsPerRow = 5;
+const nodeWidth = 184;
+const nodeHeight = 68;
+const rowHeight = 100;
+const topPadding = 44;
+const bottomPadding = 36;
+/* 节点标题的可排宽度（用户单位）：节点宽减去左内边距和右侧留给 N/L 元信息的空间。 */
+const labelUnits = 12;
 
-const groupedPosts = POST_KINDS.map((kind) => ({
-	kind,
-	posts: graphPosts.filter((post) => post.data.kind === kind),
-}));
-const maxRows = Math.max(1, ...groupedPosts.map((group) => group.posts.length));
-const height = Math.max(280, headerHeight + maxRows * rowHeight + 36);
+const bands: GraphBand[] = [];
+let lineCursor = 0;
+for (const [kindIndex, kind] of POST_KINDS.entries()) {
+	const posts = graphPosts.filter((post) => post.data.kind === kind);
+	if (posts.length === 0) continue;
+	const lineCount = Math.ceil(posts.length / cellsPerRow);
+	bands.push({ kind, kindIndex, posts, startLine: lineCursor, lineCount });
+	lineCursor += lineCount;
+}
 
-const splitLabel = (title: string) => {
-	const characters = Array.from(title);
-	const firstLine = characters.slice(0, 9).join('');
-	const secondLine = characters.slice(9, 17).join('');
-	if (characters.length > 17) return [firstLine, `${secondLine}…`];
-	return secondLine ? [firstLine, secondLine] : [firstLine];
+const totalLines = Math.max(1, lineCursor);
+const columnCount = cellsPerRow;
+const width = cellsPerRow * cellWidth;
+const height = Math.max(280, topPadding + totalLines * rowHeight + bottomPadding);
+
+/*
+ * 标题断行：中日韩按 1 个字宽、拉丁与数字按 0.56 估算（接近 13px 字号下
+ * Source Serif 与 Space Grotesk 的实际比例），贪心填满一行。断点落在拉丁单词
+ * 内部时退到词首，避免把 Linux 拆成「Li / nux」；退让超过四成说明该词本身
+ * 放不下，此时仍按字符断，不让短标题被无意义地截短。
+ */
+const isWideChar = (char: string) =>
+	/[\u1100-\u115f\u2e80-\ua4cf\ua960-\ua97f\uac00-\ud7ff\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/.test(char);
+const isWordChar = (char: string) => /[A-Za-z0-9]/.test(char);
+const charUnits = (char: string) => (isWideChar(char) ? 1 : isWordChar(char) ? 0.56 : 0.62);
+
+const fitTitleLines = (title: string, maxUnits: number, maxLines = 2): string[] => {
+	const characters = Array.from(title.trim());
+	const lines: string[] = [];
+	let index = 0;
+
+	while (index < characters.length && lines.length < maxLines) {
+		let used = 0;
+		let end = index;
+		while (end < characters.length && used + charUnits(characters[end]) <= maxUnits) {
+			used += charUnits(characters[end]);
+			end += 1;
+		}
+
+		if (end < characters.length && isWordChar(characters[end]) && isWordChar(characters[end - 1])) {
+			let wordStart = end;
+			while (wordStart > index && isWordChar(characters[wordStart - 1])) wordStart -= 1;
+			if (wordStart > index && wordStart - index >= maxUnits * 0.55) end = wordStart;
+		}
+
+		if (end <= index) break;
+		const rest = characters.slice(index, end).join('');
+		const isLastLine = lines.length === maxLines - 1;
+		lines.push(isLastLine && end < characters.length ? `${rest}…` : rest);
+		index = end;
+	}
+
+	return lines.length > 0 ? lines : [''];
 };
 
-const nodes: GraphNode[] = groupedPosts.flatMap((group, columnIndex) =>
-	group.posts.map((post, rowIndex) => {
-		const x = columnIndex * columnWidth + (columnWidth - nodeWidth) / 2;
-		const y = headerHeight + rowIndex * rowHeight;
+const nodes: GraphNode[] = bands.flatMap((band) =>
+	band.posts.map((post, index) => {
+		const line = Math.floor(index / cellsPerRow);
+		const column = index % cellsPerRow;
+		const x = column * cellWidth + (cellWidth - nodeWidth) / 2;
+		const y = topPadding + (band.startLine + line) * rowHeight + (rowHeight - nodeHeight) / 2;
 		return {
 			post,
-			kind: group.kind,
+			kind: band.kind,
+			bandIndex: band.kindIndex,
+			line,
+			absoluteLine: band.startLine + line,
+			column,
 			x,
 			y,
 			centerX: x + nodeWidth / 2,
 			centerY: y + nodeHeight / 2,
-			sequence: rowIndex + 1,
-			labelLines: splitLabel(post.data.title),
+			/* 序号在类型内连续，换行也接着数下去（N01…N10）。 */
+			sequence: index + 1,
+			labelLines: fitTitleLines(post.data.title, labelUnits),
 		};
 	}),
 );
@@ -120,22 +182,34 @@ for (const nodeIndexes of tagIndex.values()) {
 	}
 }
 
+/*
+ * 同一条基线控制点上的边按出现次序上下散开：8 篇互相共享标签的文章会产生
+ * 28 条同带边，若共用同一个控制点就会叠成一根实心横绳，读者只能看到「一束」，
+ * 看不到「几根」。散开后这些边成为可分辨的伞骨，跨带扇出同理。
+ */
+const controlSpread = new Map<string, number>();
+
 const edges: GraphEdge[] = [...indexedEdges.values()].map(({ sourceIndex, targetIndex }) => {
 	const source = nodes[sourceIndex];
 	const target = nodes[targetIndex];
 	const targetTags = new Set(target.post.data.tags.map(normalizeTag));
-	const sharedTags = source.post.data.tags.filter((tag) => targetTags.has(normalizeTag(tag)));
-	const controlX = source.centerX === target.centerX
-		? source.centerX + columnWidth * 0.3
-		: (source.centerX + target.centerX) / 2;
+	const sharedTags = [...new Set(source.post.data.tags.filter((tag) => targetTags.has(normalizeTag(tag))))];
+	const sameBand = source.bandIndex === target.bandIndex;
+	const baseControlY = sameBand
+		? Math.max(source.centerY, target.centerY) + rowHeight * 0.46
+		: (source.centerY + target.centerY) / 2;
+	const groupKey = `${sameBand ? 'band' : 'cross'}:${Math.round(baseControlY)}`;
+	const ordinal = controlSpread.get(groupKey) ?? 0;
+	controlSpread.set(groupKey, ordinal + 1);
+	const controlY = baseControlY + ((ordinal % 9) - 4) * rowHeight * 0.055;
 	return {
 		// 两个 id 分存两个属性，不靠分隔符拼串：id 本身含任何字符都不会解析错位。
 		sourceId: source.post.id,
 		targetId: target.post.id,
 		path: [
 			`M ${source.centerX.toFixed(2)} ${source.centerY.toFixed(2)}`,
-			`C ${controlX.toFixed(2)} ${source.centerY.toFixed(2)},`,
-			`${controlX.toFixed(2)} ${target.centerY.toFixed(2)},`,
+			`C ${source.centerX.toFixed(2)} ${controlY.toFixed(2)},`,
+			`${target.centerX.toFixed(2)} ${controlY.toFixed(2)},`,
 			`${target.centerX.toFixed(2)} ${target.centerY.toFixed(2)}`,
 		].join(' '),
 		sharedTags,
@@ -301,16 +375,29 @@ const kindColors = {
 				aria-labelledby="article-graph-tab-graph"
 				aria-describedby="article-graph-navigation-hint"
 			>
+				{/* 哨兵：滚出画布顶部即给类型栏加抬起阴影，不用裸挂 scroll 监听。 */}
+				<div class="article-graph__scroll-sentinel" data-graph-sentinel aria-hidden="true"></div>
+				{/*
+				 * 左侧类型栏与画布是同一个 CSS grid 的两列（见 .article-graph__canvas）。
+				 * grid-template-rows 直接映射 SVG 的 topPadding / rowHeight / bottomPadding
+				 * 比例，因此标签与横带永远对齐；sticky left 让它在横向平移时留在视野里。
+				 */}
+				<div
+					class="article-graph__band-rail"
+					aria-hidden="true"
+					style={`grid-template-rows: ${topPadding}fr repeat(${totalLines}, ${rowHeight}fr) ${bottomPadding}fr`}
+				>
+					{bands.map((band) => (
+						<span
+							style={`--kind-color: ${kindColors[band.kind]}; --band-order: ${band.kindIndex}; grid-row: ${band.startLine + 2} / span ${band.lineCount}`}
+						>
+							<i></i>
+							<b>{POST_KIND_LABELS[band.kind]}</b>
+							<small>{String(band.posts.length).padStart(2, '0')}</small>
+						</span>
+					))}
+				</div>
 				<div class="article-graph__stage">
-					<div class="article-graph__column-headings" aria-hidden="true">
-						{groupedPosts.map((group) => (
-							<span style={`--kind-color: ${kindColors[group.kind]}`}>
-								<i></i>
-								<b>{POST_KIND_LABELS[group.kind]}</b>
-								<small>{String(group.posts.length).padStart(2, '0')}</small>
-							</span>
-						))}
-					</div>
 					<svg
 						viewBox={`0 0 ${width} ${height}`}
 						data-graph-svg
@@ -318,29 +405,38 @@ const kindColors = {
 						aria-label="文章关系图，连线表示两篇文章拥有相同标签"
 					>
 						<g class="article-graph__bands" aria-hidden="true">
-							{POST_KINDS.map((_, index) => (
+							{bands.map((band) => (
 								<rect
-									class:list={[index % 2 === 1 && 'is-tinted']}
-									x={index * columnWidth}
-									y="52"
-									width={columnWidth}
-									height={height - 52}
+									/* 底色按类型奇偶交替：一条横带一个底色。 */
+									class:list={[band.kindIndex % 2 === 1 && 'is-tinted']}
+									x="0"
+									y={topPadding + band.startLine * rowHeight}
+									width={width}
+									height={band.lineCount * rowHeight}
 								/>
 							))}
 						</g>
 						<g class="article-graph__guides" aria-hidden="true">
-							{POST_KINDS.map((_, index) => {
-								const centerX = index * columnWidth + columnWidth / 2;
-								return <line x1={centerX} y1="58" x2={centerX} y2={height - 18} />;
+							{bands.map((band) => {
+								const guideY = topPadding + (band.startLine + band.lineCount) * rowHeight;
+								return <line x1="0" y1={guideY} x2={width} y2={guideY} />;
 							})}
 						</g>
 
 						<g class="article-graph__edges" aria-hidden="true">
-							{edges.map((edge) => (
+							{/*
+							 * pathLength="1" 把每条曲线的总长归一化成 1，CSS 才能用同一个
+							 * stroke-dashoffset 关键帧让所有连线自绘，不必逐条测量长度。
+							 * --edge-order 决定自绘顺序，按生成次序依次铺开。
+							 */}
+							{edges.map((edge, edgeIndex) => (
 								<path
 									data-edge-source={edge.sourceId}
 									data-edge-target={edge.targetId}
+									data-edge-tags={JSON.stringify(edge.sharedTags)}
 									d={edge.path}
+									pathLength="1"
+									style={`--edge-order: ${edgeIndex}`}
 									stroke-width={0.7 + Math.min(3, edge.sharedTags.length) * 0.45}
 								/>
 							))}
@@ -389,9 +485,9 @@ const kindColors = {
 										height={nodeHeight}
 										fill={kindColors[node.kind]}
 									/>
-									<text class="article-graph__node-label" x={node.x + 16} y={node.y + 22}>
+									<text class="article-graph__node-label" x={node.x + 16} y={node.y + 24}>
 										{node.labelLines.map((line, lineIndex) => (
-											<tspan x={node.x + 16} dy={lineIndex === 0 ? 0 : 16}>{line}</tspan>
+											<tspan x={node.x + 16} dy={lineIndex === 0 ? 0 : 17}>{line}</tspan>
 										))}
 									</text>
 									<text
@@ -1479,53 +1575,49 @@ const kindColors = {
 	}
 
 	/*
-	 * 分类轨与 SVG 共用 1080px 内部舞台，横向滚动时始终对齐六列；轨道本身
-	 * 只在纵向粘住顶部，避免长图下滚后失去类别参照。
+	 * 左侧类型栏与画布同处 grid 的一行，高度被画布拉伸决定；内部行高用 fr 直接
+	 * 映射 SVG 的 topPadding / rowHeight / bottomPadding 比例，所以标签与横带
+	 * 永远对齐，不需要任何 JS 同步。sticky left 让横向平移时类型名始终可读。
 	 */
-	.article-graph__column-headings {
+	.article-graph__band-rail {
 		position: sticky;
-		top: 0;
+		left: 0;
 		z-index: 3;
 		display: grid;
-		grid-template-columns: repeat(6, minmax(0, 1fr));
-		width: 100%;
-		height: 3.25rem;
-		margin-bottom: -3.25rem;
-		align-items: center;
-		border-bottom: 1px solid var(--line);
-		background: color-mix(in srgb, var(--paper-0) 94%, transparent);
-		box-shadow: 0 0.45rem 1.2rem rgb(31 71 81 / 5%);
+		border-right: 1px solid var(--line);
+		background: color-mix(in srgb, var(--paper-0) 95%, transparent);
 		color: var(--ink-muted);
 		font-family: var(--font-ui);
 		font-size: 0.625rem;
 		pointer-events: none;
-		backdrop-filter: blur(12px);
+		backdrop-filter: blur(10px);
+		transition: box-shadow var(--duration-base) var(--ease-rain);
 	}
 
-	.article-graph__column-headings span {
+	/* 画布横向平移后类型栏浮起，说明右边还有内容。 */
+	.article-graph[data-canvas-scrolled='true'] .article-graph__band-rail {
+		box-shadow: 0.9rem 0 1.8rem rgb(31 71 81 / 13%);
+	}
+
+	.article-graph__band-rail span {
 		display: grid;
 		grid-template-columns: 0.45rem minmax(0, 1fr) auto;
-		gap: 0.55rem;
+		gap: 0.5rem;
 		align-items: center;
-		height: 100%;
-		padding-inline: 0.85rem;
+		padding-inline: 1rem 0.8rem;
 	}
 
-	.article-graph__column-headings span + span {
-		border-left: 1px solid color-mix(in srgb, var(--line) 62%, transparent);
-	}
-
-	.article-graph__column-headings i {
+	.article-graph__band-rail i {
 		width: 0.4rem;
 		height: 0.4rem;
 		background: var(--kind-color);
 	}
 
-	.article-graph__column-headings b {
+	.article-graph__band-rail b {
 		font-weight: 500;
 	}
 
-	.article-graph__column-headings small {
+	.article-graph__band-rail small {
 		color: var(--ink-muted);
 		font-family: var(--font-mono);
 		font-size: 0.5rem;
@@ -1666,14 +1758,15 @@ const kindColors = {
 	.article-graph__node-label {
 		fill: currentColor;
 		font-family: var(--font-display);
-		font-size: 11px;
+		/* 舞台 1080 用户单位会缩到约 944px 显示，13px 落屏约 11.4px。 */
+		font-size: 13px;
 		pointer-events: none;
 	}
 
 	.article-graph__node-meta {
 		fill: var(--ink-muted);
 		font-family: var(--font-mono);
-		font-size: 7px;
+		font-size: 8.5px;
 		pointer-events: none;
 	}
 
