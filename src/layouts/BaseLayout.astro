@@ -266,6 +266,16 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 			}
 
 			/*
+			 * 飞行期间只留标题这一个命名对。Astro 给每个 transition:name 元素生成
+			 * [data-astro-transition-scope="…"] { view-transition-name: … }，首页的
+			 * 文章封面与六条文章行标题也算在内；它们在关于页没有对应元素，浏览器会
+			 * 为这些单侧存在的快照播放 UA 孤儿渐隐。根元素本就不参与转场（见上），
+			 * 于是这些孤儿快照成了旧页唯一的可见像素——点「关于我」时那层一闪而过
+			 * 的「上一页的图片」正是封面与行标题在掩护幕退去时叠在目标页上消退。
+			 * 用 Astro 自己的标记属性统一收回，再由下一条规则把标题单独放回来。
+			 */
+			html[data-title-flight='active'] [data-astro-transition-scope] { view-transition-name: none; }
+			/*
 			 * 命名转场只为首页↔关于这对镜像旅程服务：其余导航不给标题命名，
 			 * 否则浏览器会对单侧存在的命名元素播放孤儿渐显/渐隐——从其它页
 			 * 返回首页时标题的闪烁即由此而来。旅程开始时 SharedTitleTransition
