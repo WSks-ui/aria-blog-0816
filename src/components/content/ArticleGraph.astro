@@ -909,36 +909,68 @@ const kindColors = {
 		fill: none;
 		stroke: var(--accent-strong);
 		stroke-linecap: round;
-		stroke-opacity: 0.2;
+		stroke-opacity: 0.28;
 		vector-effect: non-scaling-stroke;
+		/* pathLength="1" 已把每条曲线归一化成单位长度，dash 1 即整条线。 */
+		stroke-dasharray: 1;
+		stroke-dashoffset: 0;
 		transition: stroke-opacity var(--duration-fast) ease, stroke-width var(--duration-fast) ease;
 	}
 
 	/*
 	 * 聚焦某个节点时：它的边实体化、相邻节点保留描边，其余节点与边退到纸面
 	 * 之下。全部状态由脚本写 data 属性，这里只做呈现，不承担命中判定。
+	 *
+	 * 压暗规则整体包在 :where() 里，把前缀特异性归零——否则
+	 * 「.article-graph [data-graph-svg][data-focus-key] … path」会压过下面的
+	 * path[data-active='true']，连本该点亮的边也一起沉到 3.5% 透明度，
+	 * 聚焦时就只剩节点变色、连线全消失。
 	 */
-	.article-graph [data-graph-svg][data-focus-key]:not([data-focus-key='']) .article-graph__edges path {
-		stroke-opacity: 0.035;
+	:where(.article-graph [data-graph-svg][data-focus-key]:not([data-focus-key=''])) .article-graph__edges path {
+		stroke-opacity: 0.05;
 	}
 
 	.article-graph__edges path[data-active='true'] {
-		stroke-opacity: 0.9;
-		stroke-width: 1.5;
+		stroke-opacity: 0.92;
+		stroke-width: 1.7;
 	}
 
 	.article-graph__node {
 		color: var(--ink);
 		outline: none;
-		transition: opacity var(--duration-base) ease;
+		transition:
+			opacity var(--duration-base) ease,
+			transform var(--duration-fast) var(--ease-rain);
 	}
 
-	.article-graph [data-graph-svg][data-focus-key]:not([data-focus-key='']) .article-graph__node {
+	/* 纸面浮起：与侧轨导航同一套悬停语言，位移只有 1px，不干扰点选。 */
+	.article-graph__node:hover,
+	.article-graph__node:focus-visible {
+		transform: translate(-1px, -1px);
+	}
+
+	:where(.article-graph [data-graph-svg][data-focus-key]:not([data-focus-key=''])) .article-graph__node {
 		opacity: 0.24;
 	}
 
-	.article-graph [data-graph-svg][data-focus-key]:not([data-focus-key='']) .article-graph__node[data-related='true'] {
+	:where(.article-graph [data-graph-svg][data-focus-key]:not([data-focus-key=''])) .article-graph__node[data-related='true'] {
 		opacity: 1;
+	}
+
+	/* 孤点用虚线框声明「没有关联」，避免被读成渲染失败或尚未加载。 */
+	.article-graph__node[data-isolated='true'] .article-graph__node-surface {
+		fill: color-mix(in srgb, var(--paper-0) 86%, transparent);
+		stroke: var(--line);
+		stroke-dasharray: 3 3;
+	}
+
+	.article-graph__node[data-isolated='true'] .article-graph__node-accent {
+		opacity: 0.45;
+	}
+
+	.article-graph__node[data-isolated='true']:hover .article-graph__node-surface,
+	.article-graph__node[data-isolated='true'][data-active='true'] .article-graph__node-surface {
+		stroke-dasharray: none;
 	}
 
 	.article-graph__node[data-related='true'] .article-graph__node-surface {
