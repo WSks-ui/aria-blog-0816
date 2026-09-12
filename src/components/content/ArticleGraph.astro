@@ -19,6 +19,21 @@ interface GraphNode {
 	labelLines: string[];
 }
 
+interface GraphRelation {
+	post: PostEntry;
+	kind: PostKind;
+	sharedTags: string[];
+}
+
+/** 一个内容类型占一条横带：标签在左侧竖栏，文章在带内从左往右排。 */
+interface GraphBand {
+	kind: PostKind;
+	kindIndex: number;
+	posts: readonly PostEntry[];
+	startLine: number;
+	lineCount: number;
+}
+
 interface GraphEdge {
 	sourceId: string;
 	targetId: string;
@@ -132,6 +147,57 @@ for (const edge of edges) {
 	connectionCounts.set(edge.sourceId, (connectionCounts.get(edge.sourceId) ?? 0) + 1);
 	connectionCounts.set(edge.targetId, (connectionCounts.get(edge.targetId) ?? 0) + 1);
 }
+
+/*
+ * 每篇文章的关联清单（含共享标签）。图谱侧的「为什么相连」由运行时从边的
+ * data-edge-tags 读出，列表侧无法悬停，因此在构建期就把同一份关系渲染成
+ * 一句话摘要，两种视图表达的关系必须一致。
+ */
+const nodeByPostId = new Map(nodes.map((node) => [node.post.id, node]));
+const sequenceByPostId = new Map(nodes.map((node) => [node.post.id, node.sequence]));
+const relationsByPost = new Map<string, GraphRelation[]>();
+
+const addRelation = (fromId: string, target: GraphNode, sharedTags: string[]) => {
+	const relation: GraphRelation = { post: target.post, kind: target.kind, sharedTags };
+	const list = relationsByPost.get(fromId);
+	if (list) list.push(relation);
+	else relationsByPost.set(fromId, [relation]);
+};
+
+for (const edge of edges) {
+	const source = nodeByPostId.get(edge.sourceId);
+	const target = nodeByPostId.get(edge.targetId);
+	if (!source || !target) continue;
+	addRelation(edge.sourceId, target, edge.sharedTags);
+	addRelation(edge.targetId, source, edge.sharedTags);
+}
+
+/* 关联按共享标签数量排序，其次沿用全站时间顺序，保证每次构建结果一致。 */
+relationsByPost.forEach((relations) => {
+	relations.sort((left, right) => {
+		const sharedDelta = right.sharedTags.length - left.sharedTags.length;
+		if (sharedDelta !== 0) return sharedDelta;
+		const publishedDelta = right.post.data.publishedAt.getTime() - left.post.data.publishedAt.getTime();
+		return publishedDelta !== 0 ? publishedDelta : left.post.id.localeCompare(right.post.id);
+	});
+});
+
+/** 一篇与其关联文章之间出现频次最高的共享标签，用于列表视图的一句话摘要。 */
+const summarizeSharedTags = (relations: readonly GraphRelation[]) => {
+	const counts = new Map<string, { label: string; count: number }>();
+	for (const relation of relations) {
+		for (const label of relation.sharedTags) {
+			const key = normalizeTag(label);
+			const current = counts.get(key);
+			counts.set(key, { label: current?.label ?? label, count: (current?.count ?? 0) + 1 });
+		}
+	}
+	return [...counts.values()]
+		.sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, 'zh-CN'))
+		.slice(0, 3);
+};
+
+const isIsolatedPost = (postId: string) => (connectionCounts.get(postId) ?? 0) === 0;
 
 const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
 	year: 'numeric',
@@ -287,8 +353,16 @@ const kindColors = {
 									href={getPostPath(node.post)}
 									data-article-transition-link
 									data-node-key={node.post.id}
+									data-node-title={node.post.data.title}
+									data-node-kind={POST_KIND_LABELS[node.kind]}
+									data-node-tags={JSON.stringify(node.post.data.tags)}
+									data-node-index={`N${String(node.sequence).padStart(2, '0')}`}
+									data-node-links={`L${String(connectionCounts.get(node.post.id) ?? 0).padStart(2, '0')}`}
+									data-isolated={isIsolatedPost(node.post.id) ? 'true' : undefined}
+									/* 入场按「先行后列」推进，读起来像伞骨自左向右张开。 */
+									style={`--node-order: ${node.absoluteLine * 3 + node.column}`}
 									tabindex="0"
-									aria-label={`${node.post.data.title}，${POST_KIND_LABELS[node.kind]}`}
+									aria-label={`${node.post.data.title}，${POST_KIND_LABELS[node.kind]}${isIsolatedPost(node.post.id) ? '，暂无关联' : ''}`}
 								>
 									<title>{node.post.data.title}；标签：{node.post.data.tags.join('、')}</title>
 									<rect
@@ -336,6 +410,21 @@ const kindColors = {
 				</div>
 			</div>
 
+			{/*
+			 * 关系轨道：把「哪几篇、因为哪个标签相连」从连线里取出来变成文字。
+			 * 放在画布右侧固定宽度的一列，内容再长也只在自己列内滚动，因此组件
+			 * 高度只由画布决定——切换文章不会改变页面高度。aria-live 让键盘用户
+			 * 聚焦节点时同样能拿到这份信息。
+			 */}
+			<aside class="article-graph__readout" data-graph-readout data-readout-state="idle" aria-live="polite">
+				<p class="article-graph__readout-idle" data-readout-idle>
+					悬停或聚焦任一节点，这根轨道会列出它的关联文章与共享标签；轨道里的条目可以直接点开。
+				</p>
+				<div class="article-graph__readout-body" data-readout-body>
+					<div class="article-graph__readout-clip" data-readout-clip></div>
+				</div>
+			</aside>
+
 			<section
 				id="article-graph-panel-list"
 				class="article-graph__fallback"
@@ -345,22 +434,42 @@ const kindColors = {
 				tabindex="0"
 			>
 				<ul class="article-graph__list">
-					{visiblePosts.map((post, index) => (
-						<li style={`--kind-color: ${kindColors[post.data.kind]}`}>
-							<span class="article-graph__list-index" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
-							<div class="article-graph__list-body">
-								<div class="article-graph__list-meta">
-									<small><i aria-hidden="true"></i>{POST_KIND_LABELS[post.data.kind]}</small>
-									<time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>
+					{visiblePosts.map((post, rowIndex) => {
+						const relations = relationsByPost.get(post.id) ?? [];
+						const sharedTags = summarizeSharedTags(relations);
+						return (
+							/* 错峰上限 14 行：文章变多时总延时不会跟着无限增长。 */
+							<li style={`--kind-color: ${kindColors[post.data.kind]}; --row-order: ${Math.min(rowIndex, 14)}`}>
+								{/* 与图谱共用同一个类型内序号，切换视图时同一篇文章的编号不变。 */}
+								<span class="article-graph__list-index" aria-hidden="true">
+									{String(sequenceByPostId.get(post.id) ?? 0).padStart(2, '0')}
+								</span>
+								<div class="article-graph__list-body">
+									<div class="article-graph__list-meta">
+										<small><i aria-hidden="true"></i>{POST_KIND_LABELS[post.data.kind]}</small>
+										<time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>
+									</div>
+									<a class="article-graph__list-title" href={getPostPath(post)} data-article-transition-link>
+										<span>{post.data.title}</span>
+										<ArrowUpRight size={16} stroke-width={1.5} aria-hidden="true" />
+									</a>
+									<p class="article-graph__list-tags">{post.data.tags.map((tag) => `#${tag}`).join(' ')}</p>
+									{relations.length > 0 ? (
+										<p class="article-graph__list-relations">
+											<b>关联 {relations.length} 篇</b>
+											<span>
+												{relations.slice(0, 2).map((relation) => relation.post.data.title).join('、')}
+												{relations.length > 2 ? ' 等' : ''}
+											</span>
+											<em>共享 {sharedTags.map((tag) => `${tag.label} ×${tag.count}`).join('、')}</em>
+										</p>
+									) : (
+										<p class="article-graph__list-relations is-empty">暂无共享标签的关联文章</p>
+									)}
 								</div>
-								<a class="article-graph__list-title" href={getPostPath(post)} data-article-transition-link>
-									<span>{post.data.title}</span>
-									<ArrowUpRight size={16} stroke-width={1.5} aria-hidden="true" />
-								</a>
-								<p>{post.data.tags.map((tag) => `#${tag}`).join(' ')}</p>
-							</div>
-						</li>
-					))}
+							</li>
+						);
+					})}
 				</ul>
 			</section>
 		</>
@@ -413,7 +522,7 @@ const kindColors = {
 
         const nodes = Array.from(svg.querySelectorAll<SVGAElement>('[data-node-key]'));
         const edges = Array.from(svg.querySelectorAll<SVGPathElement>('[data-edge-source][data-edge-target]'));
-        if (nodes.length === 0 || edges.length === 0) return;
+        if (nodes.length === 0) return;
 
         /*
          * 每个节点只保存自己的边；切换高亮时仅清理上一组并写入下一组，不再为
@@ -437,7 +546,141 @@ const kindColors = {
         let activeEdges: SVGPathElement[] = [];
         let relatedNodes: SVGAElement[] = [];
         let activeNode: SVGAElement | null = null;
-        const highlight = (key: string | null) => {
+
+        const readout = root.querySelector<HTMLElement>('[data-graph-readout]');
+        const readoutClip = root.querySelector<HTMLElement>('[data-readout-clip]');
+
+        const createEl = <K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string) => {
+          const element = document.createElement(tag);
+          element.className = className;
+          if (text !== undefined) element.textContent = text;
+          return element;
+        };
+
+        /* 读数条动画的时长与缓动一次性从 tokens.css 读出来，避免每次切换都读样式。 */
+        const readoutMotion = (() => {
+          const styles = getComputedStyle(root);
+          return {
+            duration: Number.parseFloat(styles.getPropertyValue('--duration-base')) || 260,
+            easing: styles.getPropertyValue('--ease-rain').trim() || 'cubic-bezier(0.22, 0.75, 0.28, 1)',
+          };
+        })();
+
+        /*
+         * 关系读数完全由已经渲染在 DOM 里的数据拼装：边的 data-edge-tags 是共享
+         * 标签，节点的 data-node-* 是标题与类型。不再额外输出一份 JSON，同一事实
+         * 只存一处，避免两份数据日后互相漂移。
+         */
+        /*
+         * 读数条是常驻详情面板，不是悬停气泡：悬停/聚焦只切换它显示哪一篇。
+         * 因此这里只处理「有目标」的情况，取消高亮不再清空内容。
+         */
+        const renderReadout = (key: string) => {
+          if (!readout || !readoutClip) return;
+
+          const node = nodeByKey.get(key);
+          if (!node) return;
+
+          const relations = (edgesByNode.get(key) ?? [])
+            .map((edge) => {
+              const otherKey = edge.dataset.edgeSource === key ? edge.dataset.edgeTarget : edge.dataset.edgeSource;
+              const other = otherKey ? nodeByKey.get(otherKey) : undefined;
+              let sharedTags: string[] = [];
+              try {
+                const parsed: unknown = JSON.parse(edge.dataset.edgeTags ?? '[]');
+                if (Array.isArray(parsed)) sharedTags = parsed.filter((tag): tag is string => typeof tag === 'string');
+              } catch {
+                sharedTags = [];
+              }
+              return other ? { node: other, sharedTags } : null;
+            })
+            .filter((relation): relation is { node: SVGAElement; sharedTags: string[] } => relation !== null)
+            .sort((left, right) =>
+              right.sharedTags.length - left.sharedTags.length
+              || (left.node.dataset.nodeTitle ?? '').localeCompare(right.node.dataset.nodeTitle ?? '', 'zh-CN'));
+
+          const tagCounts = new Map<string, number>();
+          relations.forEach((relation) => {
+            relation.sharedTags.forEach((tag) => tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1));
+          });
+          const topTags = [...tagCounts.entries()]
+            .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], 'zh-CN'));
+
+          /*
+           * 逐条只标注「区别于整体」的标签：出现在过半关联里的标签属于这一簇的
+           * 共同底色，已经在上面那行汇总里说过一次，每条再抄一遍「Linux · 学习笔记」
+           * 只是噪声。阈值取严格过半，这样两篇各走不同标签时仍能看出一对一映射。
+           */
+          const dominantThreshold = Math.ceil((relations.length + 1) / 2);
+          const isDominantTag = (tag: string) => (tagCounts.get(tag) ?? 0) >= dominantThreshold;
+
+          /* 轨道头部：沿用节点卡片那套 HUD 编码（类型内序号 / 类型 / 关联篇数）。 */
+          const head = createEl('div', 'article-graph__readout-head');
+          const hud = createEl('p', 'article-graph__readout-hud');
+          hud.append(
+            createEl('b', 'article-graph__readout-hud-index', node.dataset.nodeIndex ?? ''),
+            createEl('span', 'article-graph__readout-kind', node.dataset.nodeKind ?? ''),
+            createEl('i', 'article-graph__readout-hud-links', node.dataset.nodeLinks ?? ''),
+          );
+          head.append(hud, createEl('strong', 'article-graph__readout-title', node.dataset.nodeTitle ?? ''));
+
+          const body: HTMLElement[] = [head];
+          if (relations.length === 0) {
+            body.push(createEl('p', 'article-graph__readout-empty', '这篇文章的标签暂未出现在其他文章里，因此它没有连线。换一个更常见的标签即可与其他文章建立关联。'));
+          } else {
+            body.push(createEl(
+              'p',
+              'article-graph__readout-tags',
+              `共享标签：${topTags.slice(0, 5).map(([tag, count]) => `${tag} ×${count}`).join('、')}`
+                + (topTags.length > 5 ? ` 等 ${topTags.length} 个` : ''),
+            ));
+            const list = createEl('ul', 'article-graph__readout-list');
+            relations.slice(0, 8).forEach((relation) => {
+              const ownTags = relation.sharedTags.filter((tag) => !isDominantTag(tag));
+              const item = document.createElement('li');
+              // --rib-weight 决定伞骨短横的粗细：与画布上曲线线宽同一套编码。
+              item.style.setProperty('--rib-weight', String(relation.sharedTags.length));
+              /*
+               * 条目直接可点：轨道在侧栏里是独立区域，不存在和整卡点击区嵌套的问题。
+               * data-relation-key 让轨道反向联动——悬停条目时画布上对应的节点与连线
+               * 一并高亮，读者不必回到图上再找一遍。
+               */
+              const link = createEl('a', 'article-graph__readout-link', relation.node.dataset.nodeTitle ?? '');
+              link.href = relation.node.getAttribute('href') ?? '#';
+              link.setAttribute('data-article-transition-link', '');
+              item.dataset.relationKey = relation.node.dataset.nodeKey ?? '';
+              item.append(link);
+              // 没有区分度就只留标题，不再重复共同标签。
+              if (ownTags.length > 0) {
+                item.append(createEl('em', 'article-graph__readout-shared', ownTags.join(' · ')));
+              }
+              list.append(item);
+            });
+            body.push(list);
+            if (relations.length > 8) {
+              body.push(createEl('p', 'article-graph__readout-more', `另有 ${relations.length - 8} 篇关联文章未列出`));
+            }
+          }
+
+          readoutClip.replaceChildren(...body);
+          root.dataset.readoutState = 'filled';
+          // 换成另一篇时轨道回到顶部，否则会停在上一条长列表的滚动位置。
+          readout.scrollTop = 0;
+
+          if (reduceMotionQuery.matches) return;
+
+          /*
+           * 内容淡入走 WAAPI，而不是「摘类 + 强制回流 + 挂类」：后者每次切换节点
+           * 都同步触发布局，鼠标在节点间快速扫过时会掉帧。时长与缓动仍取自
+           * tokens.css；减少动态时直接跳过——全局兜底只压 CSS 动画，管不到 WAAPI。
+           */
+          readoutClip.animate(
+            [{ opacity: 0, transform: 'translateY(0.35rem)' }, { opacity: 1, transform: 'none' }],
+            { duration: readoutMotion.duration, easing: readoutMotion.easing },
+          );
+        };
+
+        const highlight = (key: string | null, syncReadout = true) => {
           if (key === activeKey) return;
           activeEdges.forEach((edge) => delete edge.dataset.active);
           relatedNodes.forEach((node) => delete node.dataset.related);
@@ -466,21 +709,124 @@ const kindColors = {
           relatedNodes.forEach((node) => { node.dataset.related = 'true'; });
           activeNode = nodeByKey.get(key) ?? null;
           if (activeNode) activeNode.dataset.active = 'true';
+          /*
+           * 轨道内部的悬停只联动画布，不换轨道内容：否则鼠标沿着列表往下扫时，
+           * 列表会在指针底下被替换成另一篇的关系，条目根本点不到。
+           */
+          if (syncReadout) renderReadout(key);
         };
 
-        svg.addEventListener('pointerover', (event) => {
-          const node = (event.target as Element | null)?.closest?.('[data-node-key]');
-          highlight(node ? node.getAttribute('data-node-key') : null);
+        /*
+         * 指针事件挂在整块组件而不是 SVG 上：读数条就在画布下方，若沿用
+         * svg 的 pointerleave，鼠标一离开文章块（哪怕只是移向读数条）就会
+         * 收起，汇总行永远读不完。现在移出组件才取消高亮，读数条本身常驻。
+         */
+        root.addEventListener('pointerover', (event) => {
+          const target = event.target as Element | null;
+          const node = target?.closest?.('[data-node-key]');
+          if (node) {
+            highlight(node.getAttribute('data-node-key'));
+            return;
+          }
+          // 轨道条目反向联动：指向关联文章时，画布上同步高亮那一个节点。
+          const entry = target?.closest?.('[data-relation-key]');
+          if (entry) highlight(entry.getAttribute('data-relation-key'), false);
         });
-        svg.addEventListener('pointerleave', () => highlight(null));
-        // 键盘聚焦节点时给出同样的关系预览；移出整张图后再还原。
-        svg.addEventListener('focusin', (event) => {
-          const node = (event.target as Element | null)?.closest?.('[data-node-key]');
-          highlight(node ? node.getAttribute('data-node-key') : null);
+        root.addEventListener('pointerleave', () => highlight(null));
+        // 键盘聚焦节点时给出同样的关系预览；聚焦轨道条目时只联动画布。
+        root.addEventListener('focusin', (event) => {
+          const target = event.target as Element | null;
+          const node = target?.closest?.('[data-node-key]');
+          if (node) {
+            highlight(node.getAttribute('data-node-key'));
+            return;
+          }
+          const entry = target?.closest?.('[data-relation-key]');
+          if (entry) highlight(entry.getAttribute('data-relation-key'), false);
         });
-        svg.addEventListener('focusout', () => window.setTimeout(() => {
-          if (!svg.contains(document.activeElement)) highlight(null);
+        root.addEventListener('focusout', () => window.setTimeout(() => {
+          if (!root.contains(document.activeElement)) highlight(null);
         }, 0));
+      };
+
+      /*
+       * 入场编排统一由 root 上的 data-motion-state 驱动：连线自绘、节点错峰、
+       * 列头起笔都是纯 CSS 动画，JS 只负责在整块关系图进入视口时打开开关。
+       * 已经绘制过后不再重放，避免每次切换视图都重新演一遍。
+       */
+      const motionFrames: number[] = [];
+
+      const runStatCountUp = () => {
+        if (reduceMotionQuery.matches) return;
+        root.querySelectorAll<HTMLElement>('[data-count-to]').forEach((element) => {
+          const target = Number(element.dataset.countTo ?? '0');
+          if (!Number.isFinite(target) || target <= 0) return;
+          // HUD 计数刻意比 --duration-slow 更短促：它是读数，不是演出。
+          const duration = 420;
+          const startedAt = performance.now();
+          element.textContent = '00';
+          const step = (now: number) => {
+            const progress = Math.min(1, (now - startedAt) / duration);
+            const eased = 1 - (1 - progress) ** 3;
+            element.textContent = String(Math.round(target * eased)).padStart(2, '0');
+            if (progress < 1) motionFrames.push(window.requestAnimationFrame(step));
+            else element.textContent = String(target).padStart(2, '0');
+          };
+          motionFrames.push(window.requestAnimationFrame(step));
+        });
+      };
+
+      const setupMotion = () => {
+        if (root.dataset.motionReady === 'true') return;
+        root.dataset.motionReady = 'true';
+
+        const canvas = root.querySelector<HTMLElement>('.article-graph__canvas');
+        const sentinel = root.querySelector<HTMLElement>('[data-graph-sentinel]');
+
+        if (typeof IntersectionObserver !== 'function') {
+          root.dataset.motionState = 'drawn';
+          runStatCountUp();
+          return;
+        }
+
+        const revealObserver = new IntersectionObserver((entries) => {
+          if (!entries.some((entry) => entry.isIntersecting)) return;
+          root.dataset.motionState = 'drawn';
+          runStatCountUp();
+          revealObserver.disconnect();
+        }, { threshold: 0.15 });
+        revealObserver.observe(root);
+        motionController.signal.addEventListener('abort', () => revealObserver.disconnect());
+
+        // 画布内滚动时列头抬起：用哨兵替代裸 scroll 监听，零滚动回调。
+        if (canvas && sentinel) {
+          const scrollObserver = new IntersectionObserver((entries) => {
+            const [entry] = entries;
+            if (!entry) return;
+            if (entry.isIntersecting) delete root.dataset.canvasScrolled;
+            else root.dataset.canvasScrolled = 'true';
+          }, { root: canvas, threshold: 0 });
+          scrollObserver.observe(sentinel);
+          motionController.signal.addEventListener('abort', () => scrollObserver.disconnect());
+        }
+
+        /*
+         * 关系轨道的高度锁死在画布高度上：组件总高因此只由画布决定，切换文章
+         * 时页面高度不变，也就不会冒出滚动条或触发滚动锚定——命中判定跟着稳定。
+         * 只有手机宽度轨道才落到画布下方，那时交回 CSS 的视口比例上限。
+         */
+        const rail = root.querySelector<HTMLElement>('[data-graph-readout]');
+        if (canvas && rail && typeof ResizeObserver === 'function') {
+          const stackedQuery = window.matchMedia('(max-width: 47.5rem)');
+          const syncRailHeight = () => {
+            if (stackedQuery.matches) rail.style.removeProperty('max-height');
+            else rail.style.maxHeight = `${Math.round(canvas.getBoundingClientRect().height)}px`;
+          };
+          const railObserver = new ResizeObserver(syncRailHeight);
+          railObserver.observe(canvas);
+          syncRailHeight();
+          motionController.signal.addEventListener('abort', () => railObserver.disconnect());
+        }
       };
 
       const setView = (view: GraphView, focusTab = false) => {
@@ -616,6 +962,36 @@ const kindColors = {
 		background: color-mix(in srgb, var(--paper-0) 94%, transparent);
 		box-shadow: var(--shadow-paper);
 	}
+
+	/*
+	 * 图谱视图把关系轨道并到画布右侧：轨道是固定宽度的一列，画布拿剩下的空间。
+	 * 空间不够时画布在自己的框里左右平移（舞台有可读性下限），而不是把轨道甩到
+	 * 下方——轨道要在悬停节点时就看得见，滚下去才能读到就失去意义了。
+	 * 只有手机宽度才真正堆叠。
+	 */
+	.article-graph {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-areas:
+			'header'
+			'canvas'
+			'readout'
+			'list';
+	}
+
+	.article-graph[data-graph-view='graph'] {
+		/* 轨道宽度独立命名：站内 --rail-width 是文章侧轨的令牌，不该互相牵动。 */
+		grid-template-columns: minmax(0, 1fr) var(--graph-rail-width, 15rem);
+		grid-template-areas:
+			'header header'
+			'canvas readout'
+			'list   list';
+	}
+
+	.article-graph__header { grid-area: header; }
+	.article-graph__canvas { grid-area: canvas; }
+	.article-graph__readout { grid-area: readout; }
+	.article-graph__fallback { grid-area: list; }
 
 	.article-graph::before,
 	.article-graph::after {
@@ -826,6 +1202,10 @@ const kindColors = {
 
 	.article-graph__canvas {
 		position: relative;
+		/* 类型栏与画布同处一行；画布有 53rem 的可读性下限，不够宽时整体横向平移。 */
+		display: grid;
+		grid-template-columns: var(--graph-rail-width, 7.5rem) minmax(53rem, 1fr);
+		align-items: stretch;
 		max-height: min(68dvh, 44rem);
 		overflow: auto;
 		overscroll-behavior: contain;
@@ -861,8 +1241,231 @@ const kindColors = {
 		background-clip: padding-box;
 	}
 
+	/*
+	 * 关系轨道：图谱只能表达「有没有连线」，轨道补上「和谁、因为哪个标签」。
+	 * 它占画布右侧固定宽度的一列，高度由脚本锁在画布高度上，内容超出时只在
+	 * 自己列内滚动——组件总高因此只由画布决定，切换文章不会改变页面高度。
+	 */
+	.article-graph__readout {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+		min-height: 0;
+		max-height: min(68dvh, 44rem);
+		padding: 1.1rem 1.3rem 1.4rem;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		border-left: 1px solid var(--line);
+		background:
+			repeating-linear-gradient(
+				to bottom,
+				transparent 0,
+				transparent calc(2.25rem - 1px),
+				color-mix(in srgb, var(--line) 12%, transparent) calc(2.25rem - 1px),
+				color-mix(in srgb, var(--line) 12%, transparent) 2.25rem
+			),
+			color-mix(in srgb, var(--paper-0) 94%, transparent);
+		color: var(--ink-muted);
+		font-family: var(--font-ui);
+		font-size: 0.75rem;
+		line-height: 1.6;
+		scrollbar-color: color-mix(in srgb, var(--accent-strong) 38%, transparent) transparent;
+		scrollbar-width: thin;
+	}
+
+	.article-graph__readout::-webkit-scrollbar {
+		width: 0.4rem;
+	}
+
+	.article-graph__readout::-webkit-scrollbar-thumb {
+		border: 1px solid transparent;
+		background: color-mix(in srgb, var(--accent-strong) 34%, transparent);
+		background-clip: padding-box;
+	}
+
+	.article-graph__readout-idle {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.55rem;
+		margin: 0;
+		color: var(--ink-muted);
+		font-size: 0.6875rem;
+		line-height: 1.7;
+	}
+
+	.article-graph__readout-idle::before {
+		width: 0.4rem;
+		height: 0.4rem;
+		margin-top: 0.5rem;
+		flex: 0 0 auto;
+		background: var(--line-strong);
+		content: '';
+	}
+
+	.article-graph__readout-body {
+		min-height: 0;
+	}
+
+	.article-graph[data-readout-state='filled'] .article-graph__readout-idle {
+		display: none;
+	}
+
+	/*
+	 * 轨道内容由脚本按焦点拼装，动态节点上没有 Astro 的作用域属性，
+	 * 因此子元素规则一律经 :global() 挂在服务端渲染的容器下。
+	 */
+	.article-graph__readout-body :global(.article-graph__readout-head) {
+		display: grid;
+		gap: 0.4rem;
+	}
+
+	.article-graph__readout-body :global(.article-graph__readout-hud) {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin: 0;
+		color: var(--ink-muted);
+		font-family: var(--font-mono);
+		font-size: 0.5625rem;
+		letter-spacing: var(--tracking-hud);
+	}
+
+	.article-graph__readout-body :global(.article-graph__readout-hud-index) {
+		color: var(--accent-strong);
+		font-weight: 500;
+	}
+
+	.article-graph__readout-body :global(.article-graph__readout-hud-links) {
+		margin-left: auto;
+		color: var(--accent-strong);
+		font-style: normal;
+	}
+
+	.article-graph__readout-body :global(.article-graph__readout-kind) {
+		padding: 0.05rem 0.4rem;
+		border: 1px solid color-mix(in srgb, var(--accent-strong) 42%, transparent);
+		color: var(--accent-strong);
+		font-family: var(--font-mono);
+		font-size: 0.5625rem;
+	}
+
+	.article-graph__readout-body :global(.article-graph__readout-title) {
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: 1.0625rem;
+		font-weight: 500;
+		line-height: 1.45;
+		overflow-wrap: anywhere;
+	}
+
+	.article-graph__readout-body :global(.article-graph__readout-tags) {
+		margin: 0.8rem 0 0;
+		padding-top: 0.7rem;
+		border-top: 1px solid var(--line);
+		color: var(--accent-strong);
+		font-family: var(--font-mono);
+		font-size: 0.625rem;
+		line-height: 1.75;
+	}
+
+	/*
+	 * 脊线 + 伞骨：整列一根竖线，每条关联用一根短横接上去；短横的粗细对应
+	 * 两篇文章的共享标签数，与画布上曲线线宽用的是同一套编码。
+	 */
+	.article-graph__readout-body :global(.article-graph__readout-list) {
+		position: relative;
+		margin: 0.85rem 0 0;
+		padding: 0 0 0 1.05rem;
+		list-style: none;
+	}
+
+	.article-graph__readout-body :global(.article-graph__readout-list)::before {
+		position: absolute;
+		top: 0.5rem;
+		bottom: 0.5rem;
+		left: 0.3rem;
+		width: 1px;
+		background: color-mix(in srgb, var(--accent-strong) 28%, transparent);
+		content: '';
+	}
+
+	.article-graph__readout-body :global(.article-graph__readout-list li) {
+		position: relative;
+		padding: 0.3rem 0;
+	}
+
+	.article-graph__readout-body :global(.article-graph__readout-list li + li) {
+		border-top: 1px dashed color-mix(in srgb, var(--line) 40%, transparent);
+	}
+
+	.article-graph__readout-body :global(.article-graph__readout-list li)::before {
+		position: absolute;
+		top: 0.85rem;
+		left: -0.75rem;
+		width: 0.6rem;
+		height: calc(1px + var(--rib-weight, 1) * 0.5px);
+		background: color-mix(in srgb, var(--accent-strong) 46%, transparent);
+		content: '';
+		transition: background-color var(--duration-fast) var(--ease-rain);
+	}
+
+	/* 悬停条目时伞骨实体化，与画布上高亮连线的处理一致。 */
+	.article-graph__readout-body :global(.article-graph__readout-list li:hover)::before,
+	.article-graph__readout-body :global(.article-graph__readout-list li:has(a:focus-visible))::before {
+		background: var(--accent-strong);
+	}
+
+	.article-graph__readout-body :global(.article-graph__readout-link) {
+		display: block;
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: 0.8125rem;
+		line-height: 1.45;
+		overflow-wrap: anywhere;
+		text-decoration: none;
+		transition: color var(--duration-fast) var(--ease-rain);
+	}
+
+	.article-graph__readout-body :global(.article-graph__readout-link:hover),
+	.article-graph__readout-body :global(.article-graph__readout-link:focus-visible) {
+		color: var(--accent-strong);
+	}
+
+	.article-graph__readout-body :global(.article-graph__readout-link:focus-visible) {
+		outline: 2px solid var(--color-focus);
+		outline-offset: 2px;
+	}
+
+	/* 逐条标签退到次要层级：它只在有区分度时出现，不该和标题抢注意力。 */
+	.article-graph__readout-body :global(.article-graph__readout-shared) {
+		display: block;
+		margin-top: 0.25rem;
+		color: var(--line-strong);
+		font-family: var(--font-mono);
+		font-size: 0.5625rem;
+		font-style: normal;
+	}
+
+	.article-graph__readout-body :global(.article-graph__readout-empty),
+	.article-graph__readout-body :global(.article-graph__readout-more) {
+		margin: 0.85rem 0 0;
+		padding: 0.7rem 0.8rem;
+		border: 1px dashed color-mix(in srgb, var(--line) 72%, transparent);
+		color: var(--ink-muted);
+		font-size: 0.6875rem;
+		line-height: 1.7;
+	}
+
+	.article-graph[data-graph-view='list'] .article-graph__readout {
+		display: none;
+	}
+
+	/*
+	 * 舞台有可读性下限：节点标题是 SVG 里的 13 用户单位，跟着舞台等比缩放，
+	 * 舞台低于约 912px（每列 11.4rem）时落屏字号就会掉到 11px 以下。所以画布
+	 * 变窄时不再压缩舞台，而是让画布自己左右平移——字号恒定，代价是横向滚动。
+	 */
 	.article-graph__stage {
-		width: max(100%, 59rem);
 		min-height: 20rem;
 		background:
 			repeating-linear-gradient(
@@ -1231,10 +1834,67 @@ const kindColors = {
 		overflow-wrap: anywhere;
 	}
 
+	/*
+	 * 列表视图也要交代关系：窄屏默认停在列表，如果这里只有标签文本，
+	 * 手机读者就完全接触不到这个页面独有的信息。
+	 */
+	.article-graph__list-relations {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 0.3rem 0.6rem;
+		margin-top: 0.6rem;
+		padding-top: 0.55rem;
+		border-top: 1px dashed color-mix(in srgb, var(--line) 52%, transparent);
+	}
+
+	.article-graph__list-relations b {
+		color: var(--accent-strong);
+		font-family: var(--font-mono);
+		font-size: 0.5625rem;
+		font-weight: 500;
+	}
+
+	.article-graph__list-relations span {
+		color: var(--ink-muted);
+	}
+
+	.article-graph__list-relations em {
+		color: var(--line-strong);
+		font-family: var(--font-mono);
+		font-size: 0.5625rem;
+		font-style: normal;
+	}
+
+	.article-graph__list-relations.is-empty {
+		border-top-style: dotted;
+		color: var(--ink-muted);
+	}
+
 	.article-graph__empty {
 		margin: 0;
 		padding: 4rem 1.6rem;
 		color: var(--ink-muted);
+	}
+
+	@keyframes article-graph-edge-draw {
+		from { stroke-dashoffset: 1; }
+		to { stroke-dashoffset: 0; }
+	}
+
+	@keyframes article-graph-node-in {
+		from { opacity: 0; transform: translate(0, 10px); }
+		to { opacity: 1; transform: none; }
+	}
+
+	@keyframes article-graph-heading-in {
+		from { opacity: 0; transform: translateY(-0.45rem); }
+		to { opacity: 1; transform: none; }
+	}
+
+	@keyframes article-graph-row-in {
+		from { opacity: 0; transform: translateY(0.6rem); }
+		to { opacity: 1; transform: none; }
 	}
 
 	@keyframes article-graph-panel-in {
@@ -1252,7 +1912,36 @@ const kindColors = {
 		to { opacity: 1; transform: translateX(0) scale(1); }
 	}
 
+	/* 轨道随视口收窄，把宽度让给画布；画布不够宽时靠横向平移，不改变结构。 */
+	@media (max-width: 80rem) {
+		.article-graph[data-graph-view='graph'] {
+			grid-template-columns: minmax(0, 1fr) 13rem;
+		}
+	}
+
+	@media (max-width: 60rem) {
+		.article-graph[data-graph-view='graph'] {
+			grid-template-columns: minmax(0, 1fr) 12rem;
+		}
+	}
+
 	@media (max-width: 47.5rem) {
+		/* 手机宽度真的放不下并排：轨道落到画布下方，改用视口比例上限。 */
+		.article-graph[data-graph-view='graph'] {
+			grid-template-columns: minmax(0, 1fr);
+			grid-template-areas:
+				'header'
+				'canvas'
+				'readout'
+				'list';
+		}
+
+		.article-graph__readout {
+			max-height: 42vh;
+			border-top: 1px solid var(--line);
+			border-left: 0;
+		}
+
 		.article-graph {
 			box-shadow: none;
 		}
