@@ -307,18 +307,22 @@ const kindColors = {
 				? <h2 id="article-graph-title">{heading}</h2>
 				: <h2 id="article-graph-title" class="sr-only">按共享标签形成的文章关系</h2>}
 			{/*
-			 * 图例是这张图能被读懂的前提：N##/L## 与曲线含义此前只存在于作者脑中，
-			 * 读者只能看到一串无解释的代号。
+			 * 图例只留关键词，解释退到 title 悬停提示：这一栏是制图尺，不是说明书。
+			 * 「行 = 内容类型」由左侧类型栏自己说明，不再占一行。
 			 */}
 			<ul class="article-graph__legend">
-				<li><i class="article-graph__legend-kind" aria-hidden="true"></i>行 = 内容类型，超过 5 篇换行</li>
-				<li><i class="article-graph__legend-edge" aria-hidden="true"></i>曲线 = 共享标签，越粗共享越多</li>
-				<li>
-					<code>N05</code> 类型内序号
-					<span aria-hidden="true">·</span>
-					<code>L07</code> 关联篇数
+				<li title="两篇文章拥有共同标签时连一条曲线，共享标签越多线越粗">
+					<i class="article-graph__legend-edge" aria-hidden="true"></i>共享标签
 				</li>
-				<li><i class="article-graph__legend-dashed" aria-hidden="true"></i>虚线框 = 暂无关联</li>
+				<li title="N05 表示这是该内容类型里的第 5 篇">
+					<code>N05</code>类型内序号
+				</li>
+				<li title="L07 表示这篇有 7 篇共享标签的关联文章">
+					<code>L07</code>关联篇数
+				</li>
+				<li title="虚线框表示这篇的标签暂未与其他文章重合">
+					<i class="article-graph__legend-dashed" aria-hidden="true"></i>暂无关联
+				</li>
 			</ul>
 		</div>
 		<div class="article-graph__meta">
@@ -1139,16 +1143,31 @@ const kindColors = {
 	 * 图例取代了原先的 CONNECTIONS / SHARED TAGS eyebrow：后者与页面 PageHeader
 	 * 的 MAP / CONNECTIONS 重复，而读者真正缺的是曲线、N##、L## 的含义。
 	 */
+	/*
+	 * 图例做成一条制图尺：上方一道带刻度的细线，条目之间用发丝线分隔，只留关键词，
+	 * 解释退到 title 悬停提示。成句说明会把首屏压得很重，而这几个符号看两眼就记住了。
+	 */
 	.article-graph__legend {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.35rem 1.15rem;
-		margin: 0.7rem 0 0;
-		padding: 0;
+		align-items: center;
+		gap: 0.3rem 0.85rem;
+		margin: 0.9rem 0 0;
+		padding: 0.6rem 0 0;
+		border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+		/* 顶部的刻度线：制图尺的语汇，纯装饰。 */
+		background-image: repeating-linear-gradient(
+			to right,
+			color-mix(in srgb, var(--line) 88%, transparent) 0 1px,
+			transparent 1px 0.5rem
+		);
+		background-repeat: repeat-x;
+		background-size: 0.5rem 0.3rem;
 		color: var(--ink-muted);
 		font-family: var(--font-mono);
-		font-size: 0.5625rem;
-		line-height: 1.6;
+		font-size: 0.6875rem;
+		letter-spacing: var(--tracking-hud);
+		line-height: 1.5;
 		list-style: none;
 	}
 
@@ -1159,29 +1178,29 @@ const kindColors = {
 		gap: 0.4rem;
 	}
 
+	.article-graph__legend li + li {
+		padding-left: 0.85rem;
+		border-left: 1px solid color-mix(in srgb, var(--line) 52%, transparent);
+	}
+
 	.article-graph__legend code {
-		padding: 0 0.25rem;
+		padding: 0 0.3rem;
 		border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
 		color: var(--accent-strong);
 		font-family: inherit;
-		font-size: inherit;
-	}
-
-	.article-graph__legend-kind {
-		width: 0.4rem;
-		height: 0.4rem;
-		background: var(--accent-strong);
+		font-size: 0.625rem;
 	}
 
 	.article-graph__legend-edge {
-		width: 1.1rem;
-		border-top: 2px solid color-mix(in srgb, var(--accent-strong) 52%, transparent);
+		width: 1.35rem;
+		border-top: 2px solid color-mix(in srgb, var(--accent-strong) 55%, transparent);
 	}
 
 	.article-graph__legend-dashed {
-		width: 0.85rem;
-		height: 0.55rem;
+		width: 0.8rem;
+		height: 0.5rem;
 		border: 1px dashed var(--line-strong);
+	}
 	}
 
 	.article-graph__header h2 {
