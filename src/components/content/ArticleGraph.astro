@@ -593,6 +593,25 @@ const kindColors = {
       const reduceMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
       const viewportController = new AbortController();
       const motionController = new AbortController();
+      /*
+       * 画布真实可平移量。scrollbar-gutter: stable 预留的槽宽会被算进
+       * scrollWidth - clientWidth，直接拿它当端点会高估十几像素，所以这里
+       * 以浏览器实际夹紧的位置为准，由 ResizeObserver 在尺寸变化时刷新。
+       */
+      let canvasPanMax = 0;
+      /*
+       * 平滑平移的目标与位置。放在外层是因为它有三个写入方：滚轮累加、拖拽、
+       * 以及尺寸/端点重测——任何一方直接改写 scrollLeft 后都必须让目标跟上，
+       * 否则「目标落后于现实」会让下一次滚轮把画布往回拉。
+       *
+       * panCurrent 必须自己存浮点值，不能每帧回读 scrollLeft：读数是取整的，
+       * 写进 118.44 会读回 118，于是「剩余距离」恒为 2px、每帧算出同一个 next，
+       * 动画在离目标 1~2px 处形成不动点——既到不了端点（滚轮交不回页面），
+       * 又留下一个永远空转的 rAF。
+       */
+      let panCurrent = 0;
+      let panTarget = 0;
+      let panFrame = 0;
       let graphReady = false;
       let userSelectedView = false;
       let activeViewTransition: ViewTransition | null = null;
@@ -882,6 +901,220 @@ const kindColors = {
         root.addEventListener('focusout', () => window.setTimeout(() => {
           if (!root.contains(document.activeElement)) highlight(null);
         }, 0));
+
+        /*
+         * 拖拽平移：这张图是需要左右拖动的长图，而画布只有横向溢出——滚轮在
+         * 这里没有可滚内容（见 overscroll-behavior 的注释）。所以补上指针拖拽，
+         * 并把「移动超过 4px」判定为平移而非点选，避免和节点跳转打架。
+         */
+        const canvas = root.querySelector<HTMLElement>('.article-graph__canvas');
+        if (canvas) {
+          let dragStart: { x: number; y: number; left: number; top: number } | null = null;
+          let dragged = false;
+
+          const endDrag = (event: PointerEvent) => {
+            if (!dragStart) return;
+            if (dragged) {
+              // 拖拽结束时吃掉紧随其后的 click，防止误跳转。
+              canvas.addEventListener('click', (clickEvent) => {
+                clickEvent.preventDefault();
+                clickEvent.stopPropagation();
+              }, { capture: true, once: true });
+            }
+            dragStart = null;
+            dragged = false;
+            delete canvas.dataset.dragging;
+            if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+          };
+
+          canvas.addEventListener('pointerdown', (event) => {
+            if (event.button !== 0) return;
+          // 触屏交给浏览器原生平移，自定义拖拽只服务鼠标与手写笔。
+          if (event.pointerType === 'touch') return;
+            // 只排除轨道：轨道里要能选中文字。卡片上起手也允许拖，超过阈值时 click 会被吞掉。
+            if ((event.target as Element | null)?.closest?.('[data-graph-readout]')) return;
+            dragStart = { x: event.clientX, y: event.clientY, left: canvas.scrollLeft, top: canvas.scrollTop };
+            dragged = false;
+          });
+
+          canvas.addEventListener('pointermove', (event) => {
+            if (!dragStart) return;
+            const dx = event.clientX - dragStart.x;
+            const dy = event.clientY - dragStart.y;
+            if (!dragged && Math.hypot(dx, dy) < 4) return;
+            if (!dragged) {
+              dragged = true;
+              canvas.dataset.dragging = 'true';
+              canvas.setPointerCapture(event.pointerId);
+            }
+            event.preventDefault();
+            canvas.scrollLeft = dragStart.left - dx;
+            // 拖拽接管滚动：取消未完成的平滑动画，并把位置与目标拉平到现实。
+            if (panFrame) { window.cancelAnimationFrame(panFrame); panFrame = 0; }
+            panCurrent = canvas.scrollLeft;
+            panTarget = panCurrent;
+            canvas.scrollTop = dragStart.top - dy;
+          });
+
+          canvas.addEventListener('pointerup', endDrag);
+          canvas.addEventListener('pointercancel', endDrag);
+
+        /*
+         * 滚轮即横向平移：这张图是需要左右拖动的长图，纵向滚轮交给它探索更顺手，
+         * 也更像在拖一张铺开的图纸。四条边界：Ctrl+滚轮（缩放）不拦；指针在右侧
+         * 轨道上时不拦（那里要滚自己的列表）；画布没有可平移内容时不拦（这时滚轮
+         * 照常滚页面）；顶到端点就停住，也不外溢成纵向滚动——图内只做左右。
+         */
+        // 起点以现实位置为准；此后各帧只推进自己记的浮点值。
+        panCurrent = canvas.scrollLeft;
+        panTarget = panCurrent;
+
+        /*
+         * 指数趋近：一次滚轮直接跳一整格会显得一顿一顿，这里补出中间态。
+         * 每帧吃掉剩余距离的 22%，约 10 帧（160ms）收敛，手感接近惯性滑动。
+         */
+        const settlePan = () => {
+          const remaining = panTarget - panCurrent;
+          if (Math.abs(remaining) < 0.5) {
+            panCurrent = panTarget;
+            canvas.scrollLeft = panCurrent;
+            panFrame = 0;
+            return;
+          }
+          panCurrent += remaining * 0.22;
+          canvas.scrollLeft = panCurrent;
+          /*
+           * 回读值与自己的浮点值差出 1.5px 以上，说明位置不是我们写的：浏览器在
+           * 端点夹紧、或用户拖了原生滚动条。交还控制权并收工，别继续硬写。
+           */
+          if (Math.abs(canvas.scrollLeft - panCurrent) > 1.5) {
+            panCurrent = canvas.scrollLeft;
+            panTarget = panCurrent;
+            panFrame = 0;
+            return;
+          }
+          panFrame = window.requestAnimationFrame(settlePan);
+        };
+
+        const panBy = (delta: number) => {
+          panTarget = Math.min(canvasPanMax, Math.max(0, panTarget + delta));
+          if (!panFrame) panFrame = window.requestAnimationFrame(settlePan);
+        };
+
+        /*
+         * 端点橡皮筋：撞到端点后继续滚，纸张按输入量继续被推出去，手一停自己弹回来。
+         *
+         * 不用固定时长的关键帧——那样不管推多重、推多久都是同一套 4px 抽动，连续滚
+         * 时看着像抽搐。这里是一条 rAF 里的弹簧积分：滚轮把「目标位移」按输入量往外
+         * 推（越推越硬，收敛到 edgeLimit），弹簧带轻微过冲跟过去；松手后目标归零，
+         * 同一套弹簧把它带回来。推多久就顶多久，中间没有断点。
+         */
+        const edgeLimit = 12;
+        const edgeResponse = 0.045;
+        let edgeOffset = 0;
+        let edgeVelocity = 0;
+        let edgeTarget = 0;
+        let edgeFrame = 0;
+        let edgeLastFrame = 0;
+        let edgeReleaseTimer = 0;
+
+        const runEdgeSpring = (now: number) => {
+          /*
+           * 定步长子步积分：一帧卡了（切标签页回来、别的组件抢帧）也不会一步跨出
+           * 好几像素；同时按真实经过时间推进，120Hz 屏上和 60Hz 收得一样快。
+           */
+          let remaining = edgeLastFrame ? Math.min(6, (now - edgeLastFrame) / 16.667) : 1;
+          edgeLastFrame = now;
+          while (remaining > 0) {
+            const dt = Math.min(1, remaining);
+            remaining -= dt;
+            /*
+             * k=0.18 / 每帧衰减 0.683 → 阻尼比约 0.45：回弹过一次（约两成过冲）就
+             * 收住，不再来回摆。0.845 那种「衰减得少」其实是欠阻尼，会连摆三四下。
+             */
+            edgeVelocity = (edgeVelocity + (edgeTarget - edgeOffset) * 0.18 * dt) * 0.683 ** dt;
+            edgeOffset += edgeVelocity * dt;
+          }
+          const settled = Math.abs(edgeTarget - edgeOffset) < 0.02 && Math.abs(edgeVelocity) < 0.02;
+          if (settled) {
+            edgeOffset = edgeTarget;
+            edgeVelocity = 0;
+          }
+          if (settled && edgeTarget === 0) {
+            // 回到原位就把状态撤干净，免得留成常驻属性（切回图谱视图会自己动一下）。
+            canvas.style.removeProperty('--edge-offset');
+            delete canvas.dataset.edgePush;
+            edgeFrame = 0;
+            return;
+          }
+          canvas.style.setProperty('--edge-offset', `${edgeOffset.toFixed(2)}px`);
+          canvas.dataset.edgePush = 'true';
+          edgeFrame = settled ? 0 : window.requestAnimationFrame(runEdgeSpring);
+        };
+
+        const startEdgeSpring = () => {
+          if (edgeFrame) return;
+          edgeLastFrame = 0;
+          edgeFrame = window.requestAnimationFrame(runEdgeSpring);
+        };
+
+        const pushEdge = (delta: number) => {
+          if (reduceMotionQuery.matches) return;
+          // 位移与平移同向（继续朝这一侧推），但越推越硬，收敛到 edgeLimit。
+          const give = 1 - (0.6 * Math.abs(edgeOffset)) / edgeLimit;
+          edgeTarget = Math.max(-edgeLimit, Math.min(edgeLimit, edgeTarget - delta * edgeResponse * give));
+          startEdgeSpring();
+          // 手停 200ms 才松手：连续滚时读起来是「顶住」，而不是一格抽一下。
+          window.clearTimeout(edgeReleaseTimer);
+          edgeReleaseTimer = window.setTimeout(() => {
+            edgeTarget = 0;
+            startEdgeSpring();
+          }, 200);
+        };
+        motionController.signal.addEventListener('abort', () => {
+          window.cancelAnimationFrame(panFrame);
+          window.cancelAnimationFrame(edgeFrame);
+          window.clearTimeout(edgeReleaseTimer);
+        });
+
+        canvas.addEventListener('wheel', (event) => {
+          if (event.ctrlKey) return;
+          if ((event.target as Element | null)?.closest?.('[data-graph-readout]')) return;
+          if (canvasPanMax <= 0) return;
+          // deltaMode 1 是「行」、2 是「页」，统一折成像素再消费。
+          const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? canvas.clientWidth : 1;
+          const dominant = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+          const delta = dominant * unit;
+          if (delta === 0) return;
+
+          event.preventDefault();
+          /*
+           * 动画空闲时先把位置对齐现实：拖过原生滚动条、或浏览器在尺寸变化时
+           * 夹紧过位置，自己记的浮点值都会过期，不校准就会从旧位置弹一下。
+           */
+          if (!panFrame) {
+            panCurrent = canvas.scrollLeft;
+            panTarget = panCurrent;
+          }
+          /*
+           * 只看现实位置：目标值可能因拖拽或重测而滞后，用它判定会误判端点。
+           * 端点判定留 1px 容差——scrollLeft 读数取整，落在 239.6 时读回 240、
+           * 落在 238.4 时读回 238，零容差会让「已经到底」判成「还能滚」。
+           */
+          const atStart = canvas.scrollLeft <= 1;
+          const atEnd = canvas.scrollLeft >= canvasPanMax - 1;
+          /*
+           * 到端点就停住，也不外溢成纵向滚动。把滚轮交还页面时，手势会从「图内
+           * 带缓动的横向平移」硬切成「页面按格跳」，拼在一起反而一顿一顿；图内就
+           * 只做左右一件事更干脆。翻页请把指针移出图外，键盘与滚动条同样可用。
+           */
+          if ((delta > 0 && atEnd) || (delta < 0 && atStart)) {
+            pushEdge(delta);
+            return;
+          }
+          panBy(delta);
+        }, { passive: false });
+        }
       };
 
       /*
@@ -953,9 +1186,29 @@ const kindColors = {
         const rail = root.querySelector<HTMLElement>('[data-graph-readout]');
         if (canvas && rail && typeof ResizeObserver === 'function') {
           const stackedQuery = window.matchMedia('(max-width: 47.5rem)');
+          /*
+           * 以浏览器实际夹紧的位置为准量出可平移量：scrollbar-gutter 预留的槽宽
+           * 会被算进 scrollWidth - clientWidth，直接用它当端点会高估十几像素。
+           */
+          const measureCanvasPanMax = () => {
+            const previous = canvas.scrollLeft;
+            canvas.scrollLeft = 1e6;
+            canvasPanMax = canvas.scrollLeft;
+            canvas.scrollLeft = previous;
+            // 探测过程直接改过 scrollLeft：动画空闲时把位置与目标拉回现实。
+            if (!panFrame) {
+              panCurrent = canvas.scrollLeft;
+              panTarget = panCurrent;
+            }
+          };
+
           const syncRailHeight = () => {
+            measureCanvasPanMax();
             if (stackedQuery.matches) rail.style.removeProperty('max-height');
             else rail.style.maxHeight = `${Math.round(canvas.getBoundingClientRect().height)}px`;
+            // 有横向溢出才提示可拖拽；宽屏一眼看全时保留站点自己的档案光标。
+            if (canvasPanMax > 8) canvas.dataset.pannable = 'true';
+            else delete canvas.dataset.pannable;
           };
           const railObserver = new ResizeObserver(syncRailHeight);
           railObserver.observe(canvas);
@@ -1688,6 +1941,15 @@ const kindColors = {
 				color-mix(in srgb, var(--line) 18%, transparent) 3rem
 			),
 			color-mix(in srgb, var(--paper-0) 88%, transparent);
+	}
+
+	/*
+	 * 端点橡皮筋：撞到端点后继续滚，纸张按输入量被推出去（脚本按帧写 --edge-offset），
+	 * 松手后同一套弹簧把它带回来。只在真的位移时才挂 transform，平时舞台不建合成层；
+	 * 左侧类型栏是标尺，不跟着动。
+	 */
+	.article-graph__canvas[data-edge-push] .article-graph__stage {
+		transform: translateX(var(--edge-offset, 0px));
 	}
 
 	/*
