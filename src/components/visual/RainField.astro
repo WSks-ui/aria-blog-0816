@@ -659,6 +659,9 @@ const paperMarks = [
 			return value === 'clear' || value === 'night' ? value : 'rain';
 		};
 		let uploadedMode: WeatherMode | null = null;
+		let uploadedMuralWidth = 0;
+		let uploadedMuralHeight = 0;
+		let uploadedFiberSize = 0;
 
 		const uploadRaster = (texture: WebGLTexture, raster: HTMLCanvasElement, unit: number) => {
 			gl.activeTexture(unit);
@@ -690,17 +693,27 @@ const paperMarks = [
 			// cover 铺满当前画布所需的缩放（壁画 viewBox 1600×1000）。
 			const needed = Math.max(canvas.width / 1600, canvas.height / 1000);
 			const capScale = Math.min(1, muralTextureLongEdgeCap / (1600 * needed));
+			const muralWidth = Math.max(1, Math.round(1600 * needed * capScale));
+			const muralHeight = Math.max(1, Math.round(1000 * needed * capScale));
 			const muralImage = muralImages.get(mode);
-			if (muralImage) {
+			// 拖动窗口不一定改变 cover 所需的纹理尺寸（例如只改短边或已达上限）；
+			// 只有模式或光栅尺寸改变才重建壁画，避免重复执行 SVG 光栅化与 GPU 上传。
+			if (muralImage && (uploadedMode !== mode || uploadedMuralWidth !== muralWidth || uploadedMuralHeight !== muralHeight)) {
 				uploadRaster(muralTexture, rasterizeImage(
 					muralImage,
-					Math.round(1600 * needed * capScale),
-					Math.round(1000 * needed * capScale),
+					muralWidth,
+					muralHeight,
 				), gl.TEXTURE1);
+				uploadedMuralWidth = muralWidth;
+				uploadedMuralHeight = muralHeight;
 			}
 			if (fiberImage) {
 				const tilePx = Math.min(maxTextureSize, Math.max(1, Math.round(fiberTile() * dpr())));
-				uploadRaster(fiberTexture, rasterizeImage(fiberImage, tilePx, tilePx), gl.TEXTURE2);
+				// 纤维与窗口面积和天气无关，只在 DPR 或移动端平铺周期变化时更新。
+				if (uploadedFiberSize !== tilePx) {
+					uploadRaster(fiberTexture, rasterizeImage(fiberImage, tilePx, tilePx), gl.TEXTURE2);
+					uploadedFiberSize = tilePx;
+				}
 			}
 			uploadedMode = mode;
 		};
@@ -794,6 +807,7 @@ const paperMarks = [
 		};
 
 		const resize = () => {
+			resizePending = false;
 			// 布局尺寸先成对读取，再统一写入 canvas，避免同一函数内读写交错。
 			const cssWidth = root.clientWidth;
 			const cssHeight = root.clientHeight;
@@ -802,8 +816,9 @@ const paperMarks = [
 			const height = Math.max(1, Math.round(cssHeight * pixelRatio));
 			const sizeChanged = canvas.width !== width || canvas.height !== height;
 			if (sizeChanged) {
-				canvas.width = width;
-				canvas.height = height;
+				// 即使赋相同值也会清空画布；只写真正变化的维度，减少缓冲区重分配。
+				if (canvas.width !== width) canvas.width = width;
+				if (canvas.height !== height) canvas.height = height;
 				gl.viewport(0, 0, width, height);
 				// ResizeObserver 在页面交换后可能仍回调一次；固定背景物理尺寸
 				// 没变时不应重建纹理，只有真正 resize 才进入防抖上传。
@@ -825,6 +840,7 @@ const paperMarks = [
 		let firstFrameDrawn = false;
 		let routePaused = false;
 		let swapPaused = false;
+		let resizePending = false;
 		let resizeObserver: ResizeObserver | null = null;
 		let focusObserver: MutationObserver | null = null;
 		let routeObserver: MutationObserver | null = null;
@@ -862,6 +878,10 @@ const paperMarks = [
 		function frame(now: number) {
 			rafId = 0;
 			if (disposed || document.hidden || !ready || routePaused) return;
+			// 设置 canvas.width/height 会把不透明 WebGL 缓冲区清成黑色。尺寸更新
+			// 必须与 drawFrame 同帧完成，中间不能等待定时器或下一次 RAF；否则低帧率
+			// 背景会把黑底暴露数十毫秒，连续拖动时就成了全站黑白闪烁。
+			if (resizePending) resize();
 			drawFrame(now);
 			scheduleFrame(DRAW_INTERVAL_MS);
 		}
@@ -944,12 +964,19 @@ const paperMarks = [
 			applyMode(mode === 'clear' || mode === 'rain' || mode === 'night' ? mode : currentMode());
 		}, { signal });
 
-		resizeObserver = new ResizeObserver(() => resize());
+		// resize 与 ResizeObserver 可能在同一轮布局中重复通知。这里只标记，
+		// 交给已有 24fps 绘制循环合并到最新尺寸；等待期间继续显示上一张完整帧。
+		// 路由转场或后台暂停时也不清空画布，恢复绘制后再同步尺寸。
+		const requestResize = () => {
+			resizePending = true;
+			startLoop();
+		};
+		resizeObserver = new ResizeObserver(requestResize);
 		resizeObserver.observe(root);
 		// ResizeObserver 只保证 CSS 盒子尺寸变化时回调；跨显示器拖动或浏览器
 		// 缩放可能只改变 devicePixelRatio。窗口事件补上这个路径，确保画布物理
 		// 分辨率和壁画光栅化尺寸及时跟随，不把旧屏幕的低清纹理带到新屏幕。
-		window.addEventListener('resize', resize, { passive: true, signal });
+		window.addEventListener('resize', requestResize, { passive: true, signal });
 		// ArticleLayout 的 FOCUS 开关只修改根节点属性，不会广播天气事件；
 		// 监听该属性即可让壁画/纤维 uniform 与 CSS 纸幕同步收敛。
 		focusObserver = new MutationObserver((records) => {
