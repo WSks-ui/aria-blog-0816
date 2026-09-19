@@ -42,11 +42,12 @@ const tokenizeFact = (text: string): string[] => text.match(/\s+|[A-Za-z0-9]+|./
 
 type FactSegment = { t: string; link?: boolean };
 const factSegments: FactSegment[][] = [
-	[{ t: '在读 29 届大学生，对人工智能方向很感兴趣，目前正在兴趣导向地学习。' }],
-	[{ t: '喜欢把时间花在有趣的事情上。' }],
-	[{ t: '常用 Python · TypeScript · JavaScript · Astro · C · 鸿蒙。这个博客就是用 Astro 写的。' }],
-	[{ t: '很乐意免费参与有趣的项目和想法，欢迎随时给我' }, { t: '发邮件', link: true }, { t: '。' }],
-	[{ t: '如果你对我正在做的事感兴趣，欢迎一起来做。' }],
+	[{ t: '在读 29 届大学生，喜欢玩各种类型的游戏，也一直向往游戏行业。' }],
+	[{ t: '初中时自学过板绘，虽然画得不太好。高三时开始对游戏行业产生兴趣，进入大学前了解到技术美术（Technical Artist / TA）这个职业，找到了自己喜欢的方向。' }],
+	[{ t: '曾以为自己喜欢人工智能，后来才慢慢意识到，这份兴趣更多是受到时代浪潮的影响。我想重新听一听自己的声音，找回原本想走的路。' }],
+	[{ t: '大一的种种琐事，让我陷入了将近十个月的迷茫。现在，我决定重拾那个关于游戏与技术美术的梦想，从计算机图形学出发，继续学习，慢慢靠近。' }],
+	[{ t: '目前以 C++、计算机图形学和 Shader 为学习方向，也在探索 Python 在工具开发中的应用。这个博客用 Astro 搭建，记录我的学习与尝试。' }],
+	[{ t: '如果你也喜欢游戏、图形学，或正在琢磨一个有趣的点子，欢迎给我' }, { t: '发邮件', link: true }, { t: '。一起交流，也一起把想法做出来。' }],
 ];
 const factLines = factSegments.map((segments) => {
 	let cursor = 0;
@@ -70,7 +71,7 @@ const factLines = factSegments.map((segments) => {
 				<span>VISUAL ARCHIVE / RAIN STUDY</span>
 			</div>
 			<div class="about-copy">
-				{/* 文案由站长本人提供，学 lvy 主页的清单式自我介绍；技术栈取自 GitHub 公开仓库。 */}
+				{/* 按站长自述整理兴趣与经历，保留清单式介绍；技术栈取自 GitHub 公开仓库。 */}
 				<p class="about-greet" style="--reveal-order: 0">Hi，我是 Aria-7。</p>
 				<ul class="about-facts">
 					{factLines.map((segments, i) => (
@@ -91,7 +92,12 @@ const factLines = factSegments.map((segments) => {
 						</li>
 					))}
 				</ul>
-				<div class="about-links" style="--reveal-order: 6">
+				{/* 寄语与后续入口的显影序号跟随正文条数，增删介绍时无需手动调整。 */}
+				<p class="about-motto" style={`--reveal-order: ${factLines.length + 1}`}>
+					<span lang="en">computer graphics is awesome</span>
+					<span class="about-motto-note">与君共勉。</span>
+				</p>
+				<div class="about-links" style={`--reveal-order: ${factLines.length + 2}`}>
 					<a href={githubUrl} rel="noopener noreferrer"><GitBranch size={18} stroke-width={1.5} aria-hidden="true" /> GitHub</a>
 					<a href={`mailto:${contactEmail}`}><Mail size={18} stroke-width={1.5} aria-hidden="true" /> 邮箱</a>
 					<a href="/rss.xml" data-astro-reload><Rss size={18} stroke-width={1.5} aria-hidden="true" /> RSS</a>
@@ -100,7 +106,7 @@ const factLines = factSegments.map((segments) => {
 				</div>
 				{/* 与首页「关于我 →」同构的镜像返回入口：挂在同一镜像路由守卫下，
 				    点击即走「纸面显影」返回编排；不加该标记时仍是普通返回路径。 */}
-				<a class="about-return" href="/" data-aria7-title-transition-link style="--reveal-order: 7">
+				<a class="about-return" href="/" data-aria7-title-transition-link style={`--reveal-order: ${factLines.length + 3}`}>
 					<ArrowLeft size={20} stroke-width={1.5} aria-hidden="true" />
 					<span>返回首页</span>
 				</a>
@@ -114,7 +120,7 @@ const factLines = factSegments.map((segments) => {
 	 * 「离场呼吸 + 到达显影」双拍（about 侧）：
 	 * 到达——曝光幕退去的同时 eyebrow 页头栏先落定，标题下基线从左画出，
 	 * 描述与肖像 clip-path 展开随后，正文按 --reveal-order 以 65ms 字面错拍
-	 * 落定：末项约 0.97s 收束，正文 0.25s 起可读。键帧与引用全部收在同一个
+	 * 落定：具体时长随正文条数递增，正文 0.25s 起可读。键帧与引用全部收在同一个
 	 * 全局块里，避免 scoped 与 global 混用时 dev/build 的键帧改名差异；规则用
 	 * .about-page 前缀限定作用域。直接访问本页时同一套级联充当入场，
 	 * reduced-motion 下由 motion.css 一级兜底瞬时到达并把延迟清零。
@@ -265,6 +271,8 @@ const factLines = factSegments.map((segments) => {
 	.about-facts li::before { position: absolute; top: 0.92em; left: 2px; width: 5px; height: 5px; content: ''; background: var(--weather-accent); }
 	.about-facts a { color: var(--accent-strong); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.22em; }
 	.about-facts a:hover { text-decoration-thickness: 2px; }
+	.about-motto { margin: 0; font-size: 20px; font-weight: 500; line-height: 1.6; color: var(--accent-strong); }
+	.about-motto-note { display: block; margin-top: 8px; font-size: 14px; font-weight: 400; color: var(--ink-muted); }
 	.about-links { display: grid; grid-template-columns: repeat(2, 1fr); margin-top: 28px; border-block: 1px solid var(--line); }
 	.about-links a { display: flex; min-height: 64px; align-items: center; gap: 10px; padding-inline: 12px; border-right: 1px solid var(--line); font-family: var(--font-ui); font-size: 11px; color: var(--ink); text-decoration: none; }
 	.about-links a:last-child { border-right: 0; }
