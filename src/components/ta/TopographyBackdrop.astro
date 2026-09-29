@@ -1,0 +1,72 @@
+---
+import { Maximize, Minimize, Pause, Play } from '@lucide/astro';
+// 整页背景：固定铺满视口，位于所有内容之下。俯视等高线地图与单位编排实时渲染，
+// 后备图为同一场景的真实画布导出。控制与参数面板留给 /ta/topography/ 实验页。
+---
+<div class="topography-backdrop" data-topography-backdrop data-state="loading">
+	<picture>
+		<source media="(max-width: 760px)" srcset="/assets/ta/topography-mobile.webp" />
+		<img src="/assets/ta/topography-poster.webp" alt="" fetchpriority="high" />
+	</picture>
+	<canvas aria-label="俯视等高线地图与实时单位编排" data-backdrop-canvas></canvas>
+	<div class="topography-backdrop__scrim" aria-hidden="true"></div>
+</div>
+<div class="topography-hud" data-topography-hud>
+	<span class="mono" data-backdrop-status>LOADING</span>
+	<button data-backdrop-pause aria-label="暂停动画" title="暂停动画"><Pause size={17} /><Play size={17} class="play-icon" /></button>
+	<button data-backdrop-fullscreen aria-label="全屏" title="全屏"><Maximize size={17} /><Minimize size={17} class="exit-fullscreen-icon" /></button>
+	<a href="/ta/topography/" title="打开俯视等高线实验页">TOPOGRAPHY →</a>
+</div>
+<p class="topography-fallback" data-backdrop-fallback hidden>实时渲染不可用，当前显示静态画面。</p>
+<script>
+	import type { createTopographyScene, TopographyState } from '@/lib/topography-scene';
+	const root = document.querySelector<HTMLElement>('[data-topography-backdrop]')!;
+	const hud = document.querySelector<HTMLElement>('[data-topography-hud]')!;
+	const canvas = root.querySelector<HTMLCanvasElement>('[data-backdrop-canvas]')!;
+	const status = hud.querySelector<HTMLElement>('[data-backdrop-status]')!;
+	const pause = hud.querySelector<HTMLButtonElement>('[data-backdrop-pause]')!;
+	const fullscreen = hud.querySelector<HTMLButtonElement>('[data-backdrop-fullscreen]')!;
+	const events = new AbortController();
+	let controller: ReturnType<typeof createTopographyScene> | undefined;
+	let paused = false, disposed = false;
+	const on = (target: EventTarget, name: string, handler: EventListener) =>
+		target.addEventListener(name, handler, { signal: events.signal });
+	const update = (state: TopographyState) => {
+		root.dataset.state = state.status;
+		paused = state.paused;
+		pause.dataset.paused = String(paused);
+		pause.title = pause.ariaLabel = paused ? '播放动画' : '暂停动画';
+		status.textContent = state.status === 'live' ? paused ? 'PAUSED' : 'LIVE' : '恢复画面中';
+	};
+	// 全屏作用于首屏区块：背景画布本身铺满视口，单独全屏没有意义。
+	fullscreen.hidden = !document.fullscreenEnabled;
+	on(pause, 'click', () => controller?.setPaused(!paused));
+	on(fullscreen, 'click', () => {
+		const hero = document.querySelector<HTMLElement>('.lab-hero');
+		const action = document.fullscreenElement ? document.exitFullscreen() : (hero ?? root).requestFullscreen();
+		void action.catch(() => {});
+	});
+	on(document, 'fullscreenchange', () => {
+		const active = !!document.fullscreenElement;
+		fullscreen.dataset.active = String(active);
+		fullscreen.title = fullscreen.ariaLabel = active ? '退出全屏' : '全屏';
+	});
+	on(window, 'pagehide', ((event: PageTransitionEvent) => {
+		if (event.persisted) return;
+		disposed = true; events.abort(); controller?.dispose();
+		if (import.meta.env.DEV) delete (window as unknown as { __topographyCapture?: unknown }).__topographyCapture;
+	}) as EventListener);
+	void import('@/lib/topography-scene').then(({ createTopographyScene }) => {
+		if (disposed) return;
+		controller = createTopographyScene(canvas, update, { interactive: false });
+		pause.disabled = false;
+		if (import.meta.env.DEV) {
+			(window as unknown as { __topographyCapture: (time?: number) => string }).__topographyCapture = controller.captureAt;
+		}
+	}).catch((error) => {
+		root.dataset.state = 'error';
+		status.textContent = 'STILL FRAME';
+		document.querySelector<HTMLElement>('[data-backdrop-fallback]')!.hidden = false;
+		console.warn('Topography renderer unavailable', error);
+	});
+</script>

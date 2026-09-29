@@ -12,7 +12,8 @@ const { pathname } = Astro.props;
 // 没有真实地址时隐藏入口，避免把访客带到 GitHub 首页这种“看似可用”的占位链接。
 const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim() || '';
 
-const navItems = SECTION_NAV_ITEMS;
+// 实验室是独立页面，不加入文章侧轨共用的栏目配置。
+const navItems = [...SECTION_NAV_ITEMS, { href: '/ta/', label: '实验室' }];
 
 const isActive = (href: string) => pathname === href || pathname.startsWith(href.replace(/\/$/, '') + '/');
 ---
@@ -44,6 +45,7 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 				aria-current={isActive(item.href) ? 'page' : undefined}
 				data-site-nav-link
 				data-site-nav-index={index}
+				data-astro-reload={item.href === '/ta/' ? true : undefined}
 			>
 				{item.label}
 			</a>
@@ -411,7 +413,8 @@ const isActive = (href: string) => pathname === href || pathname.startsWith(href
 	 * 这里只保留工具区的排布与页头自身的组合规则。
 	 */
 
-	@media (max-width: 1100px) {
+	/* 新增实验室后提早换为双行，保证栏目不会进入搜索和天气控件的点击区域。 */
+	@media (max-width: 1360px) {
 		.site-header {
 			grid-template-columns: 1fr auto;
 		}
