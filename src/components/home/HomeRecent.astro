@@ -123,6 +123,7 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 		let recentVisibilityFrame = 0;
 		let recentResizeObserver: ResizeObserver | undefined;
 		let recentVisibilityObserver: IntersectionObserver | undefined;
+		let recentCoverObserver: IntersectionObserver | undefined;
 		/*
 		 * 预览流每秒只移动约 26px，24fps 时每次推进约 1px，足以保持连贯的慢速阅读
 		 * 节奏。原先每个显示刷新周期都会写入 scrollTop；改为定时器等待、RAF 对齐
@@ -308,6 +309,20 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 		};
 		if (recentViewport && !compactViewport) {
 			ensureDuplicateRecentGroup();
+			// 循环副本会复制封面的初始化标记，不能依赖全站首轮扫描接管它。
+			// 这里统一观察原件和副本；只隐藏固定大小封面的绘制内容，不改卡片
+			// 高度和无限滚动距离。换断点重建时随本实例一起断开，释放旧副本引用。
+			if (supportsIntersectionObserver) {
+				recentCoverObserver = new IntersectionObserver((entries) => {
+					for (const entry of entries) {
+						const cover = entry.target as HTMLElement;
+						cover.dataset.homeCoverOffscreen = String(!entry.isIntersecting);
+						// 同步基础动画开关，避免副本继承原件的 offscreen=true 后永远暂停。
+						cover.dataset.offscreen = String(!entry.isIntersecting);
+					}
+				}, { rootMargin: '40px' });
+				recentViewport.querySelectorAll('[data-content-cover]').forEach((cover) => recentCoverObserver?.observe(cover));
+			}
 			measureRecentStream();
 			streamPosition = normalizeRecentScroll();
 			syncRecentHighlight();
@@ -406,6 +421,7 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('zh-CN', {
 			controller.abort();
 			recentVisibilityObserver?.disconnect();
 			recentResizeObserver?.disconnect();
+			recentCoverObserver?.disconnect();
 			if (recentStreamFrame) cancelAnimationFrame(recentStreamFrame);
 			if (recentHighlightFrame) cancelAnimationFrame(recentHighlightFrame);
 			if (focusOutFrame) cancelAnimationFrame(focusOutFrame);

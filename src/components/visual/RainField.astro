@@ -494,6 +494,9 @@ const paperMarks = [
 	const FIBER_TILE_MOBILE = 340;
 	// 壁画微网格和雨丝都含细线；高 DPR 限制在 2，避免把矢量细节压成糊边。
 	const MAX_DEVICE_PIXEL_RATIO = 2;
+	// DPR 上限不能约束超宽屏/4K 屏的总分配量；给装饰背景单独设置像素预算。
+	// 单张 RGBA 缓冲最多约 16 MiB（浏览器可能维护多张），正文和封面不降采样。
+	const MAX_FRAMEBUFFER_PIXELS = 4 * 1024 * 1024;
 	// 本站自有素材：壁画 1600×1000、纤维 480×480（SVG 未写 width/height，
 	// 浏览器对无尺寸 SVG 的 naturalWidth 报告不一致，直接声明真实比例）。
 	const MURAL_ASPECT = 1.6;
@@ -664,9 +667,17 @@ const paperMarks = [
 		let uploadedFiberSize = 0;
 
 		const uploadRaster = (texture: WebGLTexture, raster: HTMLCanvasElement, unit: number) => {
-			gl.activeTexture(unit);
-			gl.bindTexture(gl.TEXTURE_2D, texture);
-			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, raster);
+			try {
+				gl.activeTexture(unit);
+				gl.bindTexture(gl.TEXTURE_2D, texture);
+				gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, raster);
+			} finally {
+				// texImage2D 已接管像素副本，临时 2D 画布无需继续保留原始缓冲。
+				// 只等待 JS GC 会使天气切换/拖动窗口时多张大画布同时驻留；归零
+				// 尺寸立即弃用后备存储，GPU 纹理仍可正常采样，异常路径也会释放。
+				raster.width = 0;
+				raster.height = 0;
+			}
 		};
 
 		const rasterizeImage = (image: HTMLImageElement, width: number, height: number) => {
@@ -734,7 +745,10 @@ const paperMarks = [
 			}, TEXTURE_REBUILD_DEBOUNCE);
 		};
 
-		const dpr = () => Math.min(window.devicePixelRatio || 1, MAX_DEVICE_PIXEL_RATIO);
+		// 所有 uniform 和纹理光栅化共用实际绘制比例，避免背景预算生效后
+		// 着色器仍使用屏幕 DPR，造成 UV 错位或纤维平铺比例变化。
+		let renderPixelRatio = 1;
+		const dpr = () => renderPixelRatio;
 		const fiberTile = () =>
 			window.matchMedia('(max-width: 760px)').matches ? FIBER_TILE_MOBILE : FIBER_TILE_DESKTOP;
 
@@ -811,9 +825,14 @@ const paperMarks = [
 			// 布局尺寸先成对读取，再统一写入 canvas，避免同一函数内读写交错。
 			const cssWidth = root.clientWidth;
 			const cssHeight = root.clientHeight;
-			const pixelRatio = dpr();
-			const width = Math.max(1, Math.round(cssWidth * pixelRatio));
-			const height = Math.max(1, Math.round(cssHeight * pixelRatio));
+			const pixelRatio = Math.min(
+				window.devicePixelRatio || 1,
+				MAX_DEVICE_PIXEL_RATIO,
+				Math.sqrt(MAX_FRAMEBUFFER_PIXELS / Math.max(1, cssWidth * cssHeight)),
+			);
+			renderPixelRatio = pixelRatio;
+			const width = Math.max(1, Math.floor(cssWidth * pixelRatio));
+			const height = Math.max(1, Math.floor(cssHeight * pixelRatio));
 			const sizeChanged = canvas.width !== width || canvas.height !== height;
 			if (sizeChanged) {
 				// 即使赋相同值也会清空画布；只写真正变化的维度，减少缓冲区重分配。

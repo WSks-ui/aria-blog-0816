@@ -230,9 +230,13 @@
 				sceneDocumentTop = bounds.top + window.scrollY;
 				// Hero 雨丝只使用 1px 线宽和 round lineCap，没有额外的 CSS 模糊；
 				// 保留 DPR 2 上限才能在高密度屏幕上维持细线的抗锯齿与边缘细节。
-				pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-				canvas.width = Math.round(width * pixelRatio);
-				canvas.height = Math.round(height * pixelRatio);
+				// 首屏只绘制稀疏雨丝，独立预算避免与全站背景同时占用多张大缓冲。
+				// 上限约 8 MiB/张，文字和 SVG 制图标注不受此比例影响。
+				pixelRatio = Math.min(window.devicePixelRatio || 1, 2, Math.sqrt(2 * 1024 * 1024 / (width * height)));
+				const nextWidth = visible && !document.hidden ? Math.floor(width * pixelRatio) : 0;
+				const nextHeight = visible && !document.hidden ? Math.floor(height * pixelRatio) : 0;
+				if (canvas.width !== nextWidth) canvas.width = nextWidth;
+				if (canvas.height !== nextHeight) canvas.height = nextHeight;
 				canvas.style.width = `${width}px`;
 				canvas.style.height = `${height}px`;
 				context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
@@ -362,6 +366,18 @@
 			const start = () => {
 				if (disposed) return;
 				stopAnimation();
+				const offscreen = !visible || document.hidden;
+				root.dataset.sceneOffscreen = String(offscreen);
+				root.dataset.scenePaused = String(!canAnimate());
+				// 停止 RAF 并不释放像素存储。离屏时归零；回到视口先恢复尺寸，
+				// CSS/SVG 仍保留原有时间线，雨滴位置也继续使用原来的归一化数据。
+				if (offscreen) {
+					canvas.width = 0;
+					canvas.height = 0;
+					draft?.pauseAnimations();
+					return;
+				}
+				if (!canvas.width || !canvas.height) resize();
 				// Canvas 与 SVG 必须共用可见性状态，否则离开首屏后液态层仍会独自推进。
 				if (!canAnimate()) {
 					draft?.pauseAnimations();
@@ -386,6 +402,9 @@
 				routeObserver?.disconnect();
 				draft?.pauseAnimations();
 				lifecycle.abort();
+				// before-swap 时旧快照已采集，可释放雨幕缓冲而不破坏标题飞行。
+				canvas.width = 0;
+				canvas.height = 0;
 			};
 
 			root.addEventListener('pointermove', (event) => {
@@ -451,6 +470,17 @@
 		overflow: hidden;
 		background: var(--weather-base);
 		isolation: isolate;
+	}
+
+	/* 场景为绝对定位装饰层，隐藏其内容不会改变首页高度或滚动定位。
+	   与只暂停 JS 不同，这里同时跳过离屏 SVG 滤镜和合成层的绘制。 */
+	.hero-scene[data-scene-offscreen='true'] {
+		content-visibility: hidden;
+	}
+	.hero-scene[data-scene-paused='true'] *,
+	.hero-scene[data-scene-paused='true'] *::before,
+	.hero-scene[data-scene-paused='true'] *::after {
+		animation-play-state: paused !important;
 	}
 
 	.hero-scene::before {

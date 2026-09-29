@@ -71,6 +71,9 @@ const lastUpdateText = new Intl.DateTimeFormat('zh-CN', {
 		}
 
 		disposeHomeReveal = () => {
+			// 模块会跨路由存活；清理后同时断开闭包引用，否则旧首页整棵
+			// DOM（包含 SVG 封面与 Canvas）仍被 page 变量保留到下次回首页。
+			disposeHomeReveal = undefined;
 			controller.abort();
 			revealObserver?.disconnect();
 			if (page.isConnected) delete page.dataset.motionReady;

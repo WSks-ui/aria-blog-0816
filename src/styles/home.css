@@ -19,6 +19,17 @@
 	position: relative;
 }
 
+/* 封面有固定尺寸容器，跳过离屏内容不会像整节 content-visibility:auto
+   那样改变文档高度。原件与循环副本分别由所属观察器维护可见性。 */
+.home-page-scenes .content-cover[data-offscreen='true']:not(.recent-preview__cover),
+.home-page-scenes .recent-preview__cover[data-home-cover-offscreen='true'] {
+	content-visibility: hidden;
+}
+.home-page-scenes .recent-preview__cover[data-home-cover-offscreen='true'] *,
+.home-page-scenes .recent-preview__cover[data-home-cover-offscreen='true']::before {
+	animation-play-state: paused !important;
+}
+
 /*
  * 首屏之外的四个区块做布局/绘制隔离。首页首次进入时主线程要连着做完「解析样式 →
  * 初次布局 → 各组件初始化」，实测生产构建里初次布局单项就有 ~170ms，而这段时间
