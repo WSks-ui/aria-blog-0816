@@ -1,0 +1,95 @@
+---
+import { Maximize, Minimize, Pause, Play, RotateCcw, SlidersHorizontal, X } from '@lucide/astro';
+import { DEFAULT_OCEAN_PARAMETERS } from '@/lib/ocean-settings';
+---
+<div class="ocean" data-ocean data-state="loading">
+	<picture>
+		<source media="(max-width: 760px)" srcset="/assets/ta/submerged-mobile.webp" />
+		<img class="ocean__poster" src="/assets/ta/submerged-poster.webp" alt="" fetchpriority="high" />
+	</picture>
+	<canvas data-ocean-canvas aria-label="实时渲染的水下波纹与金白色透光"></canvas>
+	<div class="ocean__caption"><span>SUBMERGED</span><small>水下透光研究 / 001</small></div>
+	<div class="ocean__toolbar">
+		<span class="mono" data-ocean-status>STILL FRAME</span>
+		<button data-pause title="暂停动画" aria-label="暂停动画"><Pause size={17} /><Play size={17} class="play-icon" /></button>
+		<button data-fullscreen title="全屏" aria-label="全屏"><Maximize size={17} /><Minimize size={17} class="exit-fullscreen-icon" /></button>
+		<button data-settings title="实验参数" aria-label="实验参数"><SlidersHorizontal size={17} /></button>
+	</div>
+	<dialog class="ocean-panel" aria-labelledby="ocean-panel-title">
+		<header><h2 id="ocean-panel-title">实验参数</h2><button data-close aria-label="关闭" title="关闭"><X size={20} /></button></header>
+		<fieldset><legend>渲染分层</legend><div class="ocean-views">
+			{[['final', '成片'], ['surface', '水面'], ['normal', '法线'], ['transmission', '透光'], ['bloom', '泛光']].map(([value, label]) => <label><input type="radio" name="ocean-view" value={value} checked={value === 'final'} /><span>{label}</span></label>)}
+		</div></fieldset>
+		{[{ key: 'wave', label: '波面幅度', min: .5, max: 1.5, value: DEFAULT_OCEAN_PARAMETERS.wave }, { key: 'light', label: '透光强度', min: .35, max: 1.8, value: DEFAULT_OCEAN_PARAMETERS.light }, { key: 'bloom', label: '泛光强度', min: 0, max: 1.5, value: DEFAULT_OCEAN_PARAMETERS.bloom }].map(({ key, label, min, max, value }) => <label class="ocean-slider"><span>{label}<output data-output={key} aria-hidden="true">{value.toFixed(2)}</output></span><input aria-label={label} data-param={key} type="range" min={min} max={max} step=".01" value={value} /></label>)}
+		<label class="ocean-quality">画质<select data-quality><option value="auto">自动</option><option value="high">高画质</option><option value="economy">节能</option></select></label>
+		<p class="ocean-size mono" data-size></p>
+		<button class="ocean-reset" data-reset><RotateCcw size={15} />恢复默认</button>
+		<footer>本站视觉实验 · AI 辅助实现<br />视觉参考：XorDev / Submerge<br />实时透光近似，非完整焦散模拟；不计入个人作品。</footer>
+	</dialog>
+</div>
+<script>
+	import type { OceanController } from '@/lib/ocean-scene';
+	import { QUALITY_TIERS, type OceanParameters, type OceanQuality, type OceanView } from '@/lib/ocean-settings';
+	const root = document.querySelector<HTMLElement>('[data-ocean]')!;
+	root.querySelector('[data-ocean-status]')!.textContent = 'LOADING';
+	const canvas = root.querySelector<HTMLCanvasElement>('canvas')!;
+	const dialog = root.querySelector<HTMLDialogElement>('dialog')!;
+	const pause = root.querySelector<HTMLButtonElement>('[data-pause]')!;
+	const settings = root.querySelector<HTMLButtonElement>('[data-settings]')!;
+	const events = new AbortController();
+	let controller: OceanController | undefined;
+	let paused = false;
+	let destroyed = false;
+	const on = (element: EventTarget, name: string, handler: EventListener) => element.addEventListener(name, handler, { signal: events.signal });
+	on(settings, 'click', () => {
+		// 原生对话框聚焦在部分浏览器会滚动其祖先；打开面板不应改变用户正在看的画面。
+		const top = window.scrollY;
+		dialog.showModal();
+		window.scrollTo({ top, behavior: 'instant' });
+	});
+	on(root.querySelector('[data-close]')!, 'click', () => dialog.close());
+	on(dialog, 'click', (event) => { if (event.target === dialog) { const r = dialog.getBoundingClientRect(); const e = event as MouseEvent; if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dialog.close(); } });
+	on(dialog, 'close', () => settings.focus({ preventScroll: true }));
+	on(pause, 'click', () => controller?.setPaused(!paused));
+	on(root.querySelector('[data-reset]')!, 'click', () => controller?.reset());
+	const fullscreen = root.querySelector<HTMLButtonElement>('[data-fullscreen]')!;
+	fullscreen.hidden = !document.fullscreenEnabled;
+	on(document, 'fullscreenchange', () => {
+		const active = !!document.fullscreenElement;
+		fullscreen.dataset.active = String(active);
+		fullscreen.title = fullscreen.ariaLabel = active ? '退出全屏' : '全屏';
+	});
+	on(fullscreen, 'click', () => {
+		const action = document.fullscreenElement ? document.exitFullscreen() : root.closest<HTMLElement>('.lab-hero')!.requestFullscreen();
+		void action.catch(() => {});
+	});
+	on(dialog, 'input', (event) => {
+		const input = event.target as HTMLInputElement;
+		if (input.dataset.param) controller?.setParameter(input.dataset.param as keyof OceanParameters, Number(input.value));
+		if (input.name === 'ocean-view') controller?.setView(input.value as OceanView);
+		if (input.matches('[data-quality]')) controller?.setQuality(input.value as OceanQuality);
+	});
+	on(window, 'pagehide', ((event: PageTransitionEvent) => { if (!event.persisted) { destroyed = true; events.abort(); controller?.dispose(); } }) as EventListener);
+	void import('@/lib/ocean-scene').then(({ createOceanScene }) => {
+		if (destroyed) return;
+		controller = createOceanScene(canvas, (state) => {
+			root.dataset.state = state.status;
+			root.closest<HTMLElement>('.lab-hero')!.dataset.renderView = state.view;
+			paused = state.paused;
+			pause.dataset.paused = String(paused);
+			pause.title = pause.ariaLabel = paused ? '播放动画' : '暂停动画';
+			root.querySelector('[data-ocean-status]')!.textContent = state.status === 'live' ? paused ? 'PAUSED' : 'LIVE / WEBGL' : state.status === 'loading' ? 'LOADING' : 'STILL FRAME';
+			root.querySelector('[data-size]')!.textContent = `${state.width} × ${state.height} / ${QUALITY_TIERS[state.tier].label}`;
+			root.querySelector<HTMLSelectElement>('[data-quality]')!.value = state.quality;
+			root.querySelectorAll<HTMLInputElement>('[name=ocean-view]').forEach((input) => input.checked = input.value === state.view);
+			for (const [key, value] of Object.entries(state.parameters)) {
+				root.querySelector<HTMLInputElement>(`[data-param=${key}]`)!.value = String(value);
+				root.querySelector(`[data-output=${key}]`)!.textContent = value.toFixed(2);
+			}
+		});
+	}).catch((error) => {
+		root.dataset.state = 'fallback';
+		root.querySelector('[data-ocean-status]')!.textContent = 'STILL FRAME';
+		console.warn('Ocean renderer unavailable', error);
+	});
+</script>
