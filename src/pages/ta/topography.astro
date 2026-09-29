@@ -1,0 +1,139 @@
+---
+import { ArrowLeft, Maximize, Minimize, Pause, Play, RotateCcw, SlidersHorizontal, X } from '@lucide/astro';
+import { TOPOGRAPHY_DEFAULTS, TOPOGRAPHY_LIMITS } from '@/lib/topography-settings';
+import '@/styles/topography.css';
+const controls = [
+	{ key: 'density', label: '等高线密度' }, { key: 'glow', label: '辉光' },
+	{ key: 'speed', label: '运动速度' }, { key: 'zoom', label: '缩放' },
+] as const;
+---
+<!doctype html>
+<html lang="zh-CN">
+	<head>
+		<!-- 启用脚本时由入场动画从黑屏揭开地图，静态后备图只在渲染失败或无脚本时显示。 -->
+		<script is:inline>document.documentElement.classList.add('js')</script>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="theme-color" content="#030405" />
+		<meta name="robots" content="noindex, nofollow" />
+		<meta name="description" content="Aria-7 俯视等高线实时视觉实验。" />
+		<title>Topography / Aria-7</title>
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="stylesheet" href="/fonts/harmonyos-sans.css" />
+	</head>
+	<body>
+		<main class="topography" data-topography data-status="loading">
+			<picture>
+				<source media="(max-width: 600px)" srcset="/assets/ta/topography-mobile.webp" />
+				<img class="topography-poster" src="/assets/ta/topography-poster.webp" alt="" />
+			</picture>
+			<canvas aria-label="俯视等高线地图与青色、品红色运动轨迹" data-map></canvas>
+			<header class="map-header">
+				<a class="map-icon" href="/ta/" aria-label="返回图形实验室" title="返回图形实验室"><ArrowLeft size={18} /></a>
+				<div class="map-heading"><span>ARIA-7 / LAB</span><h1>TOPOGRAPHY</h1></div>
+				<div class="map-actions">
+					<button class="map-icon" data-pause aria-label="暂停动画" title="暂停动画" disabled><Pause size={18} class="pause-icon" /><Play size={18} class="play-icon" /></button>
+					<button class="map-icon" data-fullscreen aria-label="全屏" title="全屏"><Maximize size={18} class="maximize-icon" /><Minimize size={18} class="minimize-icon" /></button>
+					<button class="map-icon" data-settings aria-label="画面参数" title="画面参数" disabled><SlidersHorizontal size={18} /></button>
+				</div>
+			</header>
+			<div class="map-status" role="status" data-status-label>加载中</div>
+			<noscript><p class="map-failure">此实时实验需要启用 JavaScript。</p></noscript>
+			<p class="map-failure" data-failure hidden>实时渲染不可用，当前显示静态画面。</p>
+			<dialog class="map-panel" aria-labelledby="map-panel-title">
+				<header><h2 id="map-panel-title">画面参数</h2><button class="map-icon" data-close aria-label="关闭参数" title="关闭参数"><X size={18} /></button></header>
+				<fieldset>
+					<legend>视图</legend>
+					<div class="map-segments">
+						{[['final', '成片'], ['contours', '等高线'], ['routes', '轨迹']].map(([value, label]) => (
+							<label><input type="radio" name="map-view" value={value} checked={value === 'final'} /><span>{label}</span></label>
+						))}
+					</div>
+				</fieldset>
+				{controls.map(({ key, label }) => (
+					<label class="map-slider">
+						<span>{label}<output data-output={key}>{TOPOGRAPHY_DEFAULTS[key].toFixed(2)}</output></span>
+						<input aria-label={label} type="range" data-param={key} min={TOPOGRAPHY_LIMITS[key][0]} max={TOPOGRAPHY_LIMITS[key][1]} step=".01" value={TOPOGRAPHY_DEFAULTS[key]} />
+					</label>
+				))}
+				<p class="map-render-size" data-size></p>
+				<button class="map-reset" data-reset><RotateCcw size={15} />重置画面</button>
+			</dialog>
+		</main>
+	</body>
+</html>
+<script>
+	import type { createTopographyScene, TopographyState } from '@/lib/topography-scene';
+	import type { TopographyParameter, TopographyView } from '@/lib/topography-settings';
+	const root = document.querySelector<HTMLElement>('[data-topography]')!;
+	const canvas = root.querySelector<HTMLCanvasElement>('[data-map]')!;
+	const dialog = root.querySelector<HTMLDialogElement>('dialog')!;
+	const pause = root.querySelector<HTMLButtonElement>('[data-pause]')!;
+	const settings = root.querySelector<HTMLButtonElement>('[data-settings]')!;
+	const fullscreen = root.querySelector<HTMLButtonElement>('[data-fullscreen]')!;
+	const abort = new AbortController();
+	let controller: ReturnType<typeof createTopographyScene> | undefined;
+	let paused = false, disposed = false;
+	const on = (target: EventTarget, event: string, fn: EventListener) => target.addEventListener(event, fn, { signal: abort.signal });
+	const update = (state: TopographyState) => {
+		root.dataset.status = state.status;
+		root.dataset.time = state.time.toFixed(4);
+		root.dataset.frames = String(state.frames);
+		paused = state.paused;
+		pause.dataset.paused = String(paused);
+		pause.title = pause.ariaLabel = paused ? '播放动画' : '暂停动画';
+		root.querySelector('[data-status-label]')!.textContent = state.status === 'live' ? paused ? 'PAUSED' : 'LIVE' : '恢复画面中';
+		root.querySelector('[data-size]')!.textContent = `${state.width} × ${state.height} · 原生分辨率`;
+		for (const [key, value] of Object.entries(state.parameters)) {
+			root.querySelector<HTMLInputElement>(`[data-param="${key}"]`)!.value = String(value);
+			root.querySelector(`[data-output="${key}"]`)!.textContent = value.toFixed(2);
+		}
+		root.querySelectorAll<HTMLInputElement>('[name="map-view"]').forEach((input) => input.checked = input.value === state.view);
+	};
+	on(settings, 'click', () => dialog.showModal());
+	on(root.querySelector('[data-close]')!, 'click', () => dialog.close());
+	on(dialog, 'click', (event) => {
+		if (event.target !== dialog) return;
+		const { left, right, top, bottom } = dialog.getBoundingClientRect();
+		const { clientX: x, clientY: y } = event as MouseEvent;
+		if (x < left || x > right || y < top || y > bottom) dialog.close();
+	});
+	on(dialog, 'close', () => settings.focus({ preventScroll: true }));
+	on(pause, 'click', () => controller?.setPaused(!paused));
+	on(root.querySelector('[data-reset]')!, 'click', () => controller?.reset());
+	on(dialog, 'input', (event) => {
+		const input = event.target as HTMLInputElement;
+		if (input.dataset.param) controller?.setParameter(input.dataset.param as TopographyParameter, Number(input.value));
+		if (input.name === 'map-view') controller?.setView(input.value as TopographyView);
+	});
+	fullscreen.hidden = !document.fullscreenEnabled;
+	on(fullscreen, 'click', () => {
+		void (document.fullscreenElement ? document.exitFullscreen() : root.requestFullscreen()).catch(() => {});
+	});
+	on(document, 'fullscreenchange', () => {
+		const active = !!document.fullscreenElement;
+		fullscreen.dataset.active = String(active);
+		fullscreen.title = fullscreen.ariaLabel = active ? '退出全屏' : '全屏';
+	});
+	type DevHooks = { __topographyCapture?: (time?: number, intro?: number) => string; __topographyBench?: (frames?: number) => number };
+	on(window, 'pagehide', ((event: PageTransitionEvent) => {
+		if (!event.persisted) {
+			disposed = true; controller?.dispose(); abort.abort();
+			if (import.meta.env.DEV) { delete (window as DevHooks).__topographyCapture; delete (window as DevHooks).__topographyBench; }
+		}
+	}) as EventListener);
+	void import('@/lib/topography-scene').then(({ createTopographyScene }) => {
+		if (disposed) return;
+		controller = createTopographyScene(canvas, update);
+		if (import.meta.env.DEV) {
+			(window as DevHooks).__topographyCapture = controller.captureAt;
+			(window as DevHooks).__topographyBench = controller.benchmark;
+		}
+		pause.disabled = false; settings.disabled = false;
+	}).catch((error) => {
+		root.dataset.status = 'error';
+		root.querySelector('[data-status-label]')!.textContent = 'STILL';
+		root.querySelector<HTMLElement>('[data-failure]')!.hidden = false;
+		console.error('Topography renderer unavailable', error);
+	});
+</script>

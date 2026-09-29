@@ -11,7 +11,7 @@
     "preview": "astro preview",
     "check": "astro check",
     "astro": "astro",
-    "test:lab": "node --test scripts/ocean-settings.test.mjs",
+    "test:lab": "node --test scripts/ocean-settings.test.mjs scripts/topography-settings.test.mjs",
     "sync:csdiy-tools": "node scripts/sync-csdiy-tool-guides.mjs"
   },
   "dependencies": {
