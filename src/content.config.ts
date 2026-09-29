@@ -32,6 +32,13 @@ const posts = defineCollection({
 		cover: z.string().trim().min(1).nullable(),
 		// 迁移的历史文章没有可核验的天气记录；null 表示未知，避免编造元数据。
 		readingWeather: readingWeatherSchema.nullable().default(null),
+		// 只有显式标记的文章才进入 TA 页面，旧项目不会被自动包装成 TA 作品。
+		// draft 仍由 getPosts 统一过滤；status 是作者声明的真实进度，不由日期推断。
+		lab: z.object({
+			type: z.enum(['project', 'note']),
+			discipline: z.enum(['graphics', 'rendering', 'tools']),
+			status: z.enum(['in-progress', 'complete']),
+		}).optional(),
 	}),
 });
 
