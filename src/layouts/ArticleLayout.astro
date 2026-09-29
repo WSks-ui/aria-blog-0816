@@ -255,6 +255,7 @@ const resolveTagHref = createTagHrefResolver(await getCollection('posts'));
 	</BaseLayout>
 
 	<script>
+		import { afterPageTransition } from '@/lib/page-transition';
 		// 客户端脚本单独引入：frontmatter 的导入只存在于服务端作用域。
 		import {
 			commitWeatherMode,
@@ -275,9 +276,14 @@ const resolveTagHref = createTagHrefResolver(await getCollection('posts'));
 		// 旧正文以 ratio=1 污染 aria7-reading-progress，让“继续阅读”对
 		// 读过的文章永久失效。
 		let readerHelpersTeardown: (() => void) | null = null;
+		let initializedArticle: Element | null = null;
 
 		function initArticleReaderHelpers() {
+			const article = document.querySelector('.reading-prose');
+			// 首次载入脚本后还会收到 page-load，同一正文只绑定一次阅读监听。
+			if (article && initializedArticle === article) return;
 			readerHelpersTeardown?.();
+			initializedArticle = article;
 			const controller = new AbortController();
 			const { signal } = controller;
 			const cleanupFns: Array<() => void> = [];
@@ -286,6 +292,7 @@ const resolveTagHref = createTagHrefResolver(await getCollection('posts'));
 				cleanupFns.forEach((fn) => fn());
 				cleanupFns.length = 0;
 				readerHelpersTeardown = null;
+				initializedArticle = null;
 			};
 
 			const resume = document.querySelector<HTMLButtonElement>('[data-article-resume]');
@@ -329,9 +336,11 @@ const resolveTagHref = createTagHrefResolver(await getCollection('posts'));
 			proseContent.dataset.progressReady = 'true';
 			const pageKey = window.location.pathname + window.location.search;
 			let latestRatio = 0;
+			let hasMeasuredProgress = false;
 			let lastSaved = -1;
 			let persistTimer = 0;
 			const persistProgress = (force = false) => {
+				if (!hasMeasuredProgress) return;
 				if (!force && Math.abs(latestRatio - lastSaved) < 0.01) return;
 				try {
 					const records = JSON.parse(localStorage.getItem('aria7-reading-progress') || '{}') as Record<string, unknown>;
@@ -347,15 +356,18 @@ const resolveTagHref = createTagHrefResolver(await getCollection('posts'));
 				}
 			};
 			let ticking = false;
+			let progressFrame = 0;
 			cleanupFns.push(() => window.clearTimeout(persistTimer));
+			cleanupFns.push(() => cancelAnimationFrame(progressFrame));
 			const emitRatio = () => {
 				ticking = false;
 				// 换页后 prose 脱离 DOM，几何信息归零、比例恒为 1，直接跳过。
-				if (!proseContent.isConnected) return;
+				if (!proseContent.isConnected || document.documentElement.hasAttribute('data-astro-transition')) return;
 				const rect = proseContent.getBoundingClientRect();
 				const contentTop = rect.top + window.scrollY;
 				const scrollable = Math.max(1, proseContent.offsetHeight - window.innerHeight);
 				latestRatio = Math.min(1, Math.max(0, (window.scrollY - contentTop) / scrollable));
+				hasMeasuredProgress = true;
 				document.dispatchEvent(new CustomEvent('aria7-reading-progress', {
 					detail: { content: proseContent, ratio: latestRatio },
 				}));
@@ -365,10 +377,10 @@ const resolveTagHref = createTagHrefResolver(await getCollection('posts'));
 			window.addEventListener('scroll', () => {
 				if (ticking) return;
 				ticking = true;
-				window.requestAnimationFrame(emitRatio);
+				progressFrame = window.requestAnimationFrame(emitRatio);
 			}, { passive: true, signal });
 			window.addEventListener('pagehide', () => persistProgress(true), { signal });
-			emitRatio();
+			cleanupFns.push(afterPageTransition(emitRatio));
 		}
 
 		const focusButton = document.querySelector<HTMLButtonElement>('[data-article-focus]');
@@ -390,7 +402,9 @@ const resolveTagHref = createTagHrefResolver(await getCollection('posts'));
 			}
 			const applyFocus = (on: boolean) => {
 				immersive = on;
-				document.documentElement.dataset.readingFocus = on ? 'on' : 'off';
+				// 默认即非沉浸态，不重复写根属性触发全页样式结算和背景 uniform 同步。
+				if (on) document.documentElement.dataset.readingFocus = 'on';
+				else if (document.documentElement.hasAttribute('data-reading-focus')) delete document.documentElement.dataset.readingFocus;
 				focusButton.setAttribute('aria-pressed', String(on));
 				if (focusState) focusState.textContent = on ? 'ON' : 'OFF';
 			};
@@ -449,7 +463,8 @@ const resolveTagHref = createTagHrefResolver(await getCollection('posts'));
 				flag.style.transform = `translateY(${Math.max(0, y)}px)`;
 				flag.classList.add('is-on');
 			};
-			moveTo(anchor());
+			// 侧轨几何等快照播放结束再读；page-load 尚不代表动画结束。
+			afterPageTransition(() => moveTo(anchor()));
 			items.forEach((item) => item.addEventListener('mouseenter', () => moveTo(item)));
 			nav.addEventListener('mouseleave', () => moveTo(anchor()));
 		}

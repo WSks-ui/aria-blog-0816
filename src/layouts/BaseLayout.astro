@@ -372,29 +372,39 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 		<SearchDialog />
 		<Lightbox />
 		<script>
-			type RouterEvent = Event & { newDocument?: Document };
+			import { afterPageTransition } from '@/lib/page-transition';
+			type RouterEvent = Event & { newDocument?: Document; from?: URL; to?: URL; sourceElement?: Element };
 
 			/*
 			 * 文章导航标注（状态机）：before-preparation 给当前文档挂
 			 * leaving（离场页细线保持原样随整页软退，视口守卫在此刻测量），
 			 * before-swap 给新文档挂 active，并在离线文档里筛选落点；抵达后
-			 * astro:page-load 切 settled（细线逐行起笔），画完释放。Astro 会
+			 * astro:page-load 后等待真实转场结束再切 settled，画完释放。Astro 会
 			 * 以新文档的根属性覆盖当前根节点，因此两端标记都要显式维护。
 			 * head 内联样式里的换页规则只认 active——它们在交换后的文档上求值。
 			 */
 			const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 			let settledTimer = 0;
+			let cancelSettlement: (() => void) | undefined;
 
 			const armArticleNav = (event: Event) => {
-				const source = (event as Event & { sourceElement?: Element }).sourceElement;
+				const navigation = event as RouterEvent;
+				const source = navigation.sourceElement;
 				const link = source instanceof Element
 					? source.closest('a[data-article-transition-link]')
 					: null;
 				window.clearTimeout(settledTimer);
+				cancelSettlement?.();
+				arrivalStripped.forEach((element) => element.style.removeProperty('view-transition-name'));
+				arrivalStripped = [];
 				// 上一次转场的航轨若还没走到释放点（快速连续导航），先拆干净，
 				// 避免与本次指派撞出重名导致整个视图转场被跳过。
 				document.querySelectorAll<HTMLElement>('[data-rule-flight]').forEach(releaseRuleFlight);
-				if (link && !reduceMotion.matches) {
+				// 按路由识别文章进出，覆盖退出按钮、标签、侧轨及浏览器前进/后退。
+				// 仅靠链接标记会让这些路径回到整篇 main 快照，长文的采集成本骤增。
+				const isArticle = (url: URL | undefined) => Boolean(url && /^\/(?:posts|toolkit)\/.+/.test(url.pathname));
+				const articleNavigation = link || isArticle(navigation.from) || isArticle(navigation.to);
+				if (articleNavigation && navigation.from?.pathname !== navigation.to?.pathname) {
 					document.documentElement.dataset.articleNav = 'leaving';
 				} else {
 					delete document.documentElement.dataset.articleNav;
@@ -452,7 +462,7 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 				delete element.dataset.ruleFlight;
 			};
 
-			const prepareArrivalNames = (newDocument: Document, matchedRow: Element | null) => {
+			const prepareArrivalNames = (newDocument: Document, matchedTarget: Element | null) => {
 				const elements = Array.from(
 					newDocument.querySelectorAll<HTMLElement>(`${NAMED_ELEMENT_SELECTOR}, [data-rule-flight]`),
 				);
@@ -464,14 +474,15 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 				 */
 				elements.forEach((element) => {
 					if (element.matches('[data-page-main]')) return;
-					if (element.closest('.article-hero')) return;
+					// 工具讲义和文章使用不同的页头结构，两者都必须保留标题落点。
+					if (element.closest('.article-hero, .tool-dossier__hero')) return;
 					if (element.dataset.ruleFlight === 'true') return;
-					if (matchedRow?.contains(element)) return;
+					if (matchedTarget?.contains(element)) return;
 					element.style.viewTransitionName = 'none';
 					arrivalStripped.push(element);
 				});
 			};
-			document.addEventListener('astro:page-load', () => {
+			const settleArticleNav = () => {
 				arrivalStripped.forEach((element) => element.style.removeProperty('view-transition-name'));
 				arrivalStripped = [];
 				// 转场结束：细线开始起笔，画完（含最长错拍）释放标记回到静态；
@@ -483,12 +494,20 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 						document.querySelectorAll<HTMLElement>('[data-rule-flight]').forEach(releaseRuleFlight);
 					}, 1900);
 				}
+			};
+			document.addEventListener('astro:page-load', () => {
+				cancelSettlement?.();
+				cancelSettlement = afterPageTransition(settleArticleNav);
 			});
 
 			let departedRestore: HTMLElement[] = [];
 			let departedTimer = 0;
 
 			document.addEventListener('astro:before-preparation', (event) => {
+				departedRestore.forEach((element) => {
+					element.style.removeProperty('view-transition-name');
+					delete element.dataset.ruleFlight;
+				});
 				armArticleNav(event);
 				window.clearTimeout(departedTimer);
 				if (document.documentElement.dataset.articleNav !== 'leaving') {
@@ -496,31 +515,36 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 					return;
 				}
 				departedRestore = [];
+				const navigation = event as RouterEvent;
+				const sourceLink = navigation.sourceElement?.closest('a[data-article-transition-link]');
+				const sourceRow = sourceLink?.closest('.article-row');
 				const elements = Array.from(
 					document.querySelectorAll<HTMLElement>(NAMED_ELEMENT_SELECTOR),
 				).filter((element) => !element.matches('[data-page-main]'));
 				// View Transition 启动前严格分成 read/write 两段；这里只读，不改 DOM。
 				const measured = elements.map((element) => {
+					// 列表中未指向本次目标的标题没有共享落点，不必读取几何或生成
+					// 独立快照。详情页头仍经过视口守卫，保留封面和返程标题的配对。
+					const link = element.closest('a');
+					const relevant = element.closest('.article-hero, .tool-dossier__hero')
+						|| sourceRow?.contains(element)
+						|| (link && link.pathname === navigation.to?.pathname);
+					if (!relevant || reduceMotion.matches) return { element, top: 0, height: 0 };
 					const rect = element.getBoundingClientRect();
 					return {
 						element,
 						top: rect.top,
 						height: rect.height,
-						name: getComputedStyle(element).viewTransitionName,
 					};
 				});
 				// 统一写阶段：后续不再读取布局，因此摘除多个命名也只产生一次失效。
-				measured.forEach(({ element, top, height, name }) => {
-					if (isMostlyInsideBand(top, height, 0, window.innerHeight)) return;
-					if (!name || name === 'none') return;
+				measured.forEach(({ element, top, height }) => {
+					if (!reduceMotion.matches && isMostlyInsideBand(top, height, 0, window.innerHeight)) return;
 					element.style.viewTransitionName = 'none';
 					departedRestore.push(element);
 				});
 				// 去程航轨：被点击行的上线与下缘线跟随标题飞往文章页。标题在视口
 				// 内（用户刚点过），其上下细线必然同样可见，无需再过视口守卫。
-				const sourceLink = (event as Event & { sourceElement?: Element }).sourceElement
-					?.closest('a[data-article-transition-link]');
-				const sourceRow = sourceLink?.closest('.article-row');
 				if (sourceRow instanceof Element) {
 					const rules = rowFlightRules(sourceRow);
 					nameRuleFlight(rules.top, FLIGHT_TOP);
@@ -547,26 +571,32 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 				// 指派为航轨，标题区的细线便跟着标题飞回行位。找不到（目标列表
 				// 没有这篇文章）就保持无名，航轨优雅退化为随整页淡入。
 				if (!newDocument) return;
-				const selector = `.article-row a[href="${window.location.pathname.replace(/["\\]/g, '\\$&')}"]`;
-				const candidateRow = newDocument.querySelector(selector)?.closest('.article-row');
+				// 返回指南时标题落在工具卡片；仍在离线文档中按链接匹配，避免
+				// 为了恢复飞行而在交换后同步测量整页。工具卡片不指派文章细线。
+				// popstate 触发时地址栏已经是目标页，来源必须取路由事件的 from。
+				const fromPath = (event as RouterEvent).from?.pathname ?? window.location.pathname;
+				const selector = `a[href="${fromPath.replace(/["\\]/g, '\\$&')}"]`;
+				const matchedTarget = newDocument.querySelector(`.article-row ${selector}, .tutorial-tool ${selector}`)
+					?.closest('.article-row, .tutorial-tool') ?? null;
+				const candidateRow = matchedTarget?.matches('.article-row') ? matchedTarget : null;
 				const matchedRow = candidateRow instanceof Element ? candidateRow : null;
 				if (matchedRow) {
 					const rules = rowFlightRules(matchedRow);
 					nameRuleFlight(rules.top, FLIGHT_TOP);
 					nameRuleFlight(rules.bottom, FLIGHT_BOTTOM);
 				}
-				prepareArrivalNames(newDocument, matchedRow);
+				prepareArrivalNames(newDocument, matchedTarget);
 			});
 		</script>
 		<script>
 			/*
 			 * 正文媒体增强：把 shiki 代码块包进带「语言标签 + 复制」头栏的面板，
 			 * 把宽表格包进横向滚动容器。全部渐进增强——无 JS 时正文退回裸
-			 * pre/table，样式与阅读不受影响。脚本随文档持久存活；包装在每次
-			 * astro:page-load 后对新页重跑，已包装元素按父级类名跳过。
+			 * pre/table，样式与阅读不受影响。换页时先包装离线目标文档，首访直接
+			 * 增强当前正文；page-load 仅补齐锚链，已包装元素按父级类名跳过。
 			 */
-			function enhanceProseMedia() {
-				document.querySelectorAll<HTMLElement>('.reading-prose pre.astro-code').forEach((pre) => {
+			function enhanceProseMedia(scope: Document = document) {
+				scope.querySelectorAll<HTMLElement>('.reading-prose pre.astro-code').forEach((pre) => {
 					if (pre.parentElement?.classList.contains('prose-code')) return;
 					const wrap = document.createElement('div');
 					wrap.className = 'prose-code';
@@ -583,13 +613,16 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 					pre.replaceWith(wrap);
 					wrap.append(head, pre);
 				});
-				document.querySelectorAll<HTMLElement>('.reading-prose table').forEach((table) => {
+				scope.querySelectorAll<HTMLElement>('.reading-prose table').forEach((table) => {
 					if (table.parentElement?.classList.contains('prose-table')) return;
 					const wrap = document.createElement('div');
 					wrap.className = 'prose-table';
 					table.replaceWith(wrap);
 					wrap.append(table);
 				});
+				// 代码面板和表格在离线目标文档中组装，交换时直接呈现最终高度，
+				// 避免新快照采集后再次包装正文导致重排。锚链仍在目录取完标题后补上。
+				if (scope !== document) return;
 				// 章节锚链：带 id 的 h2/h3 追加 "#" 锚点，悬停显形，供从目录外
 				// （如读者自己的笔记）精确回链到某一节。触屏没有 hover，样式里
 				// 用低透明度常显兜底。
@@ -642,7 +675,11 @@ const socialImage = new URL(image, Astro.site ?? Astro.url.origin);
 				});
 			}
 			enhanceProseMedia();
-			document.addEventListener('astro:page-load', enhanceProseMedia);
+			document.addEventListener('astro:before-swap', (event) => {
+				const incoming = (event as Event & { newDocument: Document }).newDocument;
+				enhanceProseMedia(incoming);
+			});
+			document.addEventListener('astro:page-load', () => enhanceProseMedia());
 		</script>
 	</body>
 </html>

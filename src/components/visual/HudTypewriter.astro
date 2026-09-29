@@ -3,17 +3,20 @@
  * HUD 打字机：带 data-hud-type 的等宽小标注（ARCHIVE / TIME、SCENE / 001
  * 这类登记条目）首次进入视口时逐字敲出，带一拍光标闪烁，像田野录音机在
  * 登记。只对 ASCII 标注生效——中文整词敲字只会拖慢阅读。reduced-motion
- * 与触屏环境直接跳过，标注保持原样。
+ * 下直接跳过，标注保持原样。
  */
 ---
 
 <script>
+	import { afterPageTransition } from '@/lib/page-transition';
 	interface HudEntry {
 		target: Element;
 		isIntersecting: boolean;
 	}
 
 	let observer: IntersectionObserver | null = null;
+	let cancelPending: (() => void) | undefined;
+	const activeAnimations = new Map<HTMLElement, Animation>();
 
 	const typeOut = (element: HTMLElement) => {
 		if (element.dataset.hudTyped === 'true') return;
@@ -22,21 +25,17 @@
 		// 只敲 ASCII 标注；空文本与中文直接放行。
 		if (!text.trim() || !/^[\x20-\x7e]+$/.test(text)) return;
 		element.classList.add('hud-typing');
-		let index = 0;
-		const step = () => {
-			// 换页后元素可能已脱离 DOM：终止打字链，不再为死节点排后续定时器。
-			if (!element.isConnected) return;
-			index += 1;
-			element.textContent = text.slice(0, index);
-			if (index < text.length) {
-				window.setTimeout(step, 13 + Math.random() * 24);
-			} else {
-				element.textContent = text;
-				element.classList.remove('hud-typing');
-			}
-		};
-		element.textContent = '';
-		window.setTimeout(step, 240);
+		// 文本始终保留完整宽度：逐字替换 textContent 会使换页后的 HUD 每隔
+		// 约 24ms 重新塑形、重排。阶梯裁剪只改变显露范围，不改变文字和邻居的位置。
+		const animation = element.animate(
+			[{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0 0 0)' }],
+			{ duration: Math.min(720, text.length * 24), delay: 240, easing: `steps(${text.length}, end)`, fill: 'backwards' },
+		);
+		activeAnimations.set(element, animation);
+		animation.finished.then(() => {
+			element.classList.remove('hud-typing');
+			activeAnimations.delete(element);
+		}, () => {});
 	};
 
 	function initHudTypewriter() {
@@ -57,17 +56,28 @@
 		});
 	}
 
-	initHudTypewriter();
-	document.addEventListener('astro:page-load', initHudTypewriter);
+	const scheduleHud = () => {
+		cancelPending?.();
+		cancelPending = afterPageTransition(initHudTypewriter);
+	};
+	scheduleHud();
+	document.addEventListener('astro:page-load', scheduleHud);
 	// swap 会整体替换文档：先释放上一页被观察的全部元素（含未进入视口、
 	// 未打完字的），observer 单例保持复用，下一页 page-load 再观察当前元素。
 	document.addEventListener('astro:before-swap', () => {
+		cancelPending?.();
 		observer?.disconnect();
+		activeAnimations.forEach((animation, element) => {
+			animation.cancel();
+			element.classList.remove('hud-typing');
+		});
+		activeAnimations.clear();
 	});
 </script>
 
 <style is:global>
 	[data-hud-type].hud-typing::after {
+		position: absolute;
 		display: inline-block;
 		width: 6px;
 		height: 1em;

@@ -60,6 +60,7 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
 </aside>
 
 <script>
+  import { afterPageTransition } from '@/lib/page-transition';
   interface SceneChapter {
     id: string;
     element: HTMLLIElement;
@@ -334,13 +335,6 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
       }
       const controller = new AbortController();
       let resizeObserver: ResizeObserver | undefined;
-      type IdleWindow = Window & {
-        requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
-        cancelIdleCallback?: (handle: number) => void;
-      };
-      const idleWindow = window as IdleWindow;
-      let progressIdle: number | undefined;
-      let progressFallbackTimer = 0;
       let progressReady = false;
       // abort 只能移除 scroll/resize 监听，已经排队的帧仍可能在换页后执行并
       // 闭包引用旧正文；保存句柄后由 cleanup 显式取消，避免旧页面继续广播进度。
@@ -393,12 +387,9 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
       };
 
       const activateProgress = () => {
+        if (document.documentElement.hasAttribute('data-astro-transition')) return;
         if (progressReady) return;
         progressReady = true;
-        if (progressIdle !== undefined) idleWindow.cancelIdleCallback?.(progressIdle);
-        progressIdle = undefined;
-        window.clearTimeout(progressFallbackTimer);
-        progressFallbackTimer = 0;
         requestProgressUpdate();
       };
 
@@ -414,18 +405,14 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
       }
       /*
        * 页面交换后的首轮正文 rect/offsetHeight 会强制浏览器完成整篇长文布局。
-       * 目录初始值本来就是 0%，因此把这次测量放到空闲时段；若读者先滚动，
-       * scroll 监听会立即 activate，不会让阅读进度滞后。timeout 只作繁忙页面
-       * 的最终兜底，避免 requestIdleCallback 长时间得不到调度。
+       * 等实际转场结束再测量，不能把 requestIdleCallback 当成动画结束信号。
+       * 历史导航恢复滚动也会触发 scroll，activateProgress 同样要守住此边界。
        */
-      if (idleWindow.requestIdleCallback) {
-        progressIdle = idleWindow.requestIdleCallback(activateProgress, { timeout: 1000 });
-      } else {
-        progressFallbackTimer = window.setTimeout(activateProgress, 240);
-      }
+      const cancelInitialProgress = afterPageTransition(activateProgress);
 
       // Astro 的页面切换会替换正文节点；统一释放观察器和事件，避免旧文章继续驱动新页面目录。
       sceneGuideCleanups.set(root, () => {
+        cancelInitialProgress();
         controller.abort();
         if (tocFollowFrame) cancelAnimationFrame(tocFollowFrame);
         if (progressFrame !== undefined) {
@@ -433,10 +420,6 @@ const titleId = `scene-guide-${Math.random().toString(36).slice(2, 10)}`;
           progressFrame = undefined;
           ticking = false;
         }
-        if (progressIdle !== undefined) idleWindow.cancelIdleCallback?.(progressIdle);
-        progressIdle = undefined;
-        window.clearTimeout(progressFallbackTimer);
-        progressFallbackTimer = 0;
         resizeObserver?.disconnect();
         observer.disconnect();
         sceneGuideCleanups.delete(root);

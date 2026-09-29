@@ -278,21 +278,8 @@ small,
   background: transparent;
 }
 
-/*
- * 变量字体的轻量交互：没有覆盖组件既有过渡，只给未声明过渡的链接和控件
- * 增加font-weight动画；正文链接保持衬线字形，不参与UI字重反馈。
- */
-@media (prefers-reduced-motion: no-preference) {
-  :where(a, button, summary, [role='button']) {
-    transition-property: font-weight;
-    transition-duration: var(--duration-fast);
-    transition-timing-function: var(--ease-rain);
-  }
-
-  :where(a, button, summary, [role='button']):is(:hover, :focus-visible) {
-    font-weight: var(--font-ui-weight-hover);
-  }
-}
+/* 链接反馈由组件的颜色、细线和位移承担。不要在全站 hover 时插值 font-weight：
+   可变字体每帧都会重新塑形和布局，换页后鼠标落在新链接上也会意外启动它。 */
 
 .reading-prose :where(a) {
   font-weight: inherit;
