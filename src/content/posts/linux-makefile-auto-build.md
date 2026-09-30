@@ -1,6 +1,6 @@
 ---
 title: Makefile入门：依赖关系、伪目标与增量构建
-summary: 整理Makefile的依赖关系与依赖方法、伪目标，以及make判断是否需要重新编译的依据
+summary: Makefile的依赖关系和依赖方法、伪目标，以及make靠什么判断要不要重新编译
 publishedAt: '2026-09-10'
 updatedAt: null
 tags:
@@ -16,7 +16,7 @@ cover: null
 readingWeather: null
 ---
 
-前几篇笔记整理了Linux的命令行、权限和软件包管理，这一篇记录构建工具Makefile
+这篇学Makefile
 
 ## 手写gcc的麻烦
 
@@ -26,7 +26,7 @@ readingWeather: null
 gcc hello.c -o hello
 ```
 
-手写有一个实际的风险：目标文件和源文件的顺序写反时，gcc不会报错，而是直接把可执行文件写到源文件上：
+但手敲有个坑：`-o`后面跟的是输出文件，要是顺序写反了，gcc不会拦你，而是直接把源文件当成输出覆盖掉：
 
 ```bash
 gcc -o hello.c hello
@@ -34,7 +34,7 @@ gcc -o hello.c hello
 
 执行完，`hello.c`里的源码就没了
 
-文件多起来之后，编译顺序、链接参数、哪些文件要重新编译，都不适合靠人记。Makefile的做法是把它们写进一个文件，之后只敲一条`make`
+文件一多，编译顺序、链接参数、哪些文件要重编，靠脑子记迟早出错。Makefile就是把这些写进一个文件，以后只敲一个`make`
 
 ## 依赖关系与依赖方法
 
@@ -49,7 +49,7 @@ mycode: mycode.c
 
 第一行是依赖关系，表示`mycode`由`mycode.c`生成；第二行是依赖方法，也就是生成时执行的命令
 
-有一点容易漏：命令行的缩进只能用Tab，写成空格会报`missing separator`
+命令那一行前面必须是Tab，写成空格会报`missing separator`，编辑器自动把Tab转空格的话要注意
 
 之后在目录下执行`make`，它会自动找到`Makefile`或`makefile`并完成编译：
 
@@ -60,9 +60,9 @@ gcc -o mycode mycode.c
 
 ## `make`默认执行第一个目标
 
-`make`不带参数时，只执行文件里的第一个目标。规则有多个时，位置就决定默认行为
+`make`不带参数时，只执行文件里的第一个目标
 
-一个常见的顺序错误：
+所以顺序写错会出事：
 
 ```makefile
 .PHONY:clean
@@ -82,7 +82,7 @@ rm -f mycode
 
 ![clean写在前面时，直接运行make执行的是删除](/assets/images/posts/Makefile/first-target.webp)
 
-要编译得显式写出目标名：`make mycode`。所以一般把真正的产物写在最前面，`clean`这类辅助目标放在最后
+这时要编译只能写明`make mycode`。一般把最终产物放最前面，`clean`这种放最后
 
 ## 把编译过程拆开
 
@@ -104,7 +104,7 @@ hello.i: hello.c
 
 ![gcc从hello.c到hello的四步](/assets/images/posts/Makefile/gcc-stages.webp)
 
-依赖关系写到这一步，`make`会从最终目标往回找，把缺的中间文件一路补齐：`hello`依赖`hello.o`，`hello.o`依赖`hello.s`，一直找到`hello.c`，再按顺序执行每条命令
+这样写好之后，`make`会从最终目标往回找，缺哪个中间文件就先生成哪个：`hello`依赖`hello.o`，`hello.o`依赖`hello.s`，一直找到`hello.c`，再按顺序执行每条命令
 
 ## `clean`与伪目标
 
@@ -118,7 +118,7 @@ clean:
 
 `clean`没有依赖文件，规则里只有一行命令。`.PHONY:clean`把它声明为伪目标：伪目标不对应真实文件，声明之后，即使目录下正好有个叫`clean`的文件，`make clean`也会照常执行
 
-`.PHONY`后面跟的是目标名，不是依赖文件，这一点容易写混
+`.PHONY`后面写的是目标名，不是依赖文件，很容易写混
 
 普通目标则不同，依赖没变过时`make`会直接跳过：
 
@@ -145,7 +145,7 @@ stat mycode
 
 ![make按修改时间决定编译还是跳过](/assets/images/posts/Makefile/mtime-decision.webp)
 
-另外两个时间不适合拿来判断。`Access`在现代Linux上默认按`relatime`策略更新，只有早于mtime或ctime、或者距今超过24小时才会刷新，读取操作高频，每次都写盘开销太大，所以它并不可靠；`Change`记录的是权限、属主这类元数据的变更，和“源码有没有修改”不是一回事
+为什么不用另外两个：`Access`现在默认按`relatime`策略更新，只有它比mtime或ctime旧、或者距上次更新超过24小时才会刷新（每读一次就写一次盘太费了），所以不准；`Change`记的是权限、属主这类元数据的变化，跟源码改没改不是一回事
 
 想强制重新编译，可以手动刷新源文件的时间：
 
@@ -154,11 +154,11 @@ touch mycode.c
 make
 ```
 
-`touch`会把文件时间更新到当前时刻，`make`于是认为源文件比目标新，重新执行编译
+`touch`把文件时间改成现在，`make`一看源文件比目标新，就会重新编译
 
 ## 变量与自动变量
 
-规则一多，编译器、选项、目标名会重复出现，Makefile提供了变量：
+规则一多，编译器、选项、目标名到处都是重复的，可以用变量：
 
 ```makefile
 CC = gcc
@@ -175,7 +175,7 @@ clean:
 
 ![make把变量展开后执行的命令](/assets/images/posts/Makefile/variable-expansion.webp)
 
-变量用`$(名字)`展开，改编译器或编译选项时只改开头一处
+变量用`$(名字)`引用，要换编译器或者改选项，只改开头一处就行
 
 `$@`、`$<`这类是自动变量，执行规则时由`make`自动填值：
 
@@ -185,7 +185,7 @@ clean:
 | `$<` | 第一个依赖文件 |
 | `$^` | 全部依赖文件 |
 
-上面的`$(CC) $(CFLAGS) -o $@ $<`展开之后就是`gcc -Wall -O2 -o mycode mycode.c`，换个目标名也能复用同一条规则
+所以`$(CC) $(CFLAGS) -o $@ $<`展开就是`gcc -Wall -O2 -o mycode mycode.c`，换个目标名规则也不用改
 
 ## 来源
 

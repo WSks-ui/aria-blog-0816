@@ -1,6 +1,6 @@
 ---
 title: 使用archinstall安装ArchLinux
-summary: 使用 archinstall 在 VMware 虚拟机中安装 ArchLinux 的完整记录，包含配置选项说明和四个常见坑的解决方法
+summary: 在 VMware 里用 archinstall 装 ArchLinux，每个选项怎么选，以及踩到的四个坑
 publishedAt: '2026-06-03'
 updatedAt: null
 tags:
@@ -16,29 +16,29 @@ readingWeather: null
 
 ## 前言
 
-ArchLinux 以滚动更新和极简主义著称，但传统安装方式需要手动执行几十条命令，对新手不太友好。官方推出的 `archinstall` 脚本通过交互式菜单大大简化了安装过程。本文将记录使用 archinstall 在 VMware 虚拟机中安装 ArchLinux 的完整经历，并总结遇到的坑及解决方法
+Arch 的传统装法要照着 Wiki 手敲几十条命令，分区、挂载、装引导，哪一步错了都得回头查。后来官方出了个 `archinstall` 脚本，用菜单选一选就能装，我这次就是用它在 VMware 里装的，顺便把踩的坑记下来
 
-本文基于以下环境实测：主机 Win11（AMD R9 AI 365H，32GB），VMware 虚拟机分配 4GB 内存、30GB 硬盘、2核4线程，Linux 内核版本 7.x
+环境：主机 Win11（AMD R9 AI 365H，32GB），虚拟机给了 4GB 内存、30GB 硬盘、2核4线程，内核 7.x
 
 ## 准备工作
 
 ### 下载ISO并制作启动盘
 
-从 [Arch Linux 官网](https://archlinux.org/download/) 下载最新的 ISO 镜像
+从 [Arch Linux 官网](https://archlinux.org/download/) 下最新的 ISO
 
-物理机使用 Rufus、balenaEtcher 或 Ventoy 写入U盘；虚拟机直接挂载ISO即可
+装实体机的话用 Rufus、balenaEtcher 或 Ventoy 写进U盘；虚拟机直接挂 ISO 就行
 
 ### 启动到Live环境
 
-从 U盘/ISO 启动，选择 "Arch Linux install medium"，默认进入 root 用户的 shell
+从 U盘/ISO 启动，选 "Arch Linux install medium"，进去就是 root 的 shell
 
-### 连接网络（关键步骤）
+### 连接网络
 
-archinstall 需要在线拉取软件包，务必在运行安装器前确保网络通畅
+archinstall 装的时候要在线下包，网不通后面全白搭，先把网弄好
 
-**有线网络**：通常自动获取 IP，测试 `ping baidu.com`
+**有线**：一般会自动拿到 IP，`ping baidu.com` 试一下
 
-**无线网络（使用 iwctl）**：
+**无线**，用 iwctl：
 
 ```bash
 iwctl
@@ -51,39 +51,39 @@ exit
 
 ## 运行 archinstall
 
-在 Live 环境中直接输入：
+网通了之后直接输入：
 
 ```bash
 archinstall
 ```
 
-脚本会在一个配置界面中展示所有可选项（使用方向键和 Tab 切换，Enter 确认）：
+会进到一个配置菜单，方向键和 Tab 切换，回车确认。我是这么选的：
 
-| 选项 | 推荐设置 | 说明 |
+| 选项 | 我的选择 | 说明 |
 |------|----------|------|
 | 语言 | English | 安装器界面语言 |
 | 键盘布局 | us | 保持默认 |
-| 镜像地区 | China | 国内用户必选，否则下载极慢 |
-| 系统语言 | en_US.UTF-8 | 建议先不设中文，避免终端乱码 |
+| 镜像地区 | China | 不选的话下载慢得离谱 |
+| 系统语言 | en_US.UTF-8 | 先别设中文，没装字体时终端会乱码 |
 | 磁盘分区 | 最佳配置（Best-effort） | 自动分区（会擦除整个磁盘） |
 | 加密 | 否 | 新手可不加密 |
 | Swap | 4G（或等于内存大小） | 内存 ≤ 8G 时建议设 Swap |
 | 主机名 | 任意 | 例如 archlinux |
 | Root 密码 | 设置强密码 | 留空会禁用 root 账户 |
-| 普通用户 | 创建用户名和密码 | 日常使用推荐 |
+| 普通用户 | 创建用户名和密码 | 平时用这个，别一直用 root |
 | 配置文件 | 桌面环境（如KDE Plasma） | 选好会自动安装图形界面 |
-| 音频 | pipewire | 推荐 |
+| 音频 | pipewire | |
 | 额外软件包 | vim firefox 等 | 可选 |
 
-确认无误后选择 Install 开始安装
+都选好了点 Install
 
-## 常见坑及解决
+## 踩到的坑
 
 ### 坑一：VMware 虚拟机网络子网冲突导致无法联网
 
 **现象**：虚拟机无法获取 IP 地址，或 ping 任何外网都失败
 
-**原因**：VMware 虚拟网络编辑器中，VMnet0 和 VMnet8 使用了相同的子网 `192.168.181.0`，导致网络路由混乱
+**原因**：VMware 的虚拟网络编辑器里，VMnet0 和 VMnet8 用了同一个子网 `192.168.181.0`，路由乱了
 
 **解决**：
 
@@ -98,7 +98,7 @@ archinstall
 
 **现象**：运行 archinstall 后，进度长时间（>3分钟）停留在同步时间或密钥环阶段
 
-**原因**：网络延迟或 GPG 密钥服务器连接缓慢
+**原因**：网络慢，或者连 GPG 密钥服务器太慢
 
 **解决**：按 Ctrl+C 终止，使用跳过参数重新运行：
 
@@ -116,13 +116,13 @@ echo "Server = https://mirrors.ustc.edu.cn/archlinux/\$repo/os/\$arch" > /etc/pa
 archinstall --skip-ntp --skip-wkd --no-mirror-select
 ```
 
-有时稍等几分钟它会自己继续，但如果超过 10 分钟仍无反应，果断终止后用跳过参数重试
+有时候等几分钟它自己就过去了，超过 10 分钟还不动就别等了，直接 Ctrl+C 加参数重来
 
 ### 坑三：pacman 无法安装 archinstall
 
 **现象**：`error: target not found: archinstall`
 
-**原因**：pacman 数据库尚未同步（首次使用 Live 环境时需要手动下载数据库）
+**原因**：pacman 的数据库还没同步，Live 环境第一次用要先手动同步一下
 
 **解决**：
 
@@ -135,9 +135,9 @@ pacman -S archinstall
 
 **现象**：重启后依然是命令行 `login:`
 
-**原因**：安装时在"配置文件"步骤没有选择任何桌面环境，或者虽然选了但显示管理器未启用
+**原因**：安装时"配置文件"那步没选桌面，或者选了但显示管理器没启用
 
-**解决**：登录命令行后，手动安装并启用显示管理器（以 SDDM 为例）：
+**解决**：先在命令行登录，手动装上显示管理器并启用，这里用 SDDM：
 
 ```bash
 sudo pacman -S sddm
@@ -145,14 +145,14 @@ sudo systemctl enable sddm
 sudo systemctl start sddm   # 立即启动
 ```
 
-如果想安装桌面环境：
+桌面环境也没装的话：
 
 ```bash
 sudo pacman -S plasma      # KDE
 sudo pacman -S gnome       # GNOME
 ```
 
-## 安装后建议
+## 装完之后
 
 - **更新系统**：`sudo pacman -Syu`
 - **安装常用软件**：`sudo pacman -S vim firefox git base-devel`
@@ -162,6 +162,6 @@ sudo pacman -S gnome       # GNOME
   - 安装中文字体：`sudo pacman -S wqy-microhei`
 - **配置 AUR 助手（可选）**：安装 yay 或 paru 以便从 AUR 安装软件
 
-## 总结
+## 最后
 
-使用 archinstall 可以大幅降低 ArchLinux 的安装门槛，全程只需在交互界面中完成配置，大部分工作自动完成。不过，在虚拟机环境中可能会遇到网络子网冲突、密钥环同步卡顿等问题。掌握上述避坑技巧，你也能顺利在 20 分钟内拥有一个可用的 Arch 系统
+archinstall 本身装得很快，时间基本都花在上面这几个坑上。绕过去的话，二十分钟左右就能进桌面

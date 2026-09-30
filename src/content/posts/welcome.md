@@ -1,5 +1,5 @@
 ---
-title: Aria-7th Lab 建站记录：从首页氛围到可长期使用的博客
+title: Aria-7th Lab 建站记录：这次没用主题
 summary: 从 Astro 重搭骨架到一点点添上交互、音乐和国际象棋，这个站点是怎么长成现在这样的。
 publishedAt: '2026-07-04'
 updatedAt: '2026-07-07'

@@ -1,6 +1,6 @@
 ---
 title: 给博客添加自定义鼠标效果
-summary: 基于 shiyin.cafe 实现了三层自定义鼠标效果：SVG 光标替换、延迟跟随灰圆、点击涟漪。本文拆解实现方案和关键细节
+summary: 照着 shiyin.cafe 做的三层鼠标效果：SVG 光标、延迟跟随的灰圆、点击涟漪，以及后来为什么又改回了原生光标
 publishedAt: '2026-06-01'
 updatedAt: null
 tags:
@@ -14,9 +14,11 @@ cover: null
 readingWeather: null
 ---
 
+在 shiyin.cafe 看到一个很舒服的鼠标效果，照着给博客做了一个。下面写的是当时的实现，现在站点已经换成了原生光标，原因放在最后
+
 ## 效果拆解
 
-整个鼠标效果由三层组成，逐层叠加：
+一共三层叠在一起：
 
 | 层级 | 实现方式 | 作用 |
 |------|----------|------|
@@ -24,18 +26,18 @@ readingWeather: null
 | 2 | `<div id="g-pointer">` 跟随鼠标移动 | 灰色半透明圆，0.1s 过渡延迟产生粘滞感 |
 | 3 | `.click-effect` 动画元素 | 鼠标松开时扩散涟漪，动画结束后移除 |
 
-关键视觉点是第二层的延迟跟随——白色光标在鼠标实际位置，灰色圆因为 `transition: transform 0.1s ease`会略微滞后，快速移动时两层错开，产生层次感
+好看主要靠第二层：白点始终在鼠标的真实位置，灰圆因为 `transition: transform 0.1s ease` 会慢半拍，鼠标一甩两层就错开了
 
-## 方案选择
+## 用 transform 还是 left/top
 
-定位跟随元素有两种方式，性能差异明显：
+让灰圆跟着鼠标走有两种写法，性能差很多：
 
 | 方案 | 触发流程 | 性能 |
 |------|----------|------|
 | `left` / `top` | Layout → Paint → Composite | 差，高频mousemove下卡顿 |
 | `transform: translate()` | Composite 仅合成层 | 好，GPU 加速 |
 
-使用 `will-change: transform` 提前告知浏览器分配独立合成层
+再加一个 `will-change: transform`，让浏览器提前把它放到单独的合成层
 
 ## 实现
 
@@ -131,22 +133,22 @@ function onMouseUp(e) {
 }
 ```
 
-> 注：当前站点实际实现已不再全局屏蔽右键菜单，只保留自定义光标本身。
-
-效果激活时同步屏蔽右键菜单和文本选中，避免原生光标残留导致体验割裂：
+当时还顺手屏蔽了右键菜单和文字选中，因为这两个操作会让系统光标冒出来，跟自定义光标叠在一起很怪：
 
 ```js
 function onContextMenu(e) { e.preventDefault(); }
 function onSelectStart(e) { e.preventDefault(); }
 ```
 
-### 注意点
+现在的站点已经把这两个限制去掉了
 
-- **scale变换原点**：不推荐用CSS `scale`属性做按下缩放，它的变换原点默认是元素在文档流中的位置（`top:0; left:0`），而非当前屏幕位置。应写在同一个 `transform` 字符串中，函数从左到右执行，先translate定位再scale收缩，圆心不会偏移
-- **涟漪定位**：`left/top` 用 `e.clientX - 半径` 使元素中心对准鼠标位置，再用 `animationend`事件确保动画结束后移除DOM节点
-- **离线/重连处理**：PJAX或SPA导航后需要重新激活效果，监听 `astro:page-load` 或 `swup` 的 `content:replace`事件，执行 `deactivate()` + `activate()`重新绑定
-- **移动端降级**：`< 1024px`时完全禁用，恢复系统光标，解绑所有事件，不留副作用
-- **跨域iframe限制**：Giscus等评论区通过跨域iframe加载，浏览器出于安全隔离不允许父页面的CSS规则穿透到iframe内部，因此鼠标移入评论区后会恢复系统光标。父页面至少可以在移入 iframe 时隐藏自定义光标，避免双光标；但无法在 iframe 内部继续显示自定义光标，这属于浏览器安全策略限制
+### 踩过的坑
+
+- **按下缩放时圆心跑偏**：别用单独的 CSS `scale` 属性，它是相对元素原本的位置（`top:0; left:0`）缩放的，而不是当前屏幕上的位置。要把 scale 跟 translate 写进同一个 `transform` 里，先平移再缩放，圆心就不会动
+- **涟漪定位**：`left/top` 设成 `e.clientX - 半径`，中心才会对准鼠标；动画结束后在 `animationend` 里把节点删掉，不然页面上会越堆越多
+- **切页面后失效**：PJAX 或 SPA 换页之后要重新绑定，监听 `astro:page-load` 或 swup 的 `content:replace`，先 `deactivate()` 再 `activate()`
+- **移动端**：宽度小于 1024px 时整个关掉，换回系统光标，事件也全部解绑
+- **评论区里变回系统光标**：Giscus 是跨域 iframe，父页面的 CSS 管不到里面，这是浏览器的安全限制，没办法。能做的只有鼠标移进 iframe 时把自己的光标藏起来，免得出现两个光标
 
 ## 可调整参数
 
@@ -158,16 +160,15 @@ function onSelectStart(e) { e.preventDefault(); }
 | `34px` / `scale(4)` | JS/CSS keyframe | 涟漪初始尺寸和扩散倍率 |
 | `1023px` | CSS media query | 效果生效的屏幕宽度阈值 |
 
-## 完整代码
+## 为什么后来改回了原生光标
 
-当前站点实际实现已改为浏览器原生 SVG 光标，避免 DOM 跟随元素天然晚于系统
-硬件光标一帧以上。完整代码在：
+用 DOM 元素跟随鼠标，不管怎么优化都会比系统光标慢至少一帧，因为系统光标是硬件直接画的，DOM 要等下一帧渲染。所以现在站点只用原生的 `cursor: url(...)` 换成 SVG，不再放跟随元素。现在的代码在：
 
 - `public/assets/cursors/` — 默认箭头与可点击十字的 SVG 光标资源
 - `src/styles/interactive.css` — 原生 `cursor: url(...)` 的三态规则
 - `src/components/interactive/InteractionSurface.astro` — 根据设备能力与可访问性偏好切换状态
 
-在 `BaseLayout.astro` 中已经全局引入；如果要在其他布局中使用：
+`BaseLayout.astro` 里已经全局引入了，别的布局要用的话：
 
 ```astro
 import { InteractionSurface } from "@/components/interactive";
@@ -175,5 +176,4 @@ import { InteractionSurface } from "@/components/interactive";
 <InteractionSurface />
 ```
 
-需要带有拖尾、粒子或物理效果时，才建议额外叠加 DOM 视觉层；基础指针应始终由
-原生 `cursor` 渲染，避免与系统硬件光标竞争帧时序。
+以后要加拖尾、粒子这类效果，也是在原生光标上面另外叠一层，光标本身还是交给系统画

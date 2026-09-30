@@ -1,6 +1,6 @@
 ---
 title: 给astro的音乐播放器接上B站
-summary: 记录将Bilibili音频源接入博客播放器，以及自建播放列表功能从构思到落地的完整过程
+summary: 给博客的播放器加上B站音源，顺便做了个自建歌单，中间换过一次方案
 publishedAt: '2026-05-31'
 updatedAt: null
 tags:
@@ -17,17 +17,17 @@ readingWeather: null
 
 ## 说在前头
 
-我的博客当时基于名为 Firefly 的 Astro 主题二次开发。原主题上游链接现已失效，相关历史实现与配置可以参考[旧版 aria7-blog 仓库](https://github.com/WSks-ui/aria7-blog)。它自带一个挺好看的音乐播放器，默认支持两种模式：**Meting API在线音乐**和**本地音乐**。但一直有个遗憾 -- 播放器不支持Bilibili
+我的博客当时基于名为 Firefly 的 Astro 主题二次开发。原主题上游链接现已失效，相关历史实现与配置可以参考[旧版 aria7-blog 仓库](https://github.com/WSks-ui/aria7-blog)。它自带一个挺好看的音乐播放器，支持**Meting API在线音乐**和**本地音乐**两种模式，唯独不支持B站
 
-作为一个重度B站用户，经常听到好听的BGM想收藏到博客里。如果能直接在博客的播放器里播B站视频的音频，那该多好
+我平时听歌基本在B站，好听的BGM都在视频里，就想能不能直接在博客播放器里放B站视频的音频
 
 于是我开始了漫长的魔改之路...
 
 ---
 
-## 总体架构
+## 整体结构
 
-最终实现的功能和流程如下：
+先放最后做出来的样子：
 
 ```
 用户输入 BV 号
@@ -48,13 +48,13 @@ MusicPlayer (UI 组件)
     └── 音源面板（添加视频、收藏、播放列表）
 ```
 
-核心是两个Astro组件：**MusicManager**（数据层）和**MusicPlayer**（表现层），通过`window.__fireflyMusic`全局对象和自定义事件`fm:*`通信
+主要是两个Astro组件：**MusicManager**管数据，**MusicPlayer**管界面，两边通过全局对象`window.__fireflyMusic`和自定义事件`fm:*`通信
 
 ---
 
-## Phase 1: Bilibili音频代理
+## 第一步：B站音频代理
 
-这是最基础的一步。B站的前端接口加了CORS限制，浏览器直接请求`api.bilibili.com`会被拦截。解决方案是用**Vercel Serverless Function**做代理
+浏览器直接请求`api.bilibili.com`会被CORS拦下来，所以得有个服务端帮忙转一下，我用的是**Vercel Serverless Function**
 
 `api/bilibili-audio.js` 接收 `?bvid=BV1xxx&meta=1` 参数，向B站接口请求数据：
 
@@ -69,9 +69,9 @@ const audioUrl = `https://api.bilibili.com/x/player/playurl?bvid=${bvid}&qn=0&fn
 return { title, artist, pic, audio_url };
 ```
 
-**关键点**：`fnval=4048`这个参数告诉B站API返回`dash`格式的流，其中包含纯音频轨道（`audio`），而不是视频流。这样前端只需要一个`<audio>`标签就能播放
+这里关键是`fnval=4048`，它让B站返回`dash`格式，音频和视频是分开的两条轨，直接拿`audio`那条就行，前端一个`<audio>`标签就能播
 
-这个函数部署在Vercel上，配置了512MB内存和30s超时：
+Vercel上给这个函数配了512MB内存和30秒超时：
 
 ```json
 {
@@ -86,9 +86,9 @@ return { title, artist, pic, audio_url };
 
 ---
 
-## Phase 2: 组件通信架构
+## 第二步：两个组件怎么通信
 
-MusicManager是整个播放器的**大脑**，使用IIFE模式封装在`window.__fireflyMusic`里：
+播放器的状态和逻辑都在MusicManager里，用IIFE包起来挂到`window.__fireflyMusic`上：
 
 ```
 MusicManager → 事件广播 → MusicPlayer
@@ -126,15 +126,15 @@ var state = {
 };
 ```
 
-状态全在Manager中，Player只监听事件渲染UI。这种**事件驱动+单向数据流**的设计让两个组件解耦得很好。
+状态只放在Manager里，Player只负责听事件、更新界面，要改状态就调Manager的方法。这样改界面的时候基本不用动播放逻辑
 
 ![播放器控制区域：进度条、音量、播放/暂停、列表/歌词抽屉](/assets/images/posts/B站音乐播放器/player-controls.webp)
 
 ---
 
-## Phase 3: 第三方API + 官方API降级
+## 第三步：第三方API和官方API轮流试
 
-B站音频获取并不只有一条路。MusicManager实现了多层降级策略：
+拿B站音频不止一条路，我让MusicManager按顺序挨个试：
 
 ```
 setBilibiliSource('video', bvid)
@@ -152,17 +152,17 @@ Layer 2: B站官方 API（通过代理）
 抛出错误 "All Bilibili APIs failed"
 ```
 
-这种多层设计保证了即使某个第三方API挂了，用户仍然能通过官方接口播放
+第三方API说挂就挂，有官方接口兜底，至少还能放
 
 ---
 
-## Phase 4: 自建播放列表
+## 第四步：自建播放列表
 
-一开始我尝试了直接导入B站收藏夹，但B站的API限制太多（需要Cookie、跨域、私有收藏夹不可访问），体验很糟糕
+一开始想的是直接导入B站收藏夹，结果限制一堆：要Cookie、有跨域问题、私密收藏夹根本读不到，做出来很难用
 
 ![老版本的B站收藏夹导入方案：选择收藏夹类型后输入fid](/assets/images/posts/B站音乐播放器/old-collection-approach.webp)
 
-后来换了个思路 —— **让用户在博客里自己创建播放列表**，把想听的BV号归类管理：
+后来干脆不接收藏夹了，**在博客里自己建歌单**，把想听的BV号存进去：
 
 ### 数据模型
 
@@ -221,15 +221,15 @@ async function addToBilibiliQueue(bvid) {
 }
 ```
 
-这样用户就可以从不同播放列表里挑选曲目，拼接成自己的专属播放队列了。配合播放器的**列表循环/单曲循环/随机播放**三种模式，体验还不错
+这样就能从不同歌单里挑几首拼成一个队列，再配上列表循环、单曲循环、随机三种模式，自己用着还挺顺手
 
 ---
 
-## 性能优化 & 踩坑
+## 其他细节
 
-### 1. CSS transition GPU加速
+### 1. 抽屉展开动画
 
-播放器用了大量CSS transition（打开/关闭抽屉、进度条拖拽），如果全部用CPU渲染会卡顿。在样式里加了一行：
+列表和音源面板的展开收起用的是`grid-template-rows`过渡：
 
 ```css
 .playlist-drawer, .source-drawer {
@@ -237,11 +237,13 @@ async function addToBilibiliQueue(bvid) {
 }
 ```
 
-利用`cubic-bezier`缓动函数让动画更丝滑，
+`cubic-bezier`是缓动曲线，让开合不那么生硬
 
-### 2. DOM清理
+之前我以为这样能走GPU，其实不能：`grid-template-rows`一变就会触发重新布局。抽屉里东西不多所以感觉不到卡，内容多了的话还是得换成`transform`之类的方案
 
-播放器组件可能因为页面导航被移除，如果不清理事件监听器会造成内存泄漏：
+### 2. 清理事件监听
+
+页面切换时播放器组件可能被移除，挂在`window`上的监听不解绑就会泄漏：
 
 ```javascript
 var observer = new MutationObserver(function (mutations) {
@@ -259,25 +261,12 @@ var observer = new MutationObserver(function (mutations) {
 
 ### 3. 本地存储溢出
 
-`localStorage`有5MB限制，如果用户收藏了大量视频或播放列表很大可能存不下。目前的处理是静默try-catch，但理论上可以考虑压缩或分片存储
+`localStorage`一般只有5MB左右，收藏多了可能存不下。现在只是try-catch吞掉了错误，以后真遇到了再考虑压缩或者换IndexedDB
 
 ---
 
-## 总结
+## 最后
 
-经过几天的折腾，最终给Astro的音乐播放器加上了这些能力：
+前后折腾了几天，现在能输BV号直接播、收藏视频、建歌单、整单播放或者挑几首追加到队列，也能加载B站视频的歌词
 
-| 功能 | 说明 |
-|------|------|
-| B站视频播放 | 输入BV号，代理获取音频流 |
-| 视频收藏 | 保存喜欢的视频到本地 |
-| 自建播放列表 | 创建分类歌单，管理视频 |
-| 全部播放 | 一键加载整个列表到队列 |
-| 追加到队列 | 从列表中挑选曲目拼接播放 |
-| 播放模式 | 列表循环 / 单曲循环 / 随机 |
-| 歌词展示 | 支持B站视频歌词加载 |
-| 多层降级 | 第三方API->官方API自动切换 |
-
-代码托管在[GitHub](https://github.com/WSks-ui/aria7-blog)上，欢迎指教和Star
-
-如果你也在用Astro，希望这篇博客能给你一些魔改的灵感
+代码在[GitHub](https://github.com/WSks-ui/aria7-blog)上，有问题欢迎指出
